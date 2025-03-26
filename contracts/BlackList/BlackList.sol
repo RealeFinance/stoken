@@ -58,6 +58,7 @@ contract BlackList is
     }
 
     function __BlackList_init_unchained() internal onlyInitializing {
+        console.log("BlackList ower", _msgSender());
         _grantRole(BLACKLIST_ADMIN_ROLE, _msgSender());
     }
 
@@ -89,7 +90,10 @@ contract BlackList is
         }
     }
 
-    function hasBlack(address account) external view returns (bool) {
+    function hasBlack(
+        address account
+    ) external view onlyRole(BLACKLIST_ADMIN_ROLE) returns (bool) {
+        console.log("RAmMMF hasBlack", _msgSender());
         _beforeCheck(account, _msgSender());
         return super.hasRole(BLACKLIST_ROLE, account);
     }

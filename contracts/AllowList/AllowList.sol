@@ -5,8 +5,18 @@ pragma solidity ^0.8.22;
 
 import {AccessControlEnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlEnumerableUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 
-contract AllowList is AccessControlEnumerableUpgradeable, UUPSUpgradeable {
+import {IAllowlist} from "contracts/Interfaces/AllowList/IAllowlist.sol";
+import {IAllowlistCheck} from "contracts/Interfaces/AllowList/IAllowlistCheck.sol";
+import "hardhat/console.sol";
+contract AllowList is
+    AccessControlEnumerableUpgradeable,
+    UUPSUpgradeable,
+    IAllowlist,
+    IAllowlistCheck
+{
     bytes32 public constant ALLOWLIST_ADMIN_ROLE =
         keccak256("ALLOWLIST_ADMIN_ROLE");
     bytes32 public constant ALLOWLIST_ROLE = keccak256("ALLOWLIST_ROLE");
@@ -19,15 +29,17 @@ contract AllowList is AccessControlEnumerableUpgradeable, UUPSUpgradeable {
         _;
     }
 
-    /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
+    function initialize() public initializer {
+        __Allowlist_init();
     }
 
-    function initialize() public initializer {
-        __AccessControl_init();
+    function __Allowlist_init() internal onlyInitializing {
+        __AccessControlEnumerable_init();
         __UUPSUpgradeable_init();
+        __Allowlist_init_unchained();
+    }
 
+    function __Allowlist_init_unchained() internal onlyInitializing {
         _grantRole(ALLOWLIST_ADMIN_ROLE, _msgSender());
     }
 
@@ -36,17 +48,27 @@ contract AllowList is AccessControlEnumerableUpgradeable, UUPSUpgradeable {
     ) internal override onlyRole(ALLOWLIST_ADMIN_ROLE) {}
 
     function addToAllowlist(
-        address account
+        address[] calldata accounts
     ) external onlyRole(ALLOWLIST_ADMIN_ROLE) {
-        _beforeCheck(account, _msgSender());
-        _grantRole(ALLOWLIST_ROLE, account);
+        for (uint256 i; i < accounts.length; ) {
+            _beforeCheck(accounts[i], _msgSender());
+            _grantRole(ALLOWLIST_ROLE, accounts[i]);
+            unchecked {
+                ++i;
+            }
+        }
     }
 
     function removeFromAllowlist(
-        address account
+        address[] calldata accounts
     ) external onlyRole(ALLOWLIST_ADMIN_ROLE) {
-        _beforeCheck(account, _msgSender());
-        _revokeRole(ALLOWLIST_ROLE, account);
+        for (uint256 i; i < accounts.length; ) {
+            _beforeCheck(accounts[i], _msgSender());
+            _revokeRole(ALLOWLIST_ROLE, accounts[i]);
+            unchecked {
+                ++i;
+            }
+        }
     }
 
     function hasAllow(

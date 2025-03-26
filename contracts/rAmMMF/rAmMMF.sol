@@ -12,8 +12,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 import {IBlacklistCheck} from "contracts/Interfaces/BlackList/IBlacklistCheck.sol";
-import {BlackList} from "contracts/BlackList/BlackList.sol";
-import {AllowList} from "contracts/AllowList/AllowList.sol";
+import {IAllowlistCheck} from "contracts/Interfaces/AllowList/IAllowlistCheck.sol";
 import "hardhat/console.sol";
 
 contract RAmMMF is
@@ -28,6 +27,8 @@ contract RAmMMF is
     // Address of the Blacklist
     IBlacklistCheck public blacklist;
 
+    IAllowlistCheck public allowlist;
+
     // bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     // bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     // bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
@@ -38,8 +39,8 @@ contract RAmMMF is
     }
 
     function initialize(
-        address defaultAdmin,
-        address _blacklist
+        address _blacklist,
+        address _allowlist
     ) public initializer {
         __ERC20_init("rAmMMF", "MTK");
         __ERC20Burnable_init();
@@ -48,19 +49,24 @@ contract RAmMMF is
         __ERC20Permit_init("rAmMMF");
         __UUPSUpgradeable_init();
         blacklist = IBlacklistCheck(_blacklist);
-
-        _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
+        allowlist = IAllowlistCheck(_allowlist);
+        console.log("RAmMMF ower", _msgSender());
+        _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
         // _grantRole(PAUSER_ROLE, pauser);
         // _grantRole(MINTER_ROLE, minter);
         // _grantRole(UPGRADER_ROLE, upgrader);
     }
 
     function isBlack() public view onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
+        console.log("RAmMMF isBlack", _msgSender());
         return blacklist.hasBlack(msg.sender);
     }
 
+    function isAllow() public view onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
+        return allowlist.hasAllow(msg.sender);
+    }
+
     function pause() public onlyRole(DEFAULT_ADMIN_ROLE) {
-        // require(blacklist.hasBlack(_msgSender()), "1111");
         _pause();
     }
 

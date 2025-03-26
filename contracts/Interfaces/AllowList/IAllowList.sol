@@ -5,11 +5,11 @@
 pragma solidity ^0.8.22;
 
 /**
- * @title IAllowList
+ * @title IAllowlist
  * @author MARS Finance
- * @notice Interface for a allowlist contract to manage blocked addresses.
+ * @notice Interface for a allowlist contract to manage allowed addresses.
  */
-interface IAllowList {
+interface IAllowlist {
   /**
    * @notice Adds an array of addresses to the allowlist.
    *

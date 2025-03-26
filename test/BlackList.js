@@ -10,13 +10,7 @@ describe("BlackList", function () {
   // We define a fixture to reuse the same setup in every test.
   // We use loadFixture to run this setup once, snapshot that state,
   // and reset Hardhat Network to that snapshot in every test.
-  async function deployOneYearLockFixture() {
-    const ONE_YEAR_IN_SECS = 365 * 24 * 60 * 60;
-    const ONE_GWEI = 1_000_000_000;
-
-    const lockedAmount = ONE_GWEI;
-    const unlockTime = (await time.latest()) + ONE_YEAR_IN_SECS;
-
+  async function deployBlacklistFixture() {
     // Contracts are deployed using the first signer/account by default
     const [owner, otherAccount] = await ethers.getSigners();
 
@@ -34,19 +28,18 @@ describe("BlackList", function () {
     // await proxyAsContract.initialize(owner.address);
     await proxyAsContract.waitForDeployment();
 
-    return { blackList: proxy, unlockTime, lockedAmount, owner, otherAccount };
+    return { blackList: proxy, owner, otherAccount };
   }
 
   describe("Deployment", function () {
     it("blacklist test", async function () {
-      const { blackList, owner, otherAccount } = await loadFixture(deployOneYearLockFixture);
+      const { blackList, owner, otherAccount } = await loadFixture(deployBlacklistFixture);
       const account = await ethers.getSigners()
       const emptyAddress = "0x0000000000000000000000000000000000000000";
 
       // await blackList.addToBlacklist(emptyAddress)
-      await blackList.addToBlacklist(account[1].address)
-      await blackList.addToBlacklist(account[2].address)
-      await blackList.removeFromBlacklist(account[2].address)
+      await blackList.addToBlacklist([account[1].address, account[2].address])
+      await blackList.removeFromBlacklist([account[2].address])
 
       expect(await blackList.hasBlack(account[1].address)).to.equal(true)
       expect(await blackList.hasBlack(account[2].address)).to.equal(false)

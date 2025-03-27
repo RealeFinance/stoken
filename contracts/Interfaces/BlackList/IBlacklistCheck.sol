@@ -16,5 +16,18 @@ interface IBlacklistCheck {
      * @param account The address to check.
      * @return bool Returns `true` if the address is blocked, otherwise `false`.
      */
-    function hasBlack(address account) external view returns (bool);
+    function hasBlack(
+        address msgSender,
+        address account
+    ) external view returns (bool);
+
+    /**
+     * @notice Checks if an address is blocked.
+     *
+     * @param account The address to check.
+     * @return bool Returns `true` if the address is blocked, otherwise `false`.
+     */
+    function hasBlack(
+        address account
+    ) external view returns (bool);
 }

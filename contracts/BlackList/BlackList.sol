@@ -58,7 +58,6 @@ contract BlackList is
     }
 
     function __BlackList_init_unchained() internal onlyInitializing {
-        console.log("BlackList ower", _msgSender());
         _grantRole(BLACKLIST_ADMIN_ROLE, _msgSender());
     }
 
@@ -91,9 +90,20 @@ contract BlackList is
     }
 
     function hasBlack(
+        address msgSender,
+        address account
+    ) external view returns (bool) {
+        require(
+            hasRole(BLACKLIST_ADMIN_ROLE, msgSender),
+            "Sender is not in Admin"
+        );
+        _beforeCheck(account, _msgSender());
+        return hasRole(BLACKLIST_ROLE, account);
+    }
+
+    function hasBlack(
         address account
     ) external view onlyRole(BLACKLIST_ADMIN_ROLE) returns (bool) {
-        console.log("RAmMMF hasBlack", _msgSender());
         _beforeCheck(account, _msgSender());
         return super.hasRole(BLACKLIST_ROLE, account);
     }

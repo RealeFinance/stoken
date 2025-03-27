@@ -72,10 +72,22 @@ contract AllowList is
     }
 
     function hasAllow(
+        address msgSender,
+        address account
+    ) external view returns (bool) {
+        require(
+            hasRole(ALLOWLIST_ADMIN_ROLE, msgSender),
+            "Sender is not in Admin"
+        );
+        _beforeCheck(account, _msgSender());
+        return hasRole(ALLOWLIST_ROLE, account);
+    }
+
+    function hasAllow(
         address account
     ) external view onlyRole(ALLOWLIST_ADMIN_ROLE) returns (bool) {
         _beforeCheck(account, _msgSender());
-        return super.hasRole(ALLOWLIST_ROLE, account);
+        return hasRole(ALLOWLIST_ROLE, account);
     }
 
     function _beforeCheck(address from, address to) internal pure {

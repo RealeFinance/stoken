@@ -50,7 +50,7 @@ contract RAmMMF is
         __UUPSUpgradeable_init();
         blacklist = IBlacklistCheck(_blacklist);
         allowlist = IAllowlistCheck(_allowlist);
-        console.log("RAmMMF ower", _msgSender());
+
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
         // _grantRole(PAUSER_ROLE, pauser);
         // _grantRole(MINTER_ROLE, minter);
@@ -58,12 +58,11 @@ contract RAmMMF is
     }
 
     function isBlack() public view onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
-        console.log("RAmMMF isBlack", _msgSender());
-        return blacklist.hasBlack(msg.sender);
+        return blacklist.hasBlack(_msgSender(), msg.sender);
     }
 
     function isAllow() public view onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
-        return allowlist.hasAllow(msg.sender);
+        return allowlist.hasAllow(_msgSender(), msg.sender);
     }
 
     function pause() public onlyRole(DEFAULT_ADMIN_ROLE) {

@@ -16,5 +16,16 @@ interface IAllowlistCheck {
      * @param account The address to check.
      * @return bool Returns `true` if the address is allowed, otherwise `false`.
      */
+    function hasAllow(
+        address msgSender,
+        address account
+    ) external view returns (bool);
+
+    /**
+     * @notice Checks if an address is allowed.
+     *
+     * @param account The address to check.
+     * @return bool Returns `true` if the address is allowed, otherwise `false`.
+     */
     function hasAllow(address account) external view returns (bool);
 }

@@ -51,7 +51,8 @@ describe("BlackList", function () {
     const { allowList } = await loadFixture(deployAllowListFixture);
 
     const account = await ethers.getSigners()
-    const RAmMMFContract = await ethers.getContractFactory("RAmMMF", account[1], {
+    const owner = account[0]
+    const RAmMMFContract = await ethers.getContractFactory("RAmMMF", owner, {
       initializer: 'initialize',
       kind: 'UUPS'
     });
@@ -78,17 +79,16 @@ describe("BlackList", function () {
       const { blackList, RAmMMF, allowList } = await loadFixture(deployrAmMMFFixture);
       const account = await ethers.getSigners()
 
-      await blackList.addToBlacklist([account[1].address, account[2].address])
+      await blackList.addToBlacklist([account[0].address, account[1].address])
       await blackList.removeFromBlacklist([account[2].address])
-      await allowList.addToAllowlist([account[1].address, account[2].address])
+      await allowList.addToAllowlist([account[0].address, account[2].address])
 
 
       expect(await blackList.hasBlack(account[1].address)).to.equal(true)
       expect(await blackList.hasBlack(account[2].address)).to.equal(false)
-      // const c = await RAmMMF.connect(account[1]).isBlack()
-      // console.log(await RAmMMF.getAddress())
+
       console.log(await RAmMMF.isBlack())
-      // console.log(await RAmMMF.isAllow())
+      console.log(await RAmMMF.isAllow())
     });
   });
 });

@@ -57,12 +57,16 @@ contract RAmMMF is
         // _grantRole(UPGRADER_ROLE, upgrader);
     }
 
-    function isBlack() public view onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
-        return blacklist.hasBlack(_msgSender(), msg.sender);
+    function isBlack(
+        address account
+    ) public view onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
+        return blacklist.hasBlack(_msgSender(), account);
     }
 
-    function isAllow() public view onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
-        return allowlist.hasAllow(_msgSender(), msg.sender);
+    function isAllow(
+        address account
+    ) public view onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
+        return allowlist.hasAllow(_msgSender(), account);
     }
 
     function pause() public onlyRole(DEFAULT_ADMIN_ROLE) {

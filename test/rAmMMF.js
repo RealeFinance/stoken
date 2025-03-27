@@ -59,12 +59,13 @@ describe("BlackList", function () {
 
     const address1 = await blackList.getAddress()
     const address2 = await allowList.getAddress()
+    const address3 = account[10] //AmMMF 合约地址
     /**
      * 部署代理合约
      * @param RAmMMFContract 合约实例
      * @param RAmMMF 合约initialize方法的参数数组
-     */ 
-    const proxy = await upgrades.deployProxy(RAmMMFContract, [address1, address2]);
+     */
+    const proxy = await upgrades.deployProxy(RAmMMFContract, [address1, address2, address3]);
     await proxy.waitForDeployment();
 
     // 手动调用 initialize 方法

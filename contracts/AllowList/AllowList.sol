@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: BUSL-1.1
 // Compatible with OpenZeppelin Contracts ^5.0.0
 // # Copyright (c) 2025 Asseto Fintech Limited. All rights reserved.
 pragma solidity ^0.8.22;

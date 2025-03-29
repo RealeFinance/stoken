@@ -288,10 +288,7 @@ contract RAmMMF is
         address _recipient,
         uint256 _amount
     ) public override returns (bool) {
-        uint256 _sharesToTransfer = getSharesByRAmMMF(_amount);
-        _transferShares(msg.sender, _recipient, _sharesToTransfer);
-        emit Transfer(msg.sender, _recipient, _amount);
-        emit TransferShares(msg.sender, _recipient, _sharesToTransfer);
+        _transferShares(msg.sender, _recipient, _amount);
         return true;
     }
 
@@ -325,14 +322,13 @@ contract RAmMMF is
         address _spender,
         uint256 _amount
     ) public override returns (bool) {
-
         _approverAmMMF(msg.sender, _spender, _amount);
         return true;
     }
 
     /**
-     * @notice Moves `_amount` tokens from `_sender` to `_recipient` using the
-     * allowance mechanism. `_amount` is then deducted from the caller's
+     * @notice Moves `_amMMFamount` tokens from `_sender` to `_recipient` using the
+     * allowance mechanism. `_amMMFamount` is then deducted from the caller's
      * allowance.
      *
      * @return a boolean value indicating whether the operation succeeded.
@@ -344,27 +340,25 @@ contract RAmMMF is
      * Requirements:
      *
      * - `_sender` and `_recipient` cannot be the zero addresses.
-     * - `_sender` must have a balance of at least `_amount`.
-     * - the caller must have allowance for `_sender`'s tokens of at least `_amount`.
+     * - `_sender` must have a balance of at least `_amMMFamount`.
+     * - the caller must have allowance for `_sender`'s tokens of at least `_amMMFamount`.
      * - the contract must not be paused.
      *
-     * @dev The `_amount` argument is the amount of tokens, not shares.
+     * @dev The `_amMMFamount` argument is the amount of tokens, not shares.
      */
     function transferFrom(
         address _sender,
         address _recipient,
-        uint256 _amount
+        uint256 _amMMFamount
     ) public override returns (bool) {
         uint256 currentAllowance = allowances[_sender][msg.sender];
         require(
-            currentAllowance >= _amount,
+            currentAllowance >= _amMMFamount,
             "TRANSFER_AMOUNT_EXCEEDS_ALLOWANCE"
         );
-        uint256 _sharesToTransfer = getSharesByRAmMMF(_amount);
-        _transferShares(_sender, _recipient, _amount);
-        emit Transfer(_sender, _recipient, _amount);
-        emit TransferShares(_sender, _recipient, _sharesToTransfer);
-        _approverAmMMF(_sender, msg.sender, currentAllowance - _amount);
+
+        _transferShares(_sender, _recipient, _amMMFamount);
+        _approverAmMMF(_sender, msg.sender, currentAllowance - _amMMFamount);
         return true;
     }
 
@@ -416,7 +410,11 @@ contract RAmMMF is
             currentAllowance >= _subtractedValue,
             "DECREASED_ALLOWANCE_BELOW_ZERO"
         );
-        _approverAmMMF(msg.sender, _spender, currentAllowance - _subtractedValue);
+        _approverAmMMF(
+            msg.sender,
+            _spender,
+            currentAllowance - _subtractedValue
+        );
         return true;
     }
 
@@ -517,22 +515,6 @@ contract RAmMMF is
         shares[_account] = accountShares - _sharesAmount;
     }
 
-    // /**
-    //  * @notice Moves `_amount` tokens from `_sender` to `_recipient`.
-    //  * Emits a `Transfer` event.
-    //  * Emits a `TransferShares` event.
-    //  */
-    // function _transfer(
-    //     address _sender,
-    //     address _recipient,
-    //     uint256 _amount
-    // ) internal override {
-    //     uint256 _sharesToTransfer = getSharesByRAmMMF(_amount);
-    //     _transferShares(_sender, _recipient, _sharesToTransfer);
-    //     emit Transfer(_sender, _recipient, _amount);
-    //     emit TransferShares(_sender, _recipient, _sharesToTransfer);
-    // }
-
     /**
      * @notice Moves `_sharesAmount` shares from `_sender` to `_recipient`.
      *
@@ -546,18 +528,21 @@ contract RAmMMF is
     function _transferShares(
         address _sender,
         address _recipient,
-        uint256 _sharesAmount
+        uint256 _rAmMMFAmount
     ) internal whenNotPaused {
+        uint256 _sharesToTransfer = getSharesByRAmMMF(_rAmMMFAmount);
         require(_sender != address(0), "TRANSFER_FROM_THE_ZERO_ADDRESS");
         require(_recipient != address(0), "TRANSFER_TO_THE_ZERO_ADDRESS");
-        _beforeTokenTransfer(_sender, _recipient, _sharesAmount);
+        _beforeTokenTransfer(_sender, _recipient, _sharesToTransfer);
         uint256 currentSenderShares = shares[_sender];
         require(
-            _sharesAmount <= currentSenderShares,
+            _sharesToTransfer <= currentSenderShares,
             "TRANSFER_AMOUNT_EXCEEDS_BALANCE"
         );
-        shares[_sender] = currentSenderShares - _sharesAmount;
-        shares[_recipient] += _sharesAmount;
+        shares[_sender] = currentSenderShares - _sharesToTransfer;
+        shares[_recipient] += _sharesToTransfer;
+        emit Transfer(msg.sender, _recipient, _rAmMMFAmount);
+        emit TransferShares(msg.sender, _recipient, _sharesToTransfer);
     }
 
     /**
@@ -604,12 +589,12 @@ contract RAmMMF is
     ) internal view {
         // Check constraints when `transferFrom` is called to facliitate
         // a transfer between two parties that are not `from` or `to`.
-        if (from != msg.sender && to != msg.sender) {
-            // require(
-            //     _getKYCStatus(msg.sender),
-            //     "rAmMMF: 'sender' address not KYC'd"
-            // );
-        }
+        // if (from != msg.sender && to != msg.sender) {
+        // require(
+        //     _getKYCStatus(msg.sender),
+        //     "rAmMMF: 'sender' address not KYC'd"
+        // );
+        // }
 
         if (from != address(0)) {
             // If not minting
@@ -633,7 +618,7 @@ contract RAmMMF is
             );
             require(
                 allowlist.hasAllow(_msgSender(), to),
-                "rAmMMF: 'to' address not in allowlist"
+                "rAmMMF: 'to' address not in allowlis"
             );
         }
     }

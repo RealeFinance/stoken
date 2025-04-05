@@ -589,12 +589,16 @@ contract RAmMMF is
     ) internal view {
         // Check constraints when `transferFrom` is called to facliitate
         // a transfer between two parties that are not `from` or `to`.
-        // if (from != msg.sender && to != msg.sender) {
-        // require(
-        //     _getKYCStatus(msg.sender),
-        //     "rAmMMF: 'sender' address not KYC'd"
-        // );
-        // }
+        if (from != msg.sender && to != msg.sender) {
+            require(
+                !blacklist.hasBlack(_msgSender(), msg.sender),
+                "rAmMMF: 'sender' address in blacklist"
+            );
+            require(
+                allowlist.hasAllow(_msgSender(), msg.sender),
+                "rAmMMF: 'sender' address not in allowlist"
+            );
+        }
 
         if (from != address(0)) {
             // If not minting

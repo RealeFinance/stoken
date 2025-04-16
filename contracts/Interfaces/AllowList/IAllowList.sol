@@ -6,7 +6,7 @@ pragma solidity ^0.8.22;
 
 /**
  * @title IAllowlist
- * @author MARS Finance
+ * @author zhangwenhai 
  * @notice Interface for a allowlist contract to manage allowed addresses.
  */
 interface IAllowlist {

@@ -8,8 +8,15 @@ import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/
 import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-
-contract MAmMMF is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessControlUpgradeable, UUPSUpgradeable {
+import {IMAmMMF} from "contracts/Interfaces/mAmMMF/ImAmMMF.sol";
+contract MAmMMF is
+    Initializable,
+    ERC20Upgradeable,
+    ERC20PermitUpgradeable,
+    AccessControlUpgradeable,
+    UUPSUpgradeable,
+    IMAmMMF
+{
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -17,9 +24,10 @@ contract MAmMMF is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, Acce
         _disableInitializers();
     }
 
-    function initialize(address defaultAdmin, address upgrader)
-        public initializer
-    {
+    function initialize(
+        address defaultAdmin,
+        address upgrader
+    ) public initializer {
         __ERC20_init("mAmMMF", "MTK");
         __ERC20Permit_init("mAmMMF");
         __AccessControl_init();
@@ -29,9 +37,11 @@ contract MAmMMF is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, Acce
         _grantRole(UPGRADER_ROLE, upgrader);
     }
 
-    function _authorizeUpgrade(address newImplementation)
-        internal
-        override
-        onlyRole(UPGRADER_ROLE)
-    {}
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyRole(UPGRADER_ROLE) {}
+
+    function mintForm(address _account, uint256 _amount) external {
+        _mint(_account, _amount);
+    }
 }

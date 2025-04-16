@@ -6,7 +6,7 @@ pragma solidity ^0.8.22;
 
 /**
  * @title IBlacklist
- * @author MARS Finance
+ * @author zhangwenhai 
  * @notice Interface for a blocklist contract to manage blocked addresses.
  */
 interface IBlacklist {

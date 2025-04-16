@@ -57,6 +57,14 @@ contract SAmMMF is
         _unpause();
     }
 
+    function _update(
+        address from,
+        address to,
+        uint256 value
+    ) internal override(ERC20Upgradeable, ERC20PausableUpgradeable) {
+        super._update(from, to, value);
+    }
+
     /**
      * @notice Function called by users to wrap their AmMMF tokens
      *
@@ -80,7 +88,6 @@ contract SAmMMF is
      */
     function unwrap(uint256 _sAmMMFAmount) external whenNotPaused {
         require(_sAmMMFAmount > 0, "sAmMMF: can't unwrap zero sAmMMF tokens");
-        uint256 AmMMFSharesAmount = getSharesBysAmMMF(_sAmMMFAmount);
         _burn(msg.sender, _sAmMMFAmount);
         ammmf.transfer(msg.sender, _sAmMMFAmount);
         emit Transfer(msg.sender, address(0), _sAmMMFAmount);

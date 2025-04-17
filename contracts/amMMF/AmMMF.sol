@@ -24,6 +24,8 @@ contract AmMMF is
     // Address of the mAmMMF token
     IMAmMMF public mammmf;
 
+    mapping(address => uint256) private mappedAmMMF;
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -67,6 +69,16 @@ contract AmMMF is
 
     function mapMAmMMF(uint256 _AmMMFAmount) external whenNotPaused {
         require(_AmMMFAmount > 0, "AmMMF: can't wrap zero AmMMF tokens");
+        require(_maxMapAmMMF(msg.sender) >= _AmMMFAmount, "AmMMF: mapped AmMMF already max");
+        mappedAmMMF[msg.sender] += _AmMMFAmount;
         mammmf.mintForm(msg.sender, _AmMMFAmount);
+    }
+
+    function maxMapAmMMF() public view returns (uint256) {
+        return _maxMapAmMMF(msg.sender);
+    }
+
+    function _maxMapAmMMF(address account) internal view returns (uint256) {
+        return super.balanceOf(account) - mappedAmMMF[account];
     }
 }

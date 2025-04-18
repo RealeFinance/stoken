@@ -19,4 +19,12 @@ interface IMAmMMF is IERC20 {
      * @param _amount The amount of minted token.
      */
     function mintForm(address _account, uint256 _amount) external;
+
+    /**
+     * @notice
+     *
+     * @param _account The address for burn tokens.
+     * @param _amount The amount of burn token.
+     */
+    function burnForm(address _account, uint256 _amount) external;
 }

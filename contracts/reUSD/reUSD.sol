@@ -8,6 +8,7 @@ import {IERC20, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/toke
 import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {IMAmMMF} from "contracts/Interfaces/mAmMMF/ImAmMMF.sol";
 
 contract ReUSD is
     Initializable,
@@ -22,7 +23,9 @@ contract ReUSD is
     IERC20 public rammmf;
 
     // Address of the mAmMMF token
-    IERC20 public mammmf;
+    IMAmMMF public mammmf;
+
+    address public realeAdmin;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -32,8 +35,9 @@ contract ReUSD is
     function initialize(
         address defaultAdmin,
         address upgrader,
-        address mAmMMF,
-        address rAmMMF
+        address _mAmMMF,
+        address _rAmMMF,
+        address _realeAdmin
     ) public initializer {
         __ERC20_init("reUSD", "MTK");
         __ERC20Permit_init("reUSD");
@@ -43,8 +47,9 @@ contract ReUSD is
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
         _grantRole(UPGRADER_ROLE, upgrader);
 
-        rammmf = IERC20(rAmMMF);
-        mammmf = IERC20(mAmMMF);
+        rammmf = IERC20(_mAmMMF);
+        mammmf = IMAmMMF(_rAmMMF);
+        realeAdmin = _realeAdmin;
     }
 
     function _authorizeUpgrade(
@@ -90,7 +95,7 @@ contract ReUSD is
             mammmf.transferFrom(msg.sender, address(this), _mammfAmount),
             "mAmMMF:transfer failed"
         );
-        _mint(msg.sender, _mammfAmount);
+        _mint(realeAdmin, _getreUSDbymAmMMF(_mammfAmount));
     }
 
     /**
@@ -100,10 +105,20 @@ contract ReUSD is
      *
      */
     function unlockmAmMMFAndBurnReUSD(uint256 _reUSDAmount) external {
-        _burn(msg.sender, _reUSDAmount);
-        require(
-            mammmf.transfer(msg.sender, _reUSDAmount),
-            "mAmMMF:transfer failed"
-        );
+        require(msg.sender == realeAdmin, "reUSD:not admin");
+        _burn(realeAdmin, _reUSDAmount);
+        mammmf.burnForm(msg.sender, _getmAmMMFbyreUSD(_reUSDAmount));
+    }
+
+    function _getmAmMMFbyreUSD(
+        uint256 _reUSDAmount
+    ) internal pure returns (uint256) {
+        return _reUSDAmount * 1;
+    }
+
+    function _getreUSDbymAmMMF(
+        uint256 _mammfAmount
+    ) internal pure returns (uint256) {
+        return _mammfAmount * 1;
     }
 }

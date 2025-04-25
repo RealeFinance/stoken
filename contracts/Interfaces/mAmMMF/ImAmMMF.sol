@@ -4,27 +4,27 @@
 
 pragma solidity ^0.8.22;
 
-import {IERC20} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
 /**
  * @title IMAmMMF
  * @author zhangwenhai
  * @notice Interface for mAmMMF contract to manage mint.
  */
-interface IMAmMMF is IERC20 {
+interface IMAmMMF is ERC20Upgradeable {
     /**
-     * @notice
+     * @notice Mint tokens to a specific account.
      *
      * @param _account The address for minting tokens.
      * @param _amount The amount of minted token.
      */
-    function mintForm(address _account, uint256 _amount) external;
+    function mintFrom(address _account, uint256 _amount) external;
 
     /**
-     * @notice
+     * @notice Burn tokens from a specific account.
      *
-     * @param _account The address for burn tokens.
-     * @param _amount The amount of burn token.
+     * @param _account The address for burning tokens.
+     * @param _amount The amount of burned token.
      */
-    function burnForm(address _account, uint256 _amount) external;
+    function burnFrom(address _account, uint256 _amount) external;
 }

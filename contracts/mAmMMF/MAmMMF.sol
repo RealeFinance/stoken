@@ -17,22 +17,27 @@ contract MAmMMF is
     UUPSUpgradeable,
     IMAmMMF
 {
+    // Role identifier for accounts allowed to perform contract upgrades.
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
 
-    address public amMMFAdmin;
-
-    address public realeAdmin;
+    // Address of the escrow administrator responsible for minting and burning tokens.
+    address public escrowAdmin;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
 
+    /**
+     * @dev Initializes the contract with the specified roles and addresses.
+     * @param defaultAdmin The address to be granted the DEFAULT_ADMIN_ROLE.
+     * @param upgrader The address to be granted the UPGRADER_ROLE, allowing contract upgrades.
+     * @param _escrowAdmin The address of the escrow administrator responsible for minting and burning tokens.
+     */
     function initialize(
         address defaultAdmin,
         address upgrader,
-        address _amMMFAdmin,
-        address _realeAdmin
+        address _escrowAdmin
     ) public initializer {
         __ERC20_init("mAmMMF", "MTK");
         __ERC20Permit_init("mAmMMF");
@@ -42,27 +47,48 @@ contract MAmMMF is
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
         _grantRole(UPGRADER_ROLE, upgrader);
 
-        amMMFAdmin = _amMMFAdmin;
-        realeAdmin = _realeAdmin;
+        require(
+            _escrowAdmin != address(0),
+            "MAmMMF: escrowAdmin cannot be the zero address"
+        );
+        escrowAdmin = _escrowAdmin;
     }
 
     function _authorizeUpgrade(
         address newImplementation
     ) internal override onlyRole(UPGRADER_ROLE) {}
 
-    function mintForm(address _account, uint256 _amount) external {
+    /**
+     * @notice Burns a specific amount of tokens from the specified account.
+     * @dev This function can only be called by the `escrowAdmin`.
+     *      It ensures that the account has a sufficient balance before burning.
+     * @param _account The address of the account from which tokens will be burned.
+     * @param _amount The amount of tokens to burn.
+     */
+    function burnFrom(address _account, uint256 _amount) external {
         require(
-            msg.sender == amMMFAdmin,
-            "MAmMMF:Only the amMMFadmin can call mintForm"
+            msg.sender == escrowAdmin,
+            "MAmMMF:Only the escrowAdmin can call burnFrom"
         );
-        _mint(_account, _amount);
-    }
-
-    function burnForm(address _account, uint256 _amount) external {
         require(
-            msg.sender == realeAdmin,
-            "MAmMMF:Only the realeAdmin can call burnForm"
+            balanceOf(_account) >= _amount,
+            "MAmMMF: Insufficient balance to burn"
         );
         _burn(_account, _amount);
+    }
+
+    /**
+     * @notice Mints a specified amount of tokens to a given account.
+     * @dev This function can only be called by the `escrowAdmin`.
+     *      It uses the `_mint` internal function to create new tokens.
+     * @param _account The address of the account to receive the minted tokens.
+     * @param _amount The amount of tokens to mint.
+     */
+    function mintFrom(address _account, uint256 _amount) external {
+        require(
+            msg.sender == escrowAdmin,
+            "MAmMMF:Only the escrowAdmin can call mintFrom"
+        );
+        _mint(_account, _amount);
     }
 }

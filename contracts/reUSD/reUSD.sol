@@ -107,7 +107,7 @@ contract ReUSD is
     function unlockmAmMMFAndBurnReUSD(uint256 _reUSDAmount) external {
         require(msg.sender == realeAdmin, "reUSD:not admin");
         _burn(realeAdmin, _reUSDAmount);
-        mammmf.burnForm(msg.sender, _getmAmMMFbyreUSD(_reUSDAmount));
+        mammmf.burnFrom(msg.sender, _getmAmMMFbyreUSD(_reUSDAmount));
     }
 
     function _getmAmMMFbyreUSD(

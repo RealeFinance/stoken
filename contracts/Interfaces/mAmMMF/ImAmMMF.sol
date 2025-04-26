@@ -11,7 +11,7 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
  * @author zhangwenhai
  * @notice Interface for mAmMMF contract to manage mint.
  */
-interface IMAmMMF is ERC20Upgradeable {
+interface IMAmMMF is IERC20 {
     /**
      * @notice Mint tokens to a specific account.
      *

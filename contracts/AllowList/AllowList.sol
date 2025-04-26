@@ -8,7 +8,7 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 
-import {IAllowlist} from "contracts/Interfaces/AllowList/IAllowlist.sol";
+import {IAllowlist} from "contracts/Interfaces/AllowList/IAllowlist1.sol";
 import {IAllowlistCheck} from "contracts/Interfaces/AllowList/IAllowlistCheck.sol";
 import "hardhat/console.sol";
 contract AllowList is

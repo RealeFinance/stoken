@@ -8,6 +8,7 @@ import {IERC20, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/toke
 import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {AggregatorV2V3Interface} from "@chainlink/contracts/src/v0.8/interfaces/FeedRegistryInterface.sol";
 import {IMAmMMF} from "contracts/Interfaces/mAmMMF/ImAmMMF.sol";
 
 contract ReUSD is
@@ -24,6 +25,8 @@ contract ReUSD is
 
     // Address of the mAmMMF token
     IMAmMMF public mammmf;
+
+    AggregatorV2V3Interface internal priceFeed;
 
     address public realeAdmin;
 
@@ -56,60 +59,6 @@ contract ReUSD is
         address newImplementation
     ) internal override onlyRole(UPGRADER_ROLE) {}
 
-    /**
-     * @notice Function Users can lock rAmMMf tokens to exchange for reUSD.
-     *
-     * @param _rammfAmount The amount of AmMMF Tokens to lock
-     *
-     */
-    function lockrAmMMfAndMintReUSD(uint256 _rammfAmount) external {
-        require(
-            rammmf.transferFrom(msg.sender, address(this), _rammfAmount),
-            "rAmMMF:transfer failed"
-        );
-        _mint(msg.sender, _rammfAmount);
-    }
-
-    /**
-     * @notice Function Users redeem rAmMMf and burn reUSD.
-     *
-     * @param _reUSDAmount The amount of reUSD Tokens to burn
-     *
-     */
-    function unlockrAmMMfAndBurnReUSD(uint256 _reUSDAmount) external {
-        _burn(msg.sender, _reUSDAmount);
-        require(
-            rammmf.transfer(msg.sender, _reUSDAmount),
-            "rAmMMF:transfer failed"
-        );
-    }
-
-    /**
-     * @notice Function Users can lock mAmMMF tokens to exchange for reUSD.
-     *
-     * @param _mammfAmount The amount of AmMMF Tokens to lock
-     *
-     */
-    function lockmAmMMfAndMintReUSD(uint256 _mammfAmount) external {
-        require(
-            mammmf.transferFrom(msg.sender, address(this), _mammfAmount),
-            "mAmMMF:transfer failed"
-        );
-        _mint(realeAdmin, _getreUSDbymAmMMF(_mammfAmount));
-    }
-
-    /**
-     * @notice Function Users redeem mAmMMF and burn reUSD.
-     *
-     * @param _reUSDAmount The amount of reUSD Tokens to burn
-     *
-     */
-    function unlockmAmMMFAndBurnReUSD(uint256 _reUSDAmount) external {
-        require(msg.sender == realeAdmin, "reUSD:not admin");
-        _burn(realeAdmin, _reUSDAmount);
-        mammmf.burnFrom(msg.sender, _getmAmMMFbyreUSD(_reUSDAmount));
-    }
-
     function _getmAmMMFbyreUSD(
         uint256 _reUSDAmount
     ) internal pure returns (uint256) {
@@ -120,5 +69,16 @@ contract ReUSD is
         uint256 _mammfAmount
     ) internal pure returns (uint256) {
         return _mammfAmount * 1;
+    }
+
+    function setPriceFeed(
+        address _priceFeed
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        priceFeed = AggregatorV2V3Interface(_priceFeed);
+    }
+
+    function getLatestETHPrice() public view returns (int256) {
+        (, int256 price, , , ) = priceFeed.latestRoundData();
+        return price;
     }
 }

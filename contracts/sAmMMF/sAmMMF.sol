@@ -66,30 +66,37 @@ contract SAmMMF is
     }
 
     /**
-     * @notice Function called by users to wrap their AmMMF tokens
-     *
-     * @param _AmMMFAmount The amount of AmMMF Tokens to wrap
-     *
-     * @dev KYC checks implicit in AmMMF Transfer
+     * @notice Wraps a specified amount of AmMMF tokens into sAmMMF tokens.
+     * @dev Transfers the specified amount of AmMMF tokens from the caller to the contract
+     *      and mints an equivalent amount of sAmMMF tokens for the caller.
+     *      This function can only be called when the contract is not paused.
+     * @param _AmMMFAmount The amount of AmMMF tokens to wrap.
+     * @notice Emits a `Transfer` event for the minting of sAmMMF tokens.
      */
     function wrap(uint256 _AmMMFAmount) external whenNotPaused {
         require(_AmMMFAmount > 0, "sAmMMF: can't wrap zero AmMMF tokens");
+        require(
+            ammmf.transferFrom(msg.sender, address(this), _AmMMFAmount),
+            "sAmMMF: Transfer failed"
+        );
         _mint(msg.sender, _AmMMFAmount);
-        ammmf.transferFrom(msg.sender, address(this), _AmMMFAmount);
-        emit Transfer(address(0), msg.sender, _AmMMFAmount);
     }
 
     /**
-     * @notice Function called by users to unwrap their sAmMMF tokens by sAmMMF amount
-     *
-     * @param _sAmMMFAmount The amount of sAmMMF to unwrap
-     *
-     * @dev KYC checks implicit in AmMMF Transfer
+     * @notice Unwraps a specified amount of sAmMMF tokens into the underlying amMMF tokens.
+     * @dev This function burns the specified amount of sAmMMF tokens from the caller's balance
+     *      and transfers the equivalent amount of amMMF tokens to the caller.
+     *      The function is only executable when the contract is not paused.
+     * @param _sAmMMFAmount The amount of sAmMMF tokens to unwrap.
+     * @notice Emits a `Transfer` event for the burn operation.
+     * @notice Emits a `Transfer` event for the amMMF token transfer.
      */
     function unwrap(uint256 _sAmMMFAmount) external whenNotPaused {
         require(_sAmMMFAmount > 0, "sAmMMF: can't unwrap zero sAmMMF tokens");
         _burn(msg.sender, _sAmMMFAmount);
-        ammmf.transfer(msg.sender, _sAmMMFAmount);
-        emit Transfer(msg.sender, address(0), _sAmMMFAmount);
+        require(
+            ammmf.transfer(msg.sender, _sAmMMFAmount),
+            "sAmMMF: Transfer failed"
+        );
     }
 }

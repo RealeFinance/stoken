@@ -32,12 +32,10 @@ contract MAmMMF is
      * @dev Initializes the contract with the specified roles and addresses.
      * @param defaultAdmin The address to be granted the DEFAULT_ADMIN_ROLE.
      * @param upgrader The address to be granted the UPGRADER_ROLE, allowing contract upgrades.
-     * @param _escrowAdmin The address of the escrow administrator responsible for minting and burning tokens.
      */
     function initialize(
         address defaultAdmin,
-        address upgrader,
-        address _escrowAdmin
+        address upgrader
     ) public initializer {
         __ERC20_init("mAmMMF", "MTK");
         __ERC20Permit_init("mAmMMF");
@@ -46,17 +44,26 @@ contract MAmMMF is
 
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
         _grantRole(UPGRADER_ROLE, upgrader);
+    }
 
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyRole(UPGRADER_ROLE) {}
+
+    /**
+     * @notice Sets the escrow administrator address.
+     * @dev This function can only be called by the DEFAULT_ADMIN_ROLE.
+     * @param _escrowAdmin The address of the escrow administrator.
+     */
+    function setEscrowAdmin(
+        address _escrowAdmin
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(
             _escrowAdmin != address(0),
             "MAmMMF: escrowAdmin cannot be the zero address"
         );
         escrowAdmin = _escrowAdmin;
     }
-
-    function _authorizeUpgrade(
-        address newImplementation
-    ) internal override onlyRole(UPGRADER_ROLE) {}
 
     /**
      * @notice Burns a specific amount of tokens from the specified account.

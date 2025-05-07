@@ -105,30 +105,10 @@ contract RAmMMF is
         allowlist = IAllowlistCheck(_allowlist);
         ammmf = IERC20(_ammmf);
         oracle = IRWAOracle(_oracle);
-        _name = "Ondo Short-Term U.S. Government Bond Fund (Rebasing)";
+        _name = "rAmMMF";
         _symbol = "rAmMMF";
     }
 
-    /*//////////////////////////////////////////////////////////////
-                                EVENT
-    //////////////////////////////////////////////////////////////*/
-
-    /**
-     * @notice Emitted when the name is set
-     *
-     * @param oldName The old name of the token
-     * @param newName The new name of the token
-     */
-    event NameSet(string oldName, string newName);
-
-    /**
-     * @notice Emitted when the symbol is set
-     *
-     * @param oldSymbol The old symbol of the token
-     * @param newSymbol The new symbol of the token
-     */
-
-    event SymbolSet(string oldSymbol, string newSymbol);
     /**
      * @notice An executed shares transfer from `sender` to `recipient`.
      *
@@ -152,18 +132,6 @@ contract RAmMMF is
                           EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    // function isBlack(
-    //     address account
-    // ) public view onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
-    //     return blacklist.hasBlack(_msgSender(), account);
-    // }
-
-    // function isAllow(
-    //     address account
-    // ) public view onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
-    //     return allowlist.hasAllow(_msgSender(), account);
-    // }
-
     function pause() public onlyRole(DEFAULT_ADMIN_ROLE) {
         _pause();
     }
@@ -171,13 +139,6 @@ contract RAmMMF is
     function unpause() public onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();
     }
-
-    // /**
-    //  * @return the number of decimals for getting user representation of a token amount.
-    //  */
-    // function decimals() public pure override returns (uint8) {
-    //     return 18;
-    // }
 
     /**
      * @return the amount of tokens in existence.
@@ -298,12 +259,12 @@ contract RAmMMF is
      *
      * @dev This value changes when `approve` or `transferFrom` is called.
      */
-    function allowance(
-        address _owner,
-        address _spender
-    ) public view override returns (uint256) {
-        return allowances[_owner][_spender];
-    }
+    // function allowance(
+    //     address _owner,
+    //     address _spender
+    // ) public view override returns (uint256) {
+    //     return allowances[_owner][_spender];
+    // }
 
     /**
      * @notice Sets `_amount` as the allowance of `_spender` over the caller's tokens.
@@ -363,62 +324,6 @@ contract RAmMMF is
     }
 
     /**
-     * @notice Atomically increases the allowance granted to `_spender` by the caller by `_addedValue`.
-     *
-     * This is an alternative to `approve` that can be used as a mitigation for
-     * problems described in:
-     * https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC20/IERC20.sol#L42
-     * Emits an `Approval` event indicating the updated allowance.
-     *
-     * Requirements:
-     *
-     * - `_spender` cannot be the the zero address.
-     * - the contract must not be paused.
-     */
-    function increaseAllowance(
-        address _spender,
-        uint256 _addedValue
-    ) public returns (bool) {
-        _approverAmMMF(
-            msg.sender,
-            _spender,
-            allowances[msg.sender][_spender] + _addedValue
-        );
-        return true;
-    }
-
-    /**
-     * @notice Atomically decreases the allowance granted to `_spender` by the caller by `_subtractedValue`.
-     *
-     * This is an alternative to `approve` that can be used as a mitigation for
-     * problems described in:
-     * https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC20/IERC20.sol#L42
-     * Emits an `Approval` event indicating the updated allowance.
-     *
-     * Requirements:
-     *
-     * - `_spender` cannot be the zero address.
-     * - `_spender` must have allowance for the caller of at least `_subtractedValue`.
-     * - the contract must not be paused.
-     */
-    function decreaseAllowance(
-        address _spender,
-        uint256 _subtractedValue
-    ) public returns (bool) {
-        uint256 currentAllowance = allowances[msg.sender][_spender];
-        require(
-            currentAllowance >= _subtractedValue,
-            "DECREASED_ALLOWANCE_BELOW_ZERO"
-        );
-        _approverAmMMF(
-            msg.sender,
-            _spender,
-            currentAllowance - _subtractedValue
-        );
-        return true;
-    }
-
-    /**
      * @notice Function called by users to wrap their AmMMF tokens
      *
      * @param _AmMMFAmount The amount of AmMMF Tokens to wrap
@@ -426,7 +331,7 @@ contract RAmMMF is
      * @dev KYC checks implicit in AmMMF Transfer
      */
     function wrap(uint256 _AmMMFAmount) external whenNotPaused {
-        require(_AmMMFAmount > 0, "rAmMMF: can't wrap zero AmMMF tokens");
+        require(_AmMMFAmount > 0, "zero AmMMF tokens");
         uint256 AmMMFSharesAmount = _AmMMFAmount *
             AMMMF_TO_RAMMMF_SHARES_MULTIPLIER;
         _mintShares(msg.sender, AmMMFSharesAmount);
@@ -462,7 +367,7 @@ contract RAmMMF is
      * @dev KYC checks implicit in AmMMF Transfer
      */
     function unwrap(uint256 _rAmMMFAmount) external whenNotPaused {
-        require(_rAmMMFAmount > 0, "rAmMMF: can't unwrap zero rAmMMF tokens");
+        require(_rAmMMFAmount > 0, "zero rAmMMF tokens");
         uint256 AmMMFSharesAmount = getSharesByRAmMMF(_rAmMMFAmount);
         if (AmMMFSharesAmount < AMMMF_TO_RAMMMF_SHARES_MULTIPLIER)
             revert UnwrapTooSmall();
@@ -592,11 +497,11 @@ contract RAmMMF is
         if (from != msg.sender && to != msg.sender) {
             require(
                 !blacklist.hasBlack(_msgSender(), msg.sender),
-                "rAmMMF: 'sender' address in blacklist"
+                "'sender' in blacklist"
             );
             require(
                 allowlist.hasAllow(_msgSender(), msg.sender),
-                "rAmMMF: 'sender' address not in allowlist"
+                "'sender' not in allowlist"
             );
         }
 
@@ -605,11 +510,11 @@ contract RAmMMF is
             // require(_getKYCStatus(from), "rAmMMF: 'from' address not KYC'd");
             require(
                 !blacklist.hasBlack(_msgSender(), from),
-                "rAmMMF: 'from' address in blacklist"
+                "'from' in blacklist"
             );
             require(
                 allowlist.hasAllow(_msgSender(), from),
-                "rAmMMF: 'from' address not in allowlist"
+                "'from' not in allowlist"
             );
         }
 
@@ -618,11 +523,11 @@ contract RAmMMF is
             // require(_getKYCStatus(to), "rAmMMF: 'to' address not KYC'd");
             require(
                 !blacklist.hasBlack(_msgSender(), to),
-                "rAmMMF: 'to' address in blacklist"
+                "'to' in blacklist"
             );
             require(
                 allowlist.hasAllow(_msgSender(), to),
-                "rAmMMF: 'to' address not in allowlis"
+                "'to' not in allowlis"
             );
         }
     }

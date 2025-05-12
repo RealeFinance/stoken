@@ -7,7 +7,7 @@ import {AccessControlEnumerableUpgradeable} from "@openzeppelin/contracts-upgrad
 import {IERC20, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {ERC20BurnableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20BurnableUpgradeable.sol";
 import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
-import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
+// import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
@@ -23,7 +23,6 @@ contract RAmMMF is
     ERC20BurnableUpgradeable,
     ERC20PausableUpgradeable,
     AccessControlEnumerableUpgradeable,
-    ERC20PermitUpgradeable,
     UUPSUpgradeable
 {
     /**
@@ -37,7 +36,7 @@ contract RAmMMF is
     mapping(address => uint256) private shares;
 
     /// @dev Allowances are nominated in tokens, not token shares.
-    mapping(address => mapping(address => uint256)) private allowances;
+    // mapping(address => mapping(address => uint256)) private allowances;
 
     // Total shares in existence
     uint256 public totalShares;
@@ -62,6 +61,33 @@ contract RAmMMF is
 
     // Symbol of the token
     string internal _symbol;
+
+    // Flag to determine whether to fetch the price from the oracle
+    bool public pricefromOracle;
+
+    // Timestamp of the last price update
+    uint256 private lastPriceUpdate;
+
+    /**
+     * @notice Updates the timestamp of the last price update.
+     * @dev This function can only be called by an account with the `DEFAULT_ADMIN_ROLE`.
+     * @param _lastPriceUpdate The new timestamp to set as the last price update.
+     */
+    function setLastPriceUpdate(
+        uint256 _lastPriceUpdate
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        lastPriceUpdate = _lastPriceUpdate;
+    }
+
+    /**
+     * @notice Sets the flag to determine whether to fetch the price from the oracle
+     * @param _pricefromOracle The new value for the flag
+     */
+    function setGetPriceFromOracle(
+        bool _pricefromOracle
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        pricefromOracle = _pricefromOracle;
+    }
 
     /*//////////////////////////////////////////////////////////////
                                 ERROR
@@ -96,7 +122,7 @@ contract RAmMMF is
         __ERC20Burnable_init();
         __ERC20Pausable_init();
         __AccessControl_init();
-        __ERC20Permit_init("rAmMMF");
+        // __ERC20Permit_init("rAmMMF");
         __UUPSUpgradeable_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
@@ -107,6 +133,8 @@ contract RAmMMF is
         oracle = IRWAOracle(_oracle);
         _name = "rAmMMF";
         _symbol = "rAmMMF";
+        pricefromOracle = false;
+        lastPriceUpdate = 1e18;
     }
 
     /**
@@ -138,6 +166,10 @@ contract RAmMMF is
 
     function unpause() public onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();
+    }
+
+    function decimals() public pure override returns (uint8) {
+        return 22;
     }
 
     /**
@@ -199,8 +231,16 @@ contract RAmMMF is
             (1e18 * AMMMF_TO_RAMMMF_SHARES_MULTIPLIER);
     }
 
+    /**
+     * @return price price of AmMMF in rAmMMF
+     */
     function getAmMMFPrice() public view returns (uint256 price) {
-        (price, ) = oracle.getPriceData();
+        if (pricefromOracle) {
+            (price, ) = oracle.getPriceData();
+            return price;
+        } else {
+            return lastPriceUpdate;
+        }
     }
 
     /**
@@ -221,7 +261,6 @@ contract RAmMMF is
     ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 
     // The following functions are overrides required by Solidity.
-
     function _update(
         address from,
         address to,
@@ -249,77 +288,17 @@ contract RAmMMF is
         address _recipient,
         uint256 _amount
     ) public override returns (bool) {
-        _transferShares(msg.sender, _recipient, _amount);
+        _transferShares(_msgSender(), _recipient, _amount);
         return true;
     }
 
-    /**
-     * @return the remaining number of tokens that `_spender` is allowed to spend
-     * on behalf of `_owner` through `transferFrom`. This is zero by default.
-     *
-     * @dev This value changes when `approve` or `transferFrom` is called.
-     */
-    // function allowance(
-    //     address _owner,
-    //     address _spender
-    // ) public view override returns (uint256) {
-    //     return allowances[_owner][_spender];
-    // }
-
-    /**
-     * @notice Sets `_amount` as the allowance of `_spender` over the caller's tokens.
-     *
-     * @return a boolean value indicating whether the operation succeeded.
-     * Emits an `Approval` event.
-     *
-     * Requirements:
-     *
-     * - `_spender` cannot be the zero address.
-     * - the contract must not be paused.
-     *
-     * @dev The `_amount` argument is the amount of tokens, not shares.
-     */
-    function approve(
-        address _spender,
-        uint256 _amount
-    ) public override returns (bool) {
-        _approverAmMMF(msg.sender, _spender, _amount);
-        return true;
-    }
-
-    /**
-     * @notice Moves `_amMMFamount` tokens from `_sender` to `_recipient` using the
-     * allowance mechanism. `_amMMFamount` is then deducted from the caller's
-     * allowance.
-     *
-     * @return a boolean value indicating whether the operation succeeded.
-     *
-     * Emits a `Transfer` event.
-     * Emits a `TransferShares` event.
-     * Emits an `Approval` event indicating the updated allowance.
-     *
-     * Requirements:
-     *
-     * - `_sender` and `_recipient` cannot be the zero addresses.
-     * - `_sender` must have a balance of at least `_amMMFamount`.
-     * - the caller must have allowance for `_sender`'s tokens of at least `_amMMFamount`.
-     * - the contract must not be paused.
-     *
-     * @dev The `_amMMFamount` argument is the amount of tokens, not shares.
-     */
     function transferFrom(
-        address _sender,
-        address _recipient,
-        uint256 _amMMFamount
+        address from,
+        address to,
+        uint256 _rAmMMFamount
     ) public override returns (bool) {
-        uint256 currentAllowance = allowances[_sender][msg.sender];
-        require(
-            currentAllowance >= _amMMFamount,
-            "TRANSFER_AMOUNT_EXCEEDS_ALLOWANCE"
-        );
-
-        _transferShares(_sender, _recipient, _amMMFamount);
-        _approverAmMMF(_sender, msg.sender, currentAllowance - _amMMFamount);
+        _spendAllowance(from, _msgSender(), _rAmMMFamount);
+        _transferShares(from, to, _rAmMMFamount);
         return true;
     }
 
@@ -381,27 +360,6 @@ contract RAmMMF is
     }
 
     /**
-     * @notice Function called by users to unwrap their rAmMMF tokens by shares
-     *
-     * @param _sharesAmount The amount of shares to transfer
-     *
-     * @dev KYC checks implicit in AmMMF Transfer
-     * @dev This is a more precise unwrap, as it avoids the division by price when converting rAmMMF to shares
-     */
-    function unwrapShares(uint256 _sharesAmount) external whenNotPaused {
-        if (_sharesAmount < AMMMF_TO_RAMMMF_SHARES_MULTIPLIER)
-            revert UnwrapTooSmall();
-        uint256 rAmMMFAmount = getRAmMMFByShares(_sharesAmount);
-        _burnShares(msg.sender, _sharesAmount);
-        ammmf.transfer(
-            msg.sender,
-            _sharesAmount / AMMMF_TO_RAMMMF_SHARES_MULTIPLIER
-        );
-        emit Transfer(msg.sender, address(0), rAmMMFAmount);
-        emit TransferShares(msg.sender, address(0), _sharesAmount);
-    }
-
-    /**
      * @notice Destroys `_sharesAmount` shares from `_account`'s holdings, decreasing the total amount of shares.
      * @dev This doesn't decrease the token total supply.
      *
@@ -451,29 +409,6 @@ contract RAmMMF is
     }
 
     /**
-     * @notice Sets `_amount` as the allowance of `_spender` over the `_owner` s tokens.
-     *
-     * Emits an `Approval` event.
-     *
-     * Requirements:
-     *
-     * - `_owner` cannot be the zero address.
-     * - `_spender` cannot be the zero address.
-     * - the contract must not be paused.
-     */
-    function _approverAmMMF(
-        address _owner,
-        address _spender,
-        uint256 _amount
-    ) internal whenNotPaused {
-        require(_owner != address(0), "APPROVE_FROM_ZERO_ADDRESS");
-        require(_spender != address(0), "APPROVE_TO_ZERO_ADDRESS");
-
-        allowances[_owner][_spender] = _amount;
-        emit Approval(_owner, _spender, _amount);
-    }
-
-    /**
      * @dev Hook that is called before any transfer of tokens. This includes
      * minting and burning.
      *
@@ -492,8 +427,6 @@ contract RAmMMF is
         address to,
         uint256
     ) internal view {
-        // Check constraints when `transferFrom` is called to facliitate
-        // a transfer between two parties that are not `from` or `to`.
         if (from != msg.sender && to != msg.sender) {
             require(
                 !blacklist.hasBlack(_msgSender(), msg.sender),
@@ -506,8 +439,6 @@ contract RAmMMF is
         }
 
         if (from != address(0)) {
-            // If not minting
-            // require(_getKYCStatus(from), "rAmMMF: 'from' address not KYC'd");
             require(
                 !blacklist.hasBlack(_msgSender(), from),
                 "'from' in blacklist"
@@ -519,12 +450,7 @@ contract RAmMMF is
         }
 
         if (to != address(0)) {
-            // If not burning
-            // require(_getKYCStatus(to), "rAmMMF: 'to' address not KYC'd");
-            require(
-                !blacklist.hasBlack(_msgSender(), to),
-                "'to' in blacklist"
-            );
+            require(!blacklist.hasBlack(_msgSender(), to), "'to' in blacklist");
             require(
                 allowlist.hasAllow(_msgSender(), to),
                 "'to' not in allowlis"

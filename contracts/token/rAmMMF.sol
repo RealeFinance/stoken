@@ -55,12 +55,6 @@ contract RAmMMF is
     // Used to scale up ammmf amount -> shares
     uint256 public constant AMMMF_TO_RAMMMF_SHARES_MULTIPLIER = 10_000;
 
-    // Name of the token
-    string internal _name;
-
-    // Symbol of the token
-    string internal _symbol;
-
     // Flag to determine whether to fetch the price from the oracle
     bool public pricefromOracle;
 
@@ -115,9 +109,10 @@ contract RAmMMF is
         address _blacklist,
         address _allowlist,
         address _ammmf,
-        address _oracle
+        string memory _name,
+        string memory _symbol
     ) public initializer {
-        __ERC20_init("rAmMMF", "MTK");
+        __ERC20_init(_name, _symbol);
         __ERC20Burnable_init();
         __ERC20Pausable_init();
         __AccessControl_init();
@@ -129,9 +124,7 @@ contract RAmMMF is
         blacklist = IBlacklistCheck(_blacklist);
         allowlist = IAllowlistCheck(_allowlist);
         ammmf = IERC20(_ammmf);
-        oracle = IRWAOracle(_oracle);
-        _name = "rAmMMF";
-        _symbol = "rAmMMF";
+        // oracle = IRWAOracle(_oracle);
         pricefromOracle = false;
         lastPriceUpdate = 1e18;
     }

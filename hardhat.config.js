@@ -1,5 +1,7 @@
 // hardhat.config.js
 require("@nomicfoundation/hardhat-toolbox");
+require("@openzeppelin/hardhat-upgrades");
+require("@nomicfoundation/hardhat-chai-matchers");
 require("dotenv").config();
 
 /** @type import('hardhat/config').HardhatUserConfig */
@@ -26,15 +28,18 @@ module.exports = {
     },
     mainnet: {
       url: `https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY}`,
-      accounts: [process.env.PRIVATE_KEY],
+      accounts: [process.env.PRIVATE_KEY_1],
       chainId: 1,
       gasPrice: "auto",
       gasMultiplier: 1.2,
     },
+    "hashkey-chain-testnet": {
+      url: "https://hashkeychain-testnet.alt.technology",
+    },
     // 可添加更多网络配置
     testnet: {
-      url: `https://hashkey-testnet.drpc.org`,
-      accounts: [process.env.PRIVATE_KEY],
+      url: `https://hashkeychain-testnet.alt.technology`,
+      accounts: [process.env.PRIVATE_KEY_2],
       chainId: 133,
       gasPrice: "auto",
     },
@@ -44,6 +49,7 @@ module.exports = {
     apiKey: {
       mainnet: process.env.ETHERSCAN_API_KEY,
       testnet: process.env.ETHERSCAN_API_KEY,
+      "hashkey-chain-testnet": "empty",
       // 其他网络API密钥
     },
     // 自定义网络配置
@@ -52,8 +58,19 @@ module.exports = {
         network: "testnet",
         chainId: 133,
         urls: {
-          apiUrl: "https://hashkeychain-testnet-explorer.alt.technology/api/v1/graphql",
+          apiUrl:
+            "https://hashkeychain-testnet-explorer.alt.technology/api/v1/graphql",
           browserUrl: "https://hashkeychain-testnet-explorer.alt.technology/",
+        },
+      },
+      {
+        network: "hashkey-chain-testnet",
+        chainId: 133,
+        urls: {
+          apiURL:
+            "https://hashkeychain-testnet-explorer.alt.technology:443/api",
+          browserURL:
+            "https://hashkeychain-testnet-explorer.alt.technology:443",
         },
       },
     ],

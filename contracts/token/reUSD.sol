@@ -36,7 +36,6 @@ contract ReUSD is
     }
 
     function initialize(
-        address defaultAdmin,
         address upgrader,
         address _mAmMMF,
         address _rAmMMF,
@@ -47,7 +46,7 @@ contract ReUSD is
         __AccessControl_init();
         __UUPSUpgradeable_init();
 
-        _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(UPGRADER_ROLE, upgrader);
 
         rammmf = IERC20(_mAmMMF);

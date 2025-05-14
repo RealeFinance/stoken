@@ -124,7 +124,7 @@ contract RAmMMF is
         blacklist = IBlacklistCheck(_blacklist);
         allowlist = IAllowlistCheck(_allowlist);
         ammmf = IERC20(_ammmf);
-        // oracle = IRWAOracle(_oracle);
+        oracle = IRWAOracle(address(0));
         pricefromOracle = false;
         lastPriceUpdate = 1e18;
     }
@@ -420,33 +420,21 @@ contract RAmMMF is
         uint256
     ) internal view {
         if (from != msg.sender && to != msg.sender) {
+            require(!blacklist.hasBlack(msg.sender), "'sender' in blacklist");
             require(
-                !blacklist.hasBlack(_msgSender(), msg.sender),
-                "'sender' in blacklist"
-            );
-            require(
-                allowlist.hasAllow(_msgSender(), msg.sender),
+                allowlist.hasAllow(msg.sender),
                 "'sender' not in allowlist"
             );
         }
 
         if (from != address(0)) {
-            require(
-                !blacklist.hasBlack(_msgSender(), from),
-                "'from' in blacklist"
-            );
-            require(
-                allowlist.hasAllow(_msgSender(), from),
-                "'from' not in allowlist"
-            );
+            require(!blacklist.hasBlack(from), "'from' in blacklist");
+            require(allowlist.hasAllow(from), "'from' not in allowlist");
         }
 
         if (to != address(0)) {
-            require(!blacklist.hasBlack(_msgSender(), to), "'to' in blacklist");
-            require(
-                allowlist.hasAllow(_msgSender(), to),
-                "'to' not in allowlis"
-            );
+            require(!blacklist.hasBlack(to), "'to' in blacklist");
+            require(allowlist.hasAllow(to), "'to' not in allowlist");
         }
     }
 }

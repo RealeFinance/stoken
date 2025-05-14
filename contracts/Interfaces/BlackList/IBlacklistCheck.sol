@@ -10,16 +10,6 @@ pragma solidity ^0.8.22;
  * @notice Interface for a blocklist contract to manage blocked addresses.
  */
 interface IBlacklistCheck {
-    /**
-     * @notice Checks if an address is blocked.
-     *
-     * @param account The address to check.
-     * @return bool Returns `true` if the address is blocked, otherwise `false`.
-     */
-    function hasBlack(
-        address msgSender,
-        address account
-    ) external view returns (bool);
 
     /**
      * @notice Checks if an address is blocked.

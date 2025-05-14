@@ -34,10 +34,10 @@ contract SAmMMF is
         address upgrader
     ) public initializer {
         __ERC20_init("sAmMMF", "MTK");
-        __ERC20Permit_init("sAmMMF");
         __ERC20Pausable_init();
         __AccessControl_init();
         __UUPSUpgradeable_init();
+        __ERC20Permit_init("sAmMMF");
 
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
         _grantRole(UPGRADER_ROLE, upgrader);
@@ -75,10 +75,7 @@ contract SAmMMF is
      */
     function wrap(uint256 _AmMMFAmount) external whenNotPaused {
         require(_AmMMFAmount > 0, "sAmMMF: can't wrap zero AmMMF tokens");
-        require(
-            ammmf.transferFrom(msg.sender, address(this), _AmMMFAmount),
-            "sAmMMF: Transfer failed"
-        );
+        ammmf.transferFrom(msg.sender, address(this), _AmMMFAmount);
         _mint(msg.sender, _AmMMFAmount);
     }
 

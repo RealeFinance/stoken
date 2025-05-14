@@ -47,6 +47,12 @@ contract AllowList is
         address newImplementation
     ) internal override onlyRole(ALLOWLIST_ADMIN_ROLE) {}
 
+    function addRamMMFAddress(
+        address accounts
+    ) external onlyRole(ALLOWLIST_ADMIN_ROLE) {
+        _grantRole(ALLOWLIST_ADMIN_ROLE, accounts);
+    }
+
     function addToAllowlist(
         address[] calldata accounts
     ) external onlyRole(ALLOWLIST_ADMIN_ROLE) {
@@ -71,21 +77,11 @@ contract AllowList is
         }
     }
 
-    function hasAllow(
-        address msgSender,
-        address account
-    ) external view returns (bool) {
+    function hasAllow(address account) external view returns (bool) {
         require(
-            hasRole(ALLOWLIST_ADMIN_ROLE, msgSender),
+            hasRole(ALLOWLIST_ADMIN_ROLE, _msgSender()),
             "Sender is not in Admin"
         );
-        _beforeCheck(account, _msgSender());
-        return hasRole(ALLOWLIST_ROLE, account);
-    }
-
-    function hasAllow(
-        address account
-    ) external view onlyRole(ALLOWLIST_ADMIN_ROLE) returns (bool) {
         _beforeCheck(account, _msgSender());
         return hasRole(ALLOWLIST_ROLE, account);
     }

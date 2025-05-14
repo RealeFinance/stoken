@@ -65,6 +65,12 @@ contract BlackList is
                           EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
+    function addRamMMFAddress(
+        address accounts
+    ) external onlyRole(BLACKLIST_ADMIN_ROLE) {
+        _grantRole(BLACKLIST_ADMIN_ROLE, accounts);
+    }
+
     function addToBlacklist(
         address[] calldata accounts
     ) external onlyRole(BLACKLIST_ADMIN_ROLE) {
@@ -89,23 +95,13 @@ contract BlackList is
         }
     }
 
-    function hasBlack(
-        address msgSender,
-        address account
-    ) external view returns (bool) {
+    function hasBlack(address account) external view returns (bool) {
         require(
-            hasRole(BLACKLIST_ADMIN_ROLE, msgSender),
+            hasRole(BLACKLIST_ADMIN_ROLE, _msgSender()),
             "Sender is not in Admin"
         );
         _beforeCheck(account, _msgSender());
         return hasRole(BLACKLIST_ROLE, account);
-    }
-
-    function hasBlack(
-        address account
-    ) external view onlyRole(BLACKLIST_ADMIN_ROLE) returns (bool) {
-        _beforeCheck(account, _msgSender());
-        return super.hasRole(BLACKLIST_ROLE, account);
     }
 
     function getBlackAdmin() external view returns (bytes32) {

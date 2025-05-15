@@ -10,6 +10,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {AggregatorV2V3Interface} from "@chainlink/contracts/src/v0.8/interfaces/FeedRegistryInterface.sol";
 import {IMAmMMF} from "contracts/Interfaces/mAmMMF/ImAmMMF.sol";
+import {IRWAOracle} from "contracts/Interfaces/rwaOracles/IRWAOracle.sol";
 
 contract ReUSD is
     Initializable,
@@ -26,6 +27,8 @@ contract ReUSD is
     // Address of the mAmMMF token
     IMAmMMF public mammmf;
 
+    IRWAOracle public oracle;
+
     AggregatorV2V3Interface internal priceFeed;
 
     address public realeAdmin;
@@ -39,18 +42,21 @@ contract ReUSD is
         address upgrader,
         address _mAmMMF,
         address _rAmMMF,
-        address _realeAdmin
+        address _realeAdmin,
+        string memory _name,
+        string memory _symbol
     ) public initializer {
-        __ERC20_init("reUSD", "MTK");
-        __ERC20Permit_init("reUSD");
+        __ERC20_init(_name, _symbol);
+        __ERC20Permit_init(_name);
         __AccessControl_init();
         __UUPSUpgradeable_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(UPGRADER_ROLE, upgrader);
 
-        rammmf = IERC20(_mAmMMF);
-        mammmf = IMAmMMF(_rAmMMF);
+        mammmf = IMAmMMF(_mAmMMF);
+        rammmf = IERC20(_rAmMMF);
+        oracle = IRWAOracle(address(0));
         realeAdmin = _realeAdmin;
     }
 
@@ -58,26 +64,89 @@ contract ReUSD is
         address newImplementation
     ) internal override onlyRole(UPGRADER_ROLE) {}
 
-    function _getmAmMMFbyreUSD(
-        uint256 _reUSDAmount
-    ) internal pure returns (uint256) {
-        return _reUSDAmount * 1;
+    function getReUSDByMAmMMFMount(
+        uint256 _mAmMMFMount
+    ) internal view returns (uint256) {
+        return (_mAmMMFMount * getAmMMFPrice()) / getReUSDPrice();
     }
 
-    function _getreUSDbymAmMMF(
-        uint256 _mammfAmount
-    ) internal pure returns (uint256) {
-        return _mammfAmount * 1;
+    function getMAmMMFByReUSDMount(
+        uint256 _reUSDMount
+    ) internal view returns (uint256) {
+        return (_reUSDMount * getReUSDPrice()) / getAmMMFPrice();
     }
 
-    function setPriceFeed(
-        address _priceFeed
+    /**
+     * @return price AmMMF
+     */
+    function getAmMMFPrice() internal view returns (uint256 price) {
+        // (price, ) = oracle.getPriceData();
+        return 1.00000000;
+    }
+
+    /**
+     * @return price ReUSD
+     */
+    function getReUSDPrice() internal view returns (uint256 price) {
+        // (price, ) = oracle.getPriceData();
+        return 1.00000000;
+    }
+
+    /**
+     * @dev Allows users to exchange their rAmMMF tokens for reUSD tokens 1:1.
+     * User must approve this contract to spend their rAmMMF before calling.
+     * @param _rAmMMFMount The amount of rAmMMF to exchange.
+     */
+    function swapByRAmMMf(uint256 _rAmMMFMount) external {
+        require(_rAmMMFMount > 0, "Amount must be greater than zero");
+        rammmf.transferFrom(msg.sender, address(this), _rAmMMFMount);
+        _mint(msg.sender, _rAmMMFMount);
+    }
+
+    /**
+     * @dev Allows users to exchange their mAmMMF tokens for reUSD tokens 1:1.
+     * User must approve this contract to spend their mAmMMF before calling.
+     * @param _mAmMMFMount The amount of mAmMMF to exchange.
+     */
+    function swapByMAmMMf(uint256 _mAmMMFMount) external {
+        require(_mAmMMFMount > 0, "Amount must be greater than zero");
+        mammmf.transferFrom(msg.sender, address(this), _mAmMMFMount);
+        _mint(msg.sender, getReUSDByMAmMMFMount(_mAmMMFMount));
+    }
+
+    /**
+     * @dev Allows users to exchange their reUSD tokens for rAmMMF tokens 1:1.
+     * Burns the reUSD tokens and transfers rAmMMF to the user.
+     * @param _reUSDMount The amount of reUSD to exchange.
+     */
+    function redeemToRAmMMf(uint256 _reUSDMount) external {
+        require(_reUSDMount > 0, "Amount must be greater than zero");
+        _burn(msg.sender, _reUSDMount);
+        require(
+            rammmf.transfer(msg.sender, _reUSDMount),
+            "Transfer of rAmMMF failed"
+        );
+    }
+
+    /**
+     * @dev Allows users to exchange their reUSD tokens for mAmMMF tokens.
+     * Burns the reUSD tokens and transfers mAmMMF to the user based on price.
+     * @param _reUSDMount The amount of reUSD to exchange.
+     */
+    function redeemToMAmMMf(uint256 _reUSDMount) external {
+        require(_reUSDMount > 0, "Amount must be greater than zero");
+        uint256 mAmMMFMount = getMAmMMFByReUSDMount(_reUSDMount);
+        _burn(msg.sender, _reUSDMount);
+        require(
+            mammmf.transfer(msg.sender, mAmMMFMount),
+            "Transfer of mAmMMF failed"
+        );
+    }
+
+    function mint(
+        address account,
+        uint256 value
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        priceFeed = AggregatorV2V3Interface(_priceFeed);
-    }
-
-    function getLatestETHPrice() public view returns (int256) {
-        (, int256 price, , , ) = priceFeed.latestRoundData();
-        return price;
+        _mint(account, value);
     }
 }

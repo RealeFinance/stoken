@@ -1,69 +1,130 @@
 const { expect } = require("chai");
 const { ethers, upgrades } = require("hardhat");
 
-describe("reUSD Token", function () {
-  let reUSD, reUSDToken, owner, addr1, addr2;
+describe("ReUSD Contract", function () {
+  let reUSD, rammmf, mammmf, owner, addr1, addr2;
 
   async function deployReUSD() {
-    const reUSDFactory = await ethers.getContractFactory("ReUSD");
-    const reUSDToken = await upgrades.deployProxy(
-      reUSDFactory,
-      [owner, _mAmMMF, _rAmMMF, owner],
+    const ReUSD = await ethers.getContractFactory("ReUSD", owner);
+    const reUSDInstance = await upgrades.deployProxy(
+      ReUSD,
+      [
+        owner.address, // upgrader
+        await mammmf.getAddress(),
+        await rammmf.getAddress(),
+        owner.address, // realeAdmin
+        "ReUSD",
+        "ReUSD",
+      ],
       { initializer: "initialize" }
     );
-    await reUSDToken.waitForDeployment();
-    return reUSDToken;
+    await reUSDInstance.waitForDeployment();
+    return reUSDInstance;
   }
 
   beforeEach(async function () {
     [owner, addr1, addr2] = await ethers.getSigners();
-    reUSDToken = await deployReUSD();
+
+    const MockToken = await ethers.getContractFactory("Oracle", owner);
+
+    rammmf = await MockToken.deploy();
+    await rammmf.waitForDeployment();
+
+    mammmf = await MockToken.deploy();
+    await mammmf.waitForDeployment();
+
+    reUSD = await deployReUSD();
   });
 
-  it("Should have correct name and symbol", async function () {
-    expect(await reUSDToken.name()).to.equal("reUSD");
-    expect(await reUSDToken.symbol()).to.equal("reUSD");
+  describe("Initialization", function () {
+    it("Should initialize with correct values", async function () {
+      expect(await reUSD.rammmf()).to.equal(await rammmf.getAddress());
+      expect(await reUSD.mammmf()).to.equal(await mammmf.getAddress());
+      expect(await reUSD.realeAdmin()).to.equal(owner.address);
+    });
   });
 
-  it("Should mint tokens to owner", async function () {
-    const mintAmount = ethers.utils.parseUnits("1000", 18);
-    await reUSDToken.mint(owner.address, mintAmount);
-    expect(await reUSDToken.balanceOf(owner.address)).to.equal(mintAmount);
+  describe("Swap by rAmMMF", function () {
+    it("Should allow swapping rAmMMF for reUSD", async function () {
+      const amount = ethers.parseUnits("100", 18);
+      await rammmf.mint(addr1.address, amount);
+      await rammmf.connect(addr1).approve(await reUSD.getAddress(), amount);
+
+      await expect(reUSD.connect(addr1).swapByRAmMMf(amount))
+        .to.emit(reUSD, "Transfer")
+        .withArgs(ethers.ZeroAddress, addr1.address, amount);
+
+      expect(await reUSD.balanceOf(addr1.address)).to.equal(amount);
+      expect(await rammmf.balanceOf(addr1.address)).to.equal(0);
+    });
+
+    it("Should revert if amount is zero", async function () {
+      await expect(reUSD.connect(addr1).swapByRAmMMf(0)).to.be.revertedWith(
+        "Amount must be greater than zero"
+      );
+    });
   });
 
-  it("Should transfer tokens between accounts", async function () {
-    const mintAmount = ethers.utils.parseUnits("1000", 18);
-    await reUSDToken.mint(owner.address, mintAmount);
+  describe("Swap by mAmMMF", function () {
+    it("Should allow swapping mAmMMF for reUSD", async function () {
+      const amount = ethers.parseUnits("100", 18);
+      await mammmf.mint(addr1.address, amount);
+      await mammmf.connect(addr1).approve(await reUSD.getAddress(), amount);
 
-    await reUSDToken.transfer(addr1.address, mintAmount.div(2));
-    expect(await reUSDToken.balanceOf(addr1.address)).to.equal(
-      mintAmount.div(2)
-    );
-    expect(await reUSDToken.balanceOf(owner.address)).to.equal(
-      mintAmount.div(2)
-    );
+      await expect(reUSD.connect(addr1).swapByMAmMMf(amount))
+        .to.emit(reUSD, "Transfer")
+        .withArgs(ethers.ZeroAddress, addr1.address, amount);
+
+      expect(await reUSD.balanceOf(addr1.address)).to.equal(amount);
+      expect(await mammmf.balanceOf(addr1.address)).to.equal(0);
+    });
+
+    it("Should revert if amount is zero", async function () {
+      await expect(reUSD.connect(addr1).swapByMAmMMf(0)).to.be.revertedWith(
+        "Amount must be greater than zero"
+      );
+    });
   });
 
-  it("Should fail if sender doesn’t have enough tokens", async function () {
-    await expect(
-      reUSDToken.connect(addr1).transfer(owner.address, 1)
-    ).to.be.revertedWith("ERC20: transfer amount exceeds balance");
+  describe("Redeem to rAmMMF", function () {
+    it("Should allow redeeming reUSD for rAmMMF", async function () {
+      const amount = ethers.parseUnits("100", 18);
+      await rammmf.mint(await reUSD.getAddress(), amount);
+      await reUSD.mint(addr1.address, amount);
+
+      await expect(reUSD.connect(addr1).redeemToRAmMMf(amount))
+        .to.emit(reUSD, "Transfer")
+        .withArgs(addr1.address, ethers.ZeroAddress, amount);
+
+      expect(await reUSD.balanceOf(addr1.address)).to.equal(0);
+      expect(await rammmf.balanceOf(addr1.address)).to.equal(amount);
+    });
+
+    it("Should revert if amount is zero", async function () {
+      await expect(reUSD.connect(addr1).redeemToRAmMMf(0)).to.be.revertedWith(
+        "Amount must be greater than zero"
+      );
+    });
   });
 
-  it("Should allow approvals and transferFrom", async function () {
-    const mintAmount = ethers.utils.parseUnits("1000", 18);
-    await reUSDToken.mint(owner.address, mintAmount);
+  describe("Redeem to mAmMMF", function () {
+    it("Should allow redeeming reUSD for mAmMMF", async function () {
+      const amount = ethers.parseUnits("100", 18);
+      await mammmf.mint(await reUSD.getAddress(), amount);
+      await reUSD.mint(addr1.address, amount);
 
-    await reUSDToken.approve(addr1.address, mintAmount);
-    await reUSDToken
-      .connect(addr1)
-      .transferFrom(owner.address, addr2.address, mintAmount.div(2));
+      await expect(reUSD.connect(addr1).redeemToMAmMMf(amount))
+        .to.emit(reUSD, "Transfer")
+        .withArgs(addr1.address, ethers.ZeroAddress, amount);
 
-    expect(await reUSDToken.balanceOf(addr2.address)).to.equal(
-      mintAmount.div(2)
-    );
-    expect(await reUSDToken.allowance(owner.address, addr1.address)).to.equal(
-      mintAmount.div(2)
-    );
+      expect(await reUSD.balanceOf(addr1.address)).to.equal(0);
+      expect(await mammmf.balanceOf(addr1.address)).to.equal(amount);
+    });
+
+    it("Should revert if amount is zero", async function () {
+      await expect(reUSD.connect(addr1).redeemToMAmMMf(0)).to.be.revertedWith(
+        "Amount must be greater than zero"
+      );
+    });
   });
 });

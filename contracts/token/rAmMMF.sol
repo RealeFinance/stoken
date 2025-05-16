@@ -98,14 +98,17 @@ contract RAmMMF is
 
     /**
      * @notice Emitted when the price is updated
-     * @param latestPrice The new price set
-     * @param updater The address that updated the price
-     * @param timestamp The block timestamp when the price was updated
+     *
+     * @param oldPrice The old price of rAmMMF
+     * @param latestPrice The new price of rAmMMF
+     * @param oldTotalSupply The old total supply of rAmMMF
+     * @param latestTotalSupply The new total supply of rAmMMF
      */
     event PriceUpdated(
+        uint256 oldPrice,
         uint256 latestPrice,
-        address indexed updater,
-        uint256 timestamp
+        uint256 oldTotalSupply,
+        uint256 latestTotalSupply
     );
 
     /*//////////////////////////////////////////////////////////////
@@ -180,8 +183,15 @@ contract RAmMMF is
         uint256 _latestPrice
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(_latestPrice > 0, "Latest price must be greater than zero");
+        uint256 _oldLatestPrice = latestPrice;
+        uint256 _oldTotalSupply = totalSupply();
         latestPrice = _latestPrice;
-        emit PriceUpdated(_latestPrice, msg.sender, block.timestamp);
+        emit PriceUpdated(
+            _oldLatestPrice,
+            _latestPrice,
+            _oldTotalSupply,
+            totalSupply()
+        );
     }
 
     /**

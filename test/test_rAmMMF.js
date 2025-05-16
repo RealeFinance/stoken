@@ -2,14 +2,14 @@ const { expect } = require("chai");
 const { ethers, upgrades } = require("hardhat");
 
 describe("RAmMMF Contract", function () {
-  let rAmMMF, owner, addr1, addr2, blacklist, allowlist, ammmf, oracle;
+  let rAmMMF, owner, addr1, addr2, blocklist, allowlist, ammmf, oracle;
 
   async function deployRAmMMF() {
     const MockMAmMMF = await ethers.getContractFactory("RAmMMF", owner);
     const mAmMMF = await upgrades.deployProxy(
       MockMAmMMF,
       [
-        await blacklist.getAddress(),
+        await blocklist.getAddress(),
         await allowlist.getAddress(),
         await ammmf.getAddress(),
         "RAmMMF",
@@ -27,16 +27,16 @@ describe("RAmMMF Contract", function () {
     // console.log(owner.address)
     // console.log(addr1.address)
 
-    const BlackListContract = await ethers.getContractFactory(
-      "BlackList",
+    const BlockListContract = await ethers.getContractFactory(
+      "BlockListPac",
       owner
     );
-    // const blackList1 = await BlackListContract.deploy();
-    // await blackList1.waitForDeployment();
-    blacklist = await upgrades.deployProxy(BlackListContract, [], owner);
-    await blacklist.waitForDeployment();
+    // const blockList1 = await BlockListContract.deploy();
+    // await blockList1.waitForDeployment();
+    blocklist = await upgrades.deployProxy(BlockListContract, [], owner);
+    await blocklist.waitForDeployment();
 
-    const AllowlistMock = await ethers.getContractFactory("AllowList", owner);
+    const AllowlistMock = await ethers.getContractFactory("AllowListPac", owner);
     allowlist = await upgrades.deployProxy(AllowlistMock, [], owner);
     await allowlist.waitForDeployment();
 
@@ -50,13 +50,13 @@ describe("RAmMMF Contract", function () {
 
     rAmMMF = await deployRAmMMF();
 
-    blacklist.addRamMMFAddress(await rAmMMF.getAddress());
+    blocklist.addRamMMFAddress(await rAmMMF.getAddress());
     allowlist.addRamMMFAddress(await rAmMMF.getAddress());
   });
 
   describe("Initialization", function () {
     it("Should initialize with correct values", async function () {
-      expect(await rAmMMF.blacklist()).to.equal(await blacklist.getAddress());
+      expect(await rAmMMF.blocklist()).to.equal(await blocklist.getAddress());
       expect(await rAmMMF.allowlist()).to.equal(await allowlist.getAddress());
       expect(await rAmMMF.ammmf()).to.equal(await ammmf.getAddress());
     });

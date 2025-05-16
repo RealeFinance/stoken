@@ -12,6 +12,8 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 
 import {IBlacklistCheck} from "contracts/Interfaces/BlackList/IBlacklistCheck.sol";
 import {IAllowlistCheck} from "contracts/Interfaces/AllowList/IAllowlistCheck.sol";
+import {IBlocklist} from "contracts/Interfaces/BlackList/IBlocklistPac.sol";
+import {IAllowlist} from "contracts/Interfaces/AllowList/IAllowlistPac.sol";
 import {IRWAOracle} from "contracts/Interfaces/rwaOracles/IRWAOracle.sol";
 
 import "hardhat/console.sol";
@@ -47,10 +49,10 @@ contract RAmMMF is
     IRWAOracle public oracle;
 
     // Address of the Blacklist
-    IBlacklistCheck public blacklist;
+    IBlocklist public blocklist;
 
     // Address of the Allowlist
-    IAllowlistCheck public allowlist;
+    IAllowlist public allowlist;
 
     // Used to scale up ammmf amount -> shares
     uint256 public constant AMMMF_TO_RAMMMF_SHARES_MULTIPLIER = 10_000;
@@ -58,29 +60,8 @@ contract RAmMMF is
     // Flag to determine whether to fetch the price from the oracle
     bool public pricefromOracle;
 
-    // Timestamp of the last price update
-    uint256 private lastPriceUpdate;
-
-    /**
-     * @notice Updates the timestamp of the last price update.
-     * @dev This function can only be called by an account with the `DEFAULT_ADMIN_ROLE`.
-     * @param _lastPriceUpdate The new timestamp to set as the last price update.
-     */
-    function setLastPriceUpdate(
-        uint256 _lastPriceUpdate
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        lastPriceUpdate = _lastPriceUpdate;
-    }
-
-    /**
-     * @notice Sets the flag to determine whether to fetch the price from the oracle
-     * @param _pricefromOracle The new value for the flag
-     */
-    function setGetPriceFromOracle(
-        bool _pricefromOracle
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        pricefromOracle = _pricefromOracle;
-    }
+    // Last price update
+    uint256 private latestPrice;
 
     /*//////////////////////////////////////////////////////////////
                                 ERROR
@@ -91,6 +72,41 @@ contract RAmMMF is
 
     // Error when setting the oracle address to zero
     error CannotSetToZeroAddress();
+
+    /*//////////////////////////////////////////////////////////////
+                                EVENTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice An executed shares transfer from `sender` to `recipient`.
+     *
+     * @dev emitted in pair with an ERC20-defined `Transfer` event.
+     */
+    event TransferShares(
+        address indexed from,
+        address indexed to,
+        uint256 sharesValue
+    );
+
+    /**
+     * @notice Emitted when the oracle address is set
+     *
+     * @param oldOracle The address of the old oracle
+     * @param newOracle The address of the new oracle
+     */
+    event OracleSet(address indexed oldOracle, address indexed newOracle);
+
+    /**
+     * @notice Emitted when the price is updated
+     * @param latestPrice The new price set
+     * @param updater The address that updated the price
+     * @param timestamp The block timestamp when the price was updated
+     */
+    event PriceUpdated(
+        uint256 latestPrice,
+        address indexed updater,
+        uint256 timestamp
+    );
 
     /*//////////////////////////////////////////////////////////////
                              CONSTRUCTOR
@@ -121,36 +137,62 @@ contract RAmMMF is
 
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
 
-        blacklist = IBlacklistCheck(_blacklist);
-        allowlist = IAllowlistCheck(_allowlist);
+        blocklist = IBlocklist(_blacklist);
+        allowlist = IAllowlist(_allowlist);
         ammmf = IERC20(_ammmf);
         oracle = IRWAOracle(address(0));
         pricefromOracle = false;
-        lastPriceUpdate = 1e18;
+        latestPrice = 1e18;
     }
-
-    /**
-     * @notice An executed shares transfer from `sender` to `recipient`.
-     *
-     * @dev emitted in pair with an ERC20-defined `Transfer` event.
-     */
-    event TransferShares(
-        address indexed from,
-        address indexed to,
-        uint256 sharesValue
-    );
-
-    /**
-     * @notice Emitted when the oracle address is set
-     *
-     * @param oldOracle The address of the old oracle
-     * @param newOracle The address of the new oracle
-     */
-    event OracleSet(address indexed oldOracle, address indexed newOracle);
 
     /*//////////////////////////////////////////////////////////////
                           EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Sets the blocklist contract address
+     * @param _blocklist The address of the new blocklist contract
+     */
+    function setBlocklist(
+        address _blocklist
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_blocklist != address(0), "Blocklist address cannot be zero");
+        blocklist = IBlocklist(_blocklist);
+    }
+
+    /**
+     * @notice Sets the allowlist contract address
+     * @param _allowlist The address of the new allowlist contract
+     */
+    function setAllowlist(
+        address _allowlist
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_allowlist != address(0), "Allowlist address cannot be zero");
+        allowlist = IAllowlist(_allowlist);
+    }
+
+    /**
+     * @notice Updates the latest price of rAmMMF tokens.
+     * @dev This function allows the admin to manually set the latest price of rAmMMF tokens.
+     * @param _latestPrice The new price to be set, represented in 18 decimals.
+     */
+    function setLatestPrice(
+        uint256 _latestPrice
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_latestPrice > 0, "Latest price must be greater than zero");
+        latestPrice = _latestPrice;
+        emit PriceUpdated(_latestPrice, msg.sender, block.timestamp);
+    }
+
+    /**
+     * @notice Sets the flag to determine whether to fetch the price from the oracle
+     * @param _pricefromOracle The new value for the flag
+     */
+    function setGetPriceFromOracle(
+        bool _pricefromOracle
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        pricefromOracle = _pricefromOracle;
+    }
 
     function pause() public onlyRole(DEFAULT_ADMIN_ROLE) {
         _pause();
@@ -231,7 +273,7 @@ contract RAmMMF is
             (price, ) = oracle.getPriceData();
             return price;
         } else {
-            return lastPriceUpdate;
+            return latestPrice;
         }
     }
 
@@ -244,8 +286,8 @@ contract RAmMMF is
         if (_oracle == address(0)) {
             revert CannotSetToZeroAddress();
         }
-        emit OracleSet(address(oracle), _oracle);
         oracle = IRWAOracle(_oracle);
+        emit OracleSet(address(oracle), _oracle);
     }
 
     function _authorizeUpgrade(
@@ -420,21 +462,21 @@ contract RAmMMF is
         uint256
     ) internal view {
         if (from != msg.sender && to != msg.sender) {
-            require(!blacklist.hasBlack(msg.sender), "'sender' in blacklist");
+            require(!blocklist.isBlocked(msg.sender), "'sender' in blacklist");
             require(
-                allowlist.hasAllow(msg.sender),
+                allowlist.isAllowed(msg.sender),
                 "'sender' not in allowlist"
             );
         }
 
         if (from != address(0)) {
-            require(!blacklist.hasBlack(from), "'from' in blacklist");
-            require(allowlist.hasAllow(from), "'from' not in allowlist");
+            require(!blocklist.isBlocked(from), "'from' in blacklist");
+            require(allowlist.isAllowed(from), "'from' not in allowlist");
         }
 
         if (to != address(0)) {
-            require(!blacklist.hasBlack(to), "'to' in blacklist");
-            require(allowlist.hasAllow(to), "'to' not in allowlist");
+            require(!blocklist.isBlocked(to), "'to' in blacklist");
+            require(allowlist.isAllowed(to), "'to' not in allowlist");
         }
     }
 }

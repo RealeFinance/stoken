@@ -27,17 +27,31 @@ contract ReUSD is
     // Address of the mAmMMF token
     IMAmMMF public mammmf;
 
+    // Address of the oracle
     IRWAOracle public oracle;
 
     AggregatorV2V3Interface internal priceFeed;
 
+    // Address of the Reale admin
     address public realeAdmin;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
+    /*//////////////////////////////////////////////////////////////
+                                INITIALIZER
+    //////////////////////////////////////////////////////////////*/
 
+    /**
+     * @dev Initializes the contract with the given parameters.
+     * @param upgrader The address of the upgrader role.
+     * @param _mAmMMF The address of the mAmMMF token.
+     * @param _rAmMMF The address of the rAmMMF token.
+     * @param _realeAdmin The address of the Reale admin.
+     * @param _name The name of the token.
+     * @param _symbol The symbol of the token.
+     */
     function initialize(
         address upgrader,
         address _mAmMMF,
@@ -64,12 +78,33 @@ contract ReUSD is
         address newImplementation
     ) internal override onlyRole(UPGRADER_ROLE) {}
 
+    /*//////////////////////////////////////////////////////////////
+                                EVENT
+    //////////////////////////////////////////////////////////////*/
+
+    event SwapReUSD(address indexed to, uint256 amount, string tokenType);
+
+    event RedeemReUSD(address indexed from, uint256 amount, string tokenType);
+
+    /*//////////////////////////////////////////////////////////////
+                                VIEW FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+    /**
+     * @dev Converts a given amount of mAmMMF to reUSD based on the current price.
+     * @param _mAmMMFMount The amount of mAmMMF to convert.
+     * @return The equivalent amount of reUSD.
+     */
     function getReUSDByMAmMMFMount(
         uint256 _mAmMMFMount
     ) internal view returns (uint256) {
         return (_mAmMMFMount * getAmMMFPrice()) / getReUSDPrice();
     }
 
+    /**
+     * @dev Converts a given amount of reUSD to mAmMMF based on the current price.
+     * @param _reUSDMount The amount of reUSD to convert.
+     * @return The equivalent amount of mAmMMF.
+     */
     function getMAmMMFByReUSDMount(
         uint256 _reUSDMount
     ) internal view returns (uint256) {
@@ -92,15 +127,20 @@ contract ReUSD is
         return 1.00000000;
     }
 
+    /*//////////////////////////////////////////////////////////////
+                                EXTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
     /**
      * @dev Allows users to exchange their rAmMMF tokens for reUSD tokens 1:1.
      * User must approve this contract to spend their rAmMMF before calling.
      * @param _rAmMMFMount The amount of rAmMMF to exchange.
      */
-    function swapByRAmMMf(uint256 _rAmMMFMount) external {
+    function swapByRAmMMF(uint256 _rAmMMFMount) external {
         require(_rAmMMFMount > 0, "Amount must be greater than zero");
         rammmf.transferFrom(msg.sender, address(this), _rAmMMFMount);
         _mint(msg.sender, _rAmMMFMount);
+        emit SwapReUSD(msg.sender, _rAmMMFMount, "rAmMMF");
     }
 
     /**
@@ -108,24 +148,24 @@ contract ReUSD is
      * User must approve this contract to spend their mAmMMF before calling.
      * @param _mAmMMFMount The amount of mAmMMF to exchange.
      */
-    function swapByMAmMMf(uint256 _mAmMMFMount) external {
+    function swapByMAmMMF(uint256 _mAmMMFMount) external {
         require(_mAmMMFMount > 0, "Amount must be greater than zero");
         mammmf.transferFrom(msg.sender, address(this), _mAmMMFMount);
-        _mint(msg.sender, getReUSDByMAmMMFMount(_mAmMMFMount));
+        uint256 reUSDAmount = getReUSDByMAmMMFMount(_mAmMMFMount);
+        _mint(msg.sender, reUSDAmount);
+        emit SwapReUSD(msg.sender, reUSDAmount, "mAmMMF");
     }
 
     /**
-     * @dev Allows users to exchange their reUSD tokens for rAmMMF tokens 1:1.
+     * @dev Allows users to exchange their reUSD tokens for rAmMMF tokens.
      * Burns the reUSD tokens and transfers rAmMMF to the user.
      * @param _reUSDMount The amount of reUSD to exchange.
      */
-    function redeemToRAmMMf(uint256 _reUSDMount) external {
+    function redeemToRAmMMF(uint256 _reUSDMount) external {
         require(_reUSDMount > 0, "Amount must be greater than zero");
         _burn(msg.sender, _reUSDMount);
-        require(
-            rammmf.transfer(msg.sender, _reUSDMount),
-            "Transfer of rAmMMF failed"
-        );
+        rammmf.transfer(msg.sender, _reUSDMount);
+        emit RedeemReUSD(msg.sender, _reUSDMount, "rAmMMF");
     }
 
     /**
@@ -133,20 +173,35 @@ contract ReUSD is
      * Burns the reUSD tokens and transfers mAmMMF to the user based on price.
      * @param _reUSDMount The amount of reUSD to exchange.
      */
-    function redeemToMAmMMf(uint256 _reUSDMount) external {
+    function redeemToMAmMMF(uint256 _reUSDMount) external {
         require(_reUSDMount > 0, "Amount must be greater than zero");
         uint256 mAmMMFMount = getMAmMMFByReUSDMount(_reUSDMount);
         _burn(msg.sender, _reUSDMount);
-        require(
-            mammmf.transfer(msg.sender, mAmMMFMount),
-            "Transfer of mAmMMF failed"
-        );
+        mammmf.transfer(msg.sender, mAmMMFMount);
+        emit RedeemReUSD(msg.sender, _reUSDMount, "mAmMMF");
     }
 
+    /**
+     * @dev Allows the admin to mint new reUSD tokens to a specified account.
+     * @param account The address of the account to mint tokens to.
+     * @param value The amount of reUSD tokens to mint.
+     */
     function mint(
         address account,
         uint256 value
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _mint(account, value);
+    }
+
+    /**
+     * @dev Allows the admin to burn reUSD tokens from a specified account.
+     * @param account The address of the account to burn tokens from.
+     * @param value The amount of reUSD tokens to burn.
+     */
+    function burn(
+        address account,
+        uint256 value
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _burn(account, value);
     }
 }

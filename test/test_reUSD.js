@@ -50,7 +50,7 @@ describe("ReUSD Contract", function () {
       await rammmf.mint(addr1.address, amount);
       await rammmf.connect(addr1).approve(await reUSD.getAddress(), amount);
 
-      await expect(reUSD.connect(addr1).swapByRAmMMf(amount))
+      await expect(reUSD.connect(addr1).swapByRAmMMF(amount))
         .to.emit(reUSD, "Transfer")
         .withArgs(ethers.ZeroAddress, addr1.address, amount);
 
@@ -59,7 +59,7 @@ describe("ReUSD Contract", function () {
     });
 
     it("Should revert if amount is zero", async function () {
-      await expect(reUSD.connect(addr1).swapByRAmMMf(0)).to.be.revertedWith(
+      await expect(reUSD.connect(addr1).swapByRAmMMF(0)).to.be.revertedWith(
         "Amount must be greater than zero"
       );
     });
@@ -71,7 +71,7 @@ describe("ReUSD Contract", function () {
       await mammmf.mint(addr1.address, amount);
       await mammmf.connect(addr1).approve(await reUSD.getAddress(), amount);
 
-      await expect(reUSD.connect(addr1).swapByMAmMMf(amount))
+      await expect(reUSD.connect(addr1).swapByMAmMMF(amount))
         .to.emit(reUSD, "Transfer")
         .withArgs(ethers.ZeroAddress, addr1.address, amount);
 
@@ -80,7 +80,7 @@ describe("ReUSD Contract", function () {
     });
 
     it("Should revert if amount is zero", async function () {
-      await expect(reUSD.connect(addr1).swapByMAmMMf(0)).to.be.revertedWith(
+      await expect(reUSD.connect(addr1).swapByMAmMMF(0)).to.be.revertedWith(
         "Amount must be greater than zero"
       );
     });
@@ -92,7 +92,7 @@ describe("ReUSD Contract", function () {
       await rammmf.mint(await reUSD.getAddress(), amount);
       await reUSD.mint(addr1.address, amount);
 
-      await expect(reUSD.connect(addr1).redeemToRAmMMf(amount))
+      await expect(reUSD.connect(addr1).redeemToRAmMMF(amount))
         .to.emit(reUSD, "Transfer")
         .withArgs(addr1.address, ethers.ZeroAddress, amount);
 
@@ -101,7 +101,7 @@ describe("ReUSD Contract", function () {
     });
 
     it("Should revert if amount is zero", async function () {
-      await expect(reUSD.connect(addr1).redeemToRAmMMf(0)).to.be.revertedWith(
+      await expect(reUSD.connect(addr1).redeemToRAmMMF(0)).to.be.revertedWith(
         "Amount must be greater than zero"
       );
     });
@@ -113,7 +113,7 @@ describe("ReUSD Contract", function () {
       await mammmf.mint(await reUSD.getAddress(), amount);
       await reUSD.mint(addr1.address, amount);
 
-      await expect(reUSD.connect(addr1).redeemToMAmMMf(amount))
+      await expect(reUSD.connect(addr1).redeemToMAmMMF(amount))
         .to.emit(reUSD, "Transfer")
         .withArgs(addr1.address, ethers.ZeroAddress, amount);
 
@@ -122,7 +122,7 @@ describe("ReUSD Contract", function () {
     });
 
     it("Should revert if amount is zero", async function () {
-      await expect(reUSD.connect(addr1).redeemToMAmMMf(0)).to.be.revertedWith(
+      await expect(reUSD.connect(addr1).redeemToMAmMMF(0)).to.be.revertedWith(
         "Amount must be greater than zero"
       );
     });

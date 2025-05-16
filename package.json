@@ -13,7 +13,7 @@
     "dotenv": "^16.5.0"
   },
   "scripts": {
-    "build": "npx hardhat run ./deploy/test/_deploy.js --network hardhat",
-    "build:test": "npx hardhat run ./deploy/test/_deploy.js --network test"
+    "deploy": "npx hardhat run ./deploy/test/_deploy.js --network hardhat",
+    "deploy:test": "npx hardhat run ./deploy/test/_deploy.js --network test"
   }
 }

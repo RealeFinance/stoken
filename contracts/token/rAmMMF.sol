@@ -296,8 +296,9 @@ contract RAmMMF is
         if (_oracle == address(0)) {
             revert CannotSetToZeroAddress();
         }
+        address oldOracle = address(oracle);
         oracle = IRWAOracle(_oracle);
-        emit OracleSet(address(oracle), _oracle);
+        emit OracleSet(oldOracle, _oracle);
     }
 
     function _authorizeUpgrade(

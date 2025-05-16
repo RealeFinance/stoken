@@ -13,6 +13,9 @@
     "dotenv": "^16.5.0"
   },
   "scripts": {
+    "compile": "npx hardhat compile",
+    "test": "npx hardhat test",
+    "test:r": "npx hardhat test ./test/test_rAmMMF.js",
     "deploy": "npx hardhat run ./deploy/test/_deploy.js --network hardhat",
     "deploy:test": "npx hardhat run ./deploy/test/_deploy.js --network test"
   }

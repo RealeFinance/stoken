@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.22;
 
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract StakedReUSD is
     Initializable,
     ERC20Upgradeable,
-    ERC20PausableUpgradeable
+    ERC20PausableUpgradeable,
+    AccessControlUpgradeable
 {
     uint256 constant SECONDS_IN_A_DAY = 24 * 60 * 60;
 
@@ -39,14 +40,12 @@ contract StakedReUSD is
         address _reUSD
     ) public initializer {
         __ERC20_init(name, symbol);
-        __Pausable_init();
+        __ERC20Pausable_init();
+        __AccessControl_init();
         owner = msg.sender;
         reUSD = IERC20(_reUSD);
-    }
 
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Caller is not the owner");
-        _;
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
     function _update(
@@ -72,7 +71,9 @@ contract StakedReUSD is
      * @dev Can only be called by the current owner.
      * @param newOwner The address of the new owner. Must not be the zero address.
      */
-    function transferOwnership(address newOwner) external onlyOwner {
+    function transferOwnership(
+        address newOwner
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(newOwner != address(0), "New owner is the zero address");
         owner = newOwner;
         emit OwnershipTransferred(msg.sender, newOwner);
@@ -82,7 +83,7 @@ contract StakedReUSD is
      * @notice Pauses all token transfers.
      * @dev Can only be called by the owner.
      */
-    function pause() external onlyOwner {
+    function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _pause();
     }
 
@@ -90,7 +91,7 @@ contract StakedReUSD is
      * @notice Unpauses all token transfers.
      * @dev Can only be called by the owner.
      */
-    function unpause() external onlyOwner {
+    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();
     }
 
@@ -149,7 +150,7 @@ contract StakedReUSD is
     function setDailyInterestRate(
         uint256 day,
         uint256 rate
-    ) external onlyOwner {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(rate > 0, "Interest rate must be greater than zero");
         dailyInterestRates[day / SECONDS_IN_A_DAY] = rate;
     }
@@ -170,7 +171,7 @@ contract StakedReUSD is
      * @dev Can only be called by the owner and only once per day.
      * @param _day The day for which the interest is being calculated.
      */
-    function calculateDailyInterest(uint256 _day) external onlyOwner {
+    function calculateDailyInterest(uint256 _day) external onlyRole(DEFAULT_ADMIN_ROLE) {
         uint256 day = _day / SECONDS_IN_A_DAY;
         require(
             !dailyInterestUpdated[day],
@@ -259,5 +260,6 @@ contract StakedReUSD is
 
         // Transfer reUSD tokens from the contract to the user
         require(reUSD.transfer(msg.sender, amount), "Transfer failed");
+
     }
 }

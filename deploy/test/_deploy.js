@@ -24,7 +24,7 @@ async function main() {
   );
   const RAmMMFAddress = await RAmMMFToken.getAddress();
 
-  console.log("BlackList Token地址:", BlackListAddress);
+  console.log("BlockList Token地址:", BlackListAddress);
   console.log("AllowList Token地址:", AllowListAddress);
   console.log("   RAmMMF Token地址:", RAmMMFAddress);
 }

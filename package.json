@@ -11,5 +11,9 @@
     "@openzeppelin/contracts": "^5.2.0",
     "@openzeppelin/contracts-upgradeable": "^5.2.0",
     "dotenv": "^16.5.0"
+  },
+  "scripts": {
+    "build": "npx hardhat run .\\deploy\\test\\_deploy.js --network hardhat",
+    "build:test": "npx hardhat run .\\deploy\\test\\_deploy.js --network test"
   }
 }

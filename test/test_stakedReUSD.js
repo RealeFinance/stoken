@@ -141,6 +141,7 @@ describe("StakedReUSD", function () {
 
   it("should allow unstaking using interest", async function () {
     await reUSDMock.mint(user.address, parseEther("100"));
+    await reUSDMock.mint(stakedReUSD.getAddress(), parseEther("100"));
     await reUSDMock
       .connect(user)
       .approve(stakedReUSD.getAddress(), parseEther("100"));
@@ -158,7 +159,7 @@ describe("StakedReUSD", function () {
     expect(await stakedReUSD.getInterestBalance(user.address)).to.equal(
       parseEther("5")
     );
-    expect(await reUSDMock.balanceOf(user.address)).to.equal(parseEther("5"));
+    expect(await reUSDMock.balanceOf(user.address)).to.equal(parseEther("105"));
   });
 
   it("should revert unstaking more than interest", async function () {

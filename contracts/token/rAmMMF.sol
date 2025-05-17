@@ -78,14 +78,48 @@ contract RAmMMF is
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice An executed shares transfer from `sender` to `recipient`.
+     * @notice Emitted when the rAmMMF is transferred
      *
-     * @dev emitted in pair with an ERC20-defined `Transfer` event.
+     * @param from The address of the sender
+     * @param to The address of the recipient
+     * @param rAmMMFValue The amount of rAmMMF transferred
+     * @param sharesValue The amount of shares transferred
      */
     event TransferShares(
         address indexed from,
         address indexed to,
+        uint256 rAmMMFValue,
         uint256 sharesValue
+    );
+
+    /**
+     * @notice Emitted when a user wraps their AmMMF tokens into rAmMMF tokens.
+     *
+     * @param user The address of the user performing the wrap operation
+     * @param AmMMFAmount The amount of AmMMF tokens wrapped
+     * @param rAmMMFAmount The equivalent amount of rAmMMF tokens received
+     * @param price The current price of AmMMF tokens during the wrap operation
+     */
+    event WrapCompleted(
+        address indexed user,
+        uint256 AmMMFAmount,
+        uint256 rAmMMFAmount,
+        uint256 price
+    );
+
+    /**
+     * @notice Emitted when a user unwraps their rAmMMF tokens into AmMMF tokens.
+     *
+     * @param user The address of the user performing the unwrap operation
+     * @param rAmMMFAmount The amount of rAmMMF tokens unwrapped
+     * @param AmMMFAmount The equivalent amount of AmMMF tokens received
+     * @param price The current price of AmMMF tokens during the unwrap operation
+     */
+    event UnWrapCompleted(
+        address indexed user,
+        uint256 rAmMMFAmount,
+        uint256 AmMMFAmount,
+        uint256 price
     );
 
     /**
@@ -360,12 +394,12 @@ contract RAmMMF is
             AMMMF_TO_RAMMMF_SHARES_MULTIPLIER;
         _mintShares(msg.sender, AmMMFSharesAmount);
         ammmf.transferFrom(msg.sender, address(this), _AmMMFAmount);
-        emit Transfer(
-            address(0),
+        emit WrapCompleted(
             msg.sender,
-            getRAmMMFByShares(AmMMFSharesAmount)
+            AmMMFSharesAmount,
+            getRAmMMFByShares(AmMMFSharesAmount),
+            getAmMMFPrice()
         );
-        emit TransferShares(address(0), msg.sender, AmMMFSharesAmount);
     }
 
     /**
@@ -400,8 +434,12 @@ contract RAmMMF is
             msg.sender,
             AmMMFSharesAmount / AMMMF_TO_RAMMMF_SHARES_MULTIPLIER
         );
-        emit Transfer(msg.sender, address(0), _rAmMMFAmount);
-        emit TransferShares(msg.sender, address(0), AmMMFSharesAmount);
+        emit UnWrapCompleted(
+            msg.sender,
+            _rAmMMFAmount,
+            AmMMFSharesAmount,
+            getAmMMFPrice()
+        );
     }
 
     /**
@@ -449,8 +487,12 @@ contract RAmMMF is
         );
         shares[_sender] = currentSenderShares - _sharesToTransfer;
         shares[_recipient] += _sharesToTransfer;
-        emit Transfer(msg.sender, _recipient, _rAmMMFAmount);
-        emit TransferShares(msg.sender, _recipient, _sharesToTransfer);
+        emit TransferShares(
+            msg.sender,
+            _recipient,
+            _rAmMMFAmount,
+            _sharesToTransfer
+        );
     }
 
     /**

@@ -29,10 +29,14 @@ async function deployRAmMMF(
   _symbol
 ) {
   const ContractFactory = await ethers.getContractFactory("RAmMMF");
-  const constructorArgs = [_blacklist, _allowlist, _ammmf, _name, _symbol, ""];
+  const constructorArgs = [_blacklist, _allowlist, _ammmf, _name, _symbol];
 
   console.log("RAmMMF 正在部署合约...");
-  const contract = await ContractFactory.deploy(constructorArgs);
+  const contract = await hre.upgrades.deployProxy(
+    ContractFactory,
+    constructorArgs,
+    { initializer: "initialize" }
+  );
   await contract.waitForDeployment();
 
   return contract;

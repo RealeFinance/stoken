@@ -152,4 +152,35 @@ describe("RAmMMF", function () {
       ).to.be.revertedWith("TRANSFER_AMOUNT_EXCEEDS_BALANCE");
     });
   });
+
+  describe("setLatestPrice", function () {
+    it("should allow admin to set latest price and emit event", async function () {
+      const oldPrice = await rAmMMF.getAmMMFPrice();
+      const oldTotalSupply = await rAmMMF.totalSupply();
+      const newPrice = ethers.parseUnits("2", 18);
+
+      await expect(rAmMMF.setLatestPrice(newPrice))
+        .to.emit(rAmMMF, "PriceUpdated")
+        .withArgs(
+          oldPrice,
+          newPrice,
+          oldTotalSupply,
+          await rAmMMF.totalSupply()
+        );
+      expect(await rAmMMF.getAmMMFPrice()).to.equal(newPrice);
+    });
+
+    it("should revert if non-admin tries to set latest price", async function () {
+      const newPrice = ethers.parseUnits("2", 18);
+      await expect(
+        rAmMMF.connect(addr1).setLatestPrice(newPrice)
+      ).to.be.revertedWithCustomError(rAmMMF, "AccessControlUnauthorizedAccount");
+    });
+
+    it("should revert if latest price is zero", async function () {
+      await expect(
+        rAmMMF.setLatestPrice(0)
+      ).to.be.revertedWith("Latest price must be greater than zero");
+    });
+  });
 });

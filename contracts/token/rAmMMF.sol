@@ -246,10 +246,6 @@ contract RAmMMF is
         _unpause();
     }
 
-    function decimals() public pure override returns (uint8) {
-        return 22;
-    }
-
     /**
      * @return the amount of tokens in existence.
      */

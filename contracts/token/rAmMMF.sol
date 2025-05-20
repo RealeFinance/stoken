@@ -96,13 +96,13 @@ contract RAmMMF is
      * @notice Emitted when a user wraps their AmMMF tokens into rAmMMF tokens.
      *
      * @param user The address of the user performing the wrap operation
-     * @param AmMMFAmount The amount of AmMMF tokens wrapped
+     * @param AmMMFShareAmount The amount of AmMMF tokens wrapped
      * @param rAmMMFAmount The equivalent amount of rAmMMF tokens received
      * @param price The current price of AmMMF tokens during the wrap operation
      */
     event WrapCompleted(
         address indexed user,
-        uint256 AmMMFAmount,
+        uint256 AmMMFShareAmount,
         uint256 rAmMMFAmount,
         uint256 price
     );
@@ -112,13 +112,13 @@ contract RAmMMF is
      *
      * @param user The address of the user performing the unwrap operation
      * @param rAmMMFAmount The amount of rAmMMF tokens unwrapped
-     * @param AmMMFAmount The equivalent amount of AmMMF tokens received
+     * @param AmMMFShareAmount The equivalent amount of AmMMF tokens received
      * @param price The current price of AmMMF tokens during the unwrap operation
      */
     event UnWrapCompleted(
         address indexed user,
         uint256 rAmMMFAmount,
-        uint256 AmMMFAmount,
+        uint256 AmMMFShareAmount,
         uint256 price
     );
 
@@ -396,6 +396,12 @@ contract RAmMMF is
             getRAmMMFByShares(AmMMFSharesAmount),
             getAmMMFPrice()
         );
+        emit TransferShares(
+            address(0),
+            msg.sender,
+            getRAmMMFByShares(AmMMFSharesAmount),
+            AmMMFSharesAmount
+        );
     }
 
     /**
@@ -435,6 +441,12 @@ contract RAmMMF is
             _rAmMMFAmount,
             AmMMFSharesAmount,
             getAmMMFPrice()
+        );
+        emit TransferShares(
+            msg.sender,
+            address(0),
+            _rAmMMFAmount,
+            AmMMFSharesAmount
         );
     }
 

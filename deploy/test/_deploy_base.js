@@ -42,8 +42,19 @@ async function deployRAmMMF(
   return contract;
 }
 
+async function deployRAmMMFUpgrade(hre, _proxyAddress) {
+  const RAmMMF_V2 = await ethers.getContractFactory("RAmMMF");
+  const rammmf_v2 = await RAmMMF_V2.deploy();
+  await rammmf_v2.waitForDeployment();
+
+  // 2. 升级代理到新实现
+  const proxy = await hre.upgrades.upgradeProxy(_proxyAddress, RAmMMF_V2);
+  return proxy;
+}
+
 module.exports = {
   deployBlackList,
   deployAllowList,
   deployRAmMMF,
+  deployRAmMMFUpgrade,
 };

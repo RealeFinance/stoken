@@ -26,6 +26,9 @@ contract RAmMMF is
     AccessControlEnumerableUpgradeable,
     UUPSUpgradeable
 {
+    // Role identifier for accounts allowed to perform contract upgrades.
+    bytes32 public constant REBASE_ADMIN = keccak256("REBASE_ADMIN");
+
     /**
      * @dev rAmMMF balances are dynamic and are calculated based on the accounts' shares (AmMMF)
      * and the the price of AmMMF. Account shares aren't
@@ -173,6 +176,7 @@ contract RAmMMF is
         __UUPSUpgradeable_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
+        _grantRole(REBASE_ADMIN, _msgSender());
 
         blocklist = IBlocklist(_blacklist);
         allowlist = IAllowlist(_allowlist);
@@ -215,7 +219,7 @@ contract RAmMMF is
      */
     function setLatestPrice(
         uint256 _latestPrice
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyRole(REBASE_ADMIN) {
         require(_latestPrice > 0, "Latest price must be greater than zero");
         uint256 _oldLatestPrice = latestPrice;
         uint256 _oldTotalSupply = totalSupply();
@@ -226,6 +230,31 @@ contract RAmMMF is
             _oldTotalSupply,
             totalSupply()
         );
+    }
+
+    /**
+     * @notice Sets a new DEFAULT_ADMIN_ROLE.
+     * @param newAdmin The address to be granted DEFAULT_ADMIN_ROLE.
+     */
+    function setDefaultAdmin(
+        address newAdmin
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(newAdmin != address(0), "Admin address cannot be zero");
+        _grantRole(DEFAULT_ADMIN_ROLE, newAdmin);
+    }
+
+    /**
+     * @notice Sets a new REBASE_ADMIN role.
+     * @param newRebaseAdmin The address to be granted REBASE_ADMIN role.
+     */
+    function setRebaseAdmin(
+        address newRebaseAdmin
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(
+            newRebaseAdmin != address(0),
+            "REBASE_ADMIN address cannot be zero"
+        );
+        _grantRole(REBASE_ADMIN, newRebaseAdmin);
     }
 
     /**

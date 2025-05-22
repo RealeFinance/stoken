@@ -8,7 +8,7 @@ async function main() {
     deployBlackList,
     deployAllowList,
     deployRAmMMF,
-  } = require("./_deploy_base");
+  } = require("./_deploy_base").default;
 
   // const BlackListToken = await deployBlackList(hre);
   // const BlackListAddress = await BlackListToken.getAddress();

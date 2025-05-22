@@ -36,9 +36,6 @@ contract ReUSD is
 
     AggregatorV2V3Interface internal priceFeed;
 
-    // Address of the Reale admin
-    address public realeAdmin;
-
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -49,18 +46,14 @@ contract ReUSD is
 
     /**
      * @dev Initializes the contract with the given parameters.
-     * @param upgrader The address of the upgrader role.
      * @param _mAmMMF The address of the mAmMMF token.
      * @param _rAmMMF The address of the rAmMMF token.
-     * @param _realeAdmin The address of the Reale admin.
      * @param _name The name of the token.
      * @param _symbol The symbol of the token.
      */
     function initialize(
-        address upgrader,
         address _mAmMMF,
         address _rAmMMF,
-        address _realeAdmin,
         address _tokenConfig,
         string memory _name,
         string memory _symbol
@@ -71,12 +64,11 @@ contract ReUSD is
         __UUPSUpgradeable_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(UPGRADER_ROLE, upgrader);
+        _grantRole(UPGRADER_ROLE, msg.sender);
 
         mammmf = IMAmMMF(_mAmMMF);
         rammmf = IERC20(_rAmMMF);
         oracle = IRWAOracle(address(0));
-        realeAdmin = _realeAdmin;
         tokenConfig = ITokenConfig(_tokenConfig);
     }
 
@@ -168,9 +160,7 @@ contract ReUSD is
             lockByRAmMMF(_amount);
             return;
         } else {
-            (string memory tokenName, address _address) = tokenConfig.getToken(
-                _tokenName
-            );
+            (, address _address) = tokenConfig.getToken(_tokenName);
             IERC20(_address).transferFrom(msg.sender, address(this), _amount);
             uint256 reUSDAmount = getReUSDAmountByToken(_address, _amount);
             _mint(msg.sender, reUSDAmount);
@@ -215,9 +205,7 @@ contract ReUSD is
             redeemToRAmMMF(_reUSDAmount);
             return;
         } else {
-            (string memory tokenName, address _address) = tokenConfig.getToken(
-                _tokenName
-            );
+            (, address _address) = tokenConfig.getToken(_tokenName);
             uint256 mAmMMFAmount = getReUSDAmountByToken(
                 _address,
                 _reUSDAmount

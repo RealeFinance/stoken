@@ -26,7 +26,7 @@ contract RAmMMF is
     AccessControlEnumerableUpgradeable,
     UUPSUpgradeable
 {
-    // Role identifier for accounts allowed to perform contract upgrades.
+    /// @dev Role for rebase admin
     bytes32 public constant REBASE_ADMIN = keccak256("REBASE_ADMIN");
 
     /**

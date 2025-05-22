@@ -52,9 +52,40 @@ async function deployRAmMMFUpgrade(hre, _proxyAddress) {
   return proxy;
 }
 
-module.exports = {
+async function deployReUSD(
+  hre,
+  mammmfAddress,
+  rammmfAddress,
+  tokenConfigAddress
+) {
+  console.log("reUSD 正在部署合约...");
+  const ReUSDFactory = await ethers.getContractFactory("ReUSD");
+  reUSD = await hre.upgrades.deployProxy(
+    ReUSDFactory,
+    [mammmfAddress, rammmfAddress, tokenConfigAddress, "ReUSD", "ReUSD"],
+    { initializer: "initialize" }
+  );
+  await reUSD.waitForDeployment();
+  return reUSD;
+}
+
+async function deployERC20(hre, _name, _symbol) {
+  console.log(`${_name} 正在部署合约...`);
+  const MockERC20 = await ethers.getContractFactory("Oracle");
+  mammmf = await MockERC20.deploy();
+  await mammmf.waitForDeployment();
+  mammmf.initialize(_name, _symbol);
+  return mammmf;
+}
+
+async function deployTokenConfig(hre, _name, _symbol) {}
+
+export default {
   deployBlackList,
   deployAllowList,
   deployRAmMMF,
   deployRAmMMFUpgrade,
+  deployReUSD,
+  deployERC20,
+  deployTokenConfig,
 };

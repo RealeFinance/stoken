@@ -11,6 +11,7 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import {AggregatorV2V3Interface} from "@chainlink/contracts/src/v0.8/interfaces/FeedRegistryInterface.sol";
 import {IMAmMMF} from "contracts/Interfaces/mAmMMF/ImAmMMF.sol";
 import {IRWAOracle} from "contracts/Interfaces/rwaOracles/IRWAOracle.sol";
+import "contracts/Interfaces/ITokenConfig.sol";
 
 contract ReUSD is
     Initializable,
@@ -20,6 +21,9 @@ contract ReUSD is
     UUPSUpgradeable
 {
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
+
+    // Address of the token config contract
+    ITokenConfig public tokenConfig;
 
     // Address of the rAmMMF token
     IERC20 public rammmf;
@@ -57,6 +61,7 @@ contract ReUSD is
         address _mAmMMF,
         address _rAmMMF,
         address _realeAdmin,
+        address _tokenConfig,
         string memory _name,
         string memory _symbol
     ) public initializer {
@@ -72,6 +77,7 @@ contract ReUSD is
         rammmf = IERC20(_rAmMMF);
         oracle = IRWAOracle(address(0));
         realeAdmin = _realeAdmin;
+        tokenConfig = ITokenConfig(_tokenConfig);
     }
 
     function _authorizeUpgrade(
@@ -82,33 +88,45 @@ contract ReUSD is
                                 EVENT
     //////////////////////////////////////////////////////////////*/
 
-    event SwapReUSD(address indexed to, uint256 amount, string tokenType);
+    event SwapReUSD(address indexed to, uint256 amount, string tokenName);
 
-    event RedeemReUSD(address indexed from, uint256 amount, string tokenType);
+    event RedeemReUSD(address indexed from, uint256 amount, string tokenName);
 
     /*//////////////////////////////////////////////////////////////
                                 VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
     /**
      * @dev Converts a given amount of mAmMMF to reUSD based on the current price.
-     * @param _mAmMMFMount The amount of mAmMMF to convert.
+     * @param _mAmMMFAmount The amount of mAmMMF to convert.
      * @return The equivalent amount of reUSD.
      */
-    function getReUSDByMAmMMFMount(
-        uint256 _mAmMMFMount
+    function getReUSDByMAmMMFAmount(
+        uint256 _mAmMMFAmount
     ) internal view returns (uint256) {
-        return (_mAmMMFMount * getAmMMFPrice()) / getReUSDPrice();
+        return (_mAmMMFAmount * getAmMMFPrice()) / getReUSDPrice();
     }
 
     /**
      * @dev Converts a given amount of reUSD to mAmMMF based on the current price.
-     * @param _reUSDMount The amount of reUSD to convert.
+     * @param _reUSDAmount The amount of reUSD to convert.
      * @return The equivalent amount of mAmMMF.
      */
-    function getMAmMMFByReUSDMount(
-        uint256 _reUSDMount
+    function getMAmMMFByReUSDAmount(
+        uint256 _reUSDAmount
     ) internal view returns (uint256) {
-        return (_reUSDMount * getReUSDPrice()) / getAmMMFPrice();
+        return (_reUSDAmount * getReUSDPrice()) / getAmMMFPrice();
+    }
+
+    /**
+     * @dev Converts a given amount of mAmMMF to reUSD based on the current price.
+     * @param _tokenAmount The amount of mAmMMF to convert.
+     * @return The equivalent amount of reUSD.
+     */
+    function getReUSDAmountByToken(
+        address _address,
+        uint256 _tokenAmount
+    ) internal view returns (uint256) {
+        return (_tokenAmount * getTokenPrice(_address)) / getReUSDPrice();
     }
 
     /**
@@ -127,58 +145,110 @@ contract ReUSD is
         return 1.00000000;
     }
 
+    /**
+     * @return price Token
+     */
+    function getTokenPrice(
+        address _address
+    ) internal view returns (uint256 price) {
+        // (price, ) = oracle.getPriceData();
+        return 1.00000000;
+    }
+
     /*//////////////////////////////////////////////////////////////
                             EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
+    function lock(string memory _tokenName, uint256 _amount) external {
+        require(_amount > 0, "Amount must be greater than zero");
+        if (keccak256(bytes(_tokenName)) == keccak256(bytes("mAmMMF"))) {
+            lockByMAmMMF(_amount);
+            return;
+        } else if (keccak256(bytes(_tokenName)) == keccak256(bytes("rAmMMF"))) {
+            lockByRAmMMF(_amount);
+            return;
+        } else {
+            (string memory tokenName, address _address) = tokenConfig.getToken(
+                _tokenName
+            );
+            IERC20(_address).transferFrom(msg.sender, address(this), _amount);
+            uint256 reUSDAmount = getReUSDAmountByToken(_address, _amount);
+            _mint(msg.sender, reUSDAmount);
+            emit SwapReUSD(msg.sender, reUSDAmount, _tokenName);
+        }
+    }
+
     /**
      * @dev Allows users to exchange their rAmMMF tokens for reUSD tokens 1:1.
      * User must approve this contract to spend their rAmMMF before calling.
-     * @param _rAmMMFMount The amount of rAmMMF to exchange.
+     * @param _rAmMMFAmount The amount of rAmMMF to exchange.
      */
-    function swapByRAmMMF(uint256 _rAmMMFMount) external {
-        require(_rAmMMFMount > 0, "Amount must be greater than zero");
-        rammmf.transferFrom(msg.sender, address(this), _rAmMMFMount);
-        _mint(msg.sender, _rAmMMFMount);
-        emit SwapReUSD(msg.sender, _rAmMMFMount, "rAmMMF");
+    function lockByRAmMMF(uint256 _rAmMMFAmount) internal {
+        rammmf.transferFrom(msg.sender, address(this), _rAmMMFAmount);
+        _mint(msg.sender, _rAmMMFAmount);
+        emit SwapReUSD(msg.sender, _rAmMMFAmount, "rAmMMF");
     }
 
     /**
      * @dev Allows users to exchange their mAmMMF tokens for reUSD tokens 1:1.
      * User must approve this contract to spend their mAmMMF before calling.
-     * @param _mAmMMFMount The amount of mAmMMF to exchange.
+     * @param _mAmMMFAmount The amount of mAmMMF to exchange.
      */
-    function swapByMAmMMF(uint256 _mAmMMFMount) external {
-        require(_mAmMMFMount > 0, "Amount must be greater than zero");
-        mammmf.transferFrom(msg.sender, address(this), _mAmMMFMount);
-        uint256 reUSDAmount = getReUSDByMAmMMFMount(_mAmMMFMount);
+    function lockByMAmMMF(uint256 _mAmMMFAmount) internal {
+        mammmf.transferFrom(msg.sender, address(this), _mAmMMFAmount);
+        uint256 reUSDAmount = getReUSDByMAmMMFAmount(_mAmMMFAmount);
         _mint(msg.sender, reUSDAmount);
         emit SwapReUSD(msg.sender, reUSDAmount, "mAmMMF");
     }
 
     /**
+     * @dev Allows users to exchange their reUSD tokens for mAmMMF tokens.
+     * Burns the reUSD tokens and transfers mAmMMF to the user based on price.
+     * @param _reUSDAmount The amount of reUSD to exchange.
+     */
+    function redeem(string memory _tokenName, uint256 _reUSDAmount) external {
+        require(_reUSDAmount > 0, "Amount must be greater than zero");
+        if (keccak256(bytes(_tokenName)) == keccak256(bytes("mAmMMF"))) {
+            redeemToMAmMMF(_reUSDAmount);
+            return;
+        } else if (keccak256(bytes(_tokenName)) == keccak256(bytes("rAmMMF"))) {
+            redeemToRAmMMF(_reUSDAmount);
+            return;
+        } else {
+            (string memory tokenName, address _address) = tokenConfig.getToken(
+                _tokenName
+            );
+            uint256 mAmMMFAmount = getReUSDAmountByToken(
+                _address,
+                _reUSDAmount
+            );
+            _burn(msg.sender, _reUSDAmount);
+            IERC20(_address).transfer(msg.sender, mAmMMFAmount);
+            emit RedeemReUSD(msg.sender, _reUSDAmount, _tokenName);
+        }
+    }
+
+    /**
      * @dev Allows users to exchange their reUSD tokens for rAmMMF tokens.
      * Burns the reUSD tokens and transfers rAmMMF to the user.
-     * @param _reUSDMount The amount of reUSD to exchange.
+     * @param _reUSDAmount The amount of reUSD to exchange.
      */
-    function redeemToRAmMMF(uint256 _reUSDMount) external {
-        require(_reUSDMount > 0, "Amount must be greater than zero");
-        _burn(msg.sender, _reUSDMount);
-        rammmf.transfer(msg.sender, _reUSDMount);
-        emit RedeemReUSD(msg.sender, _reUSDMount, "rAmMMF");
+    function redeemToRAmMMF(uint256 _reUSDAmount) internal {
+        _burn(msg.sender, _reUSDAmount);
+        rammmf.transfer(msg.sender, _reUSDAmount);
+        emit RedeemReUSD(msg.sender, _reUSDAmount, "rAmMMF");
     }
 
     /**
      * @dev Allows users to exchange their reUSD tokens for mAmMMF tokens.
      * Burns the reUSD tokens and transfers mAmMMF to the user based on price.
-     * @param _reUSDMount The amount of reUSD to exchange.
+     * @param _reUSDAmount The amount of reUSD to exchange.
      */
-    function redeemToMAmMMF(uint256 _reUSDMount) external {
-        require(_reUSDMount > 0, "Amount must be greater than zero");
-        uint256 mAmMMFMount = getMAmMMFByReUSDMount(_reUSDMount);
-        _burn(msg.sender, _reUSDMount);
-        mammmf.transfer(msg.sender, mAmMMFMount);
-        emit RedeemReUSD(msg.sender, _reUSDMount, "mAmMMF");
+    function redeemToMAmMMF(uint256 _reUSDAmount) internal {
+        uint256 mAmMMFAmount = getMAmMMFByReUSDAmount(_reUSDAmount);
+        _burn(msg.sender, _reUSDAmount);
+        mammmf.transfer(msg.sender, mAmMMFAmount);
+        emit RedeemReUSD(msg.sender, _reUSDAmount, "mAmMMF");
     }
 
     /**

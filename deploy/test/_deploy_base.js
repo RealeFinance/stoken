@@ -74,13 +74,23 @@ async function deployERC20(hre, _name, _symbol) {
   const MockERC20 = await ethers.getContractFactory("Oracle");
   mammmf = await MockERC20.deploy();
   await mammmf.waitForDeployment();
-  mammmf.initialize(_name, _symbol);
+  await mammmf.initialize(_name, _symbol);
   return mammmf;
 }
 
-async function deployTokenConfig(hre, _name, _symbol) {}
+async function deployTokenConfig(hre, _name, _symbol) {
+  console.log(`${_name} 正在部署合约...`);
+  const TokenConfig = await ethers.getContractFactory("TokenConfig");
+  const tokenConfig = await hre.upgrades.deployProxy(
+    TokenConfig,
+    [_name, _symbol],
+    { initializer: "initialize" }
+  );
+  await tokenConfig.waitForDeployment();
+  return tokenConfig;
+}
 
-export default {
+module.exports = {
   deployBlackList,
   deployAllowList,
   deployRAmMMF,

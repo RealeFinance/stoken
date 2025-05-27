@@ -339,7 +339,7 @@ contract RAmMMF is
      */
     function getAmMMFPrice() public view returns (uint256 price) {
         if (pricefromOracle) {
-            (price, ) = oracle.getPriceData();
+            (price, ) = oracle.getPriceData(address(ammmf));
             return price;
         } else {
             return latestPrice;

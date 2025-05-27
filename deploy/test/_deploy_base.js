@@ -52,17 +52,12 @@ async function deployRAmMMFUpgrade(hre, _proxyAddress) {
   return proxy;
 }
 
-async function deployReUSD(
-  hre,
-  mammmfAddress,
-  rammmfAddress,
-  tokenConfigAddress
-) {
+async function deployReUSD(hre, tokenConfigAddress) {
   console.log("reUSD 正在部署合约...");
   const ReUSDFactory = await ethers.getContractFactory("ReUSD");
   reUSD = await hre.upgrades.deployProxy(
     ReUSDFactory,
-    [mammmfAddress, rammmfAddress, tokenConfigAddress, "ReUSD", "ReUSD"],
+    [tokenConfigAddress, "ReUSD", "ReUSD"],
     { initializer: "initialize" }
   );
   await reUSD.waitForDeployment();
@@ -78,12 +73,13 @@ async function deployERC20(hre, _name, _symbol) {
   return mammmf;
 }
 
-async function deployTokenConfig(hre, _name, _symbol) {
+async function deployCollateralConfig(hre, _name, _symbol) {
   console.log(`${_name} 正在部署合约...`);
-  const TokenConfig = await ethers.getContractFactory("TokenConfig");
+  const MockERC20 = await deployERC20(hre, "Oracle", "Oracle");
+  const TokenConfig = await ethers.getContractFactory("CollateralConfig");
   const tokenConfig = await hre.upgrades.deployProxy(
     TokenConfig,
-    [_name, _symbol],
+    [_name, _symbol, MockERC20.target],
     { initializer: "initialize" }
   );
   await tokenConfig.waitForDeployment();
@@ -97,5 +93,5 @@ module.exports = {
   deployRAmMMFUpgrade,
   deployReUSD,
   deployERC20,
-  deployTokenConfig,
+  deployCollateralConfig,
 };

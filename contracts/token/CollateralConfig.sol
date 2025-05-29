@@ -19,11 +19,17 @@ contract CollateralConfig is
     using SafeERC20 for IERC20;
     using SafeERC20 for ERC20Upgradeable;
 
+    enum CollateralType {
+        ERC20,
+        MTOKEN, // Native isMtoken
+        OTHER
+    }
+
     struct Collateral {
         string name;
         address addr;
         uint ratio; // Ratio of the Collateral, e.g., 100 for 1:1 ratio; 125 for 125(Collateral):100(reUSD); 90 for 90(Collateral):100(reUSD)
-        bool isMtoken; // Whether the Collateral is a native isMtoken
+        CollateralType collateralType; // Type of the Collateral (e.g., NATIVE, ERC20, etc.)
         bool isEnabled; // Whether the Collateral is enabled
     }
 
@@ -108,14 +114,14 @@ contract CollateralConfig is
      * @param _name The name of the Collateral.
      * @param _addr The address of the Collateral.
      * @param _ratio The ratio of the Collateral (e.g., 100 for 1:1 ratio).
-     * @param _isMtoken Whether the Collateral is a native isMtoken.
+     * @param _collateralType The type of the Collateral (enum CollateralType).
      * @param _isEnabled Whether the Collateral is enabled.
      */
     function setCollateral(
         string memory _name,
         address _addr,
         uint _ratio,
-        bool _isMtoken,
+        CollateralType _collateralType,
         bool _isEnabled
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(bytes(_name).length != 0, "Collateral name is empty");
@@ -129,10 +135,16 @@ contract CollateralConfig is
             _name,
             _addr,
             _ratio,
-            _isMtoken,
+            _collateralType,
             _isEnabled
         );
-        emit CollateralAdded(_name, _addr, _ratio, _isMtoken, _isEnabled);
+        emit CollateralAdded(
+            _name,
+            _addr,
+            _ratio,
+            _collateralType == CollateralType.ERC20,
+            _isEnabled
+        );
     }
 
     /**
@@ -165,9 +177,9 @@ contract CollateralConfig is
     }
 
     /**
-     * @notice Gets a specific Collateral by its address.
-     * @param _addr The address of the Collateral to retrieve.
-     * @return The name, address, ratio, isMtoken, and isEnabled status of the Collateral.
+     * @notice Gets the details of a Collateral.
+     * @param _addr The address of the Collateral.
+     * @return The name, address, ratio, whether it is an mToken, and whether it is enabled.
      */
     function getCollateral(
         address _addr
@@ -175,7 +187,13 @@ contract CollateralConfig is
         require(_addr != address(0), "Collateral address is zero");
         require(isSupportedCollateral(_addr), "Collateral is not supported");
         Collateral memory t = addrToCollateral[_addr];
-        return (t.name, t.addr, t.ratio, t.isMtoken, t.isEnabled);
+        return (
+            t.name,
+            t.addr,
+            t.ratio,
+            t.collateralType == CollateralType.ERC20,
+            t.isEnabled
+        );
     }
 
     /**

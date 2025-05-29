@@ -76,14 +76,14 @@ async function deployERC20(hre, _name, _symbol) {
 async function deployCollateralConfig(hre, _name, _symbol) {
   console.log(`${_name} 正在部署合约...`);
   const MockERC20 = await deployERC20(hre, "Oracle", "Oracle");
-  const TokenConfig = await ethers.getContractFactory("CollateralConfig");
-  const tokenConfig = await hre.upgrades.deployProxy(
-    TokenConfig,
+  const CollateralConfig = await ethers.getContractFactory("CollateralConfig");
+  const collateralConfig = await hre.upgrades.deployProxy(
+    CollateralConfig,
     [_name, _symbol, MockERC20.target],
     { initializer: "initialize" }
   );
-  await tokenConfig.waitForDeployment();
-  return tokenConfig;
+  await collateralConfig.waitForDeployment();
+  return collateralConfig;
 }
 
 module.exports = {

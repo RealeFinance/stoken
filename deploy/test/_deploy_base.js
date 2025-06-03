@@ -64,6 +64,16 @@ async function deployReUSD(hre, tokenConfigAddress) {
   return reUSD;
 }
 
+async function deployReUSDUpgrade(hre, _proxyAddress) {
+  const reUSD_V2 = await ethers.getContractFactory("ReUSD");
+  const reusd_V2 = await reUSD_V2.deploy();
+  await reusd_V2.waitForDeployment();
+
+  // 2. 升级代理到新实现
+  const proxy = await hre.upgrades.upgradeProxy(_proxyAddress, reUSD_V2);
+  return proxy;
+}
+
 async function deployERC20(hre, _name, _symbol) {
   console.log(`${_name} 正在部署合约...`);
   const MockERC20 = await ethers.getContractFactory("Oracle");
@@ -92,6 +102,7 @@ module.exports = {
   deployRAmMMF,
   deployRAmMMFUpgrade,
   deployReUSD,
+  deployReUSDUpgrade,
   deployERC20,
   deployCollateralConfig,
 };

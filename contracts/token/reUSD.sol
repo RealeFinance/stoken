@@ -63,9 +63,9 @@ contract ReUSD is
                                 EVENT
     //////////////////////////////////////////////////////////////*/
 
-    event SwapReUSD(address indexed to, uint256 amount, string tokenName);
+    event SwapReUSD(address indexed to, uint256 amount, address tokenAddress);
 
-    event RedeemReUSD(address indexed from, uint256 amount, string tokenName);
+    event RedeemReUSD(address indexed from, uint256 amount, address tokenAddress);
 
     /*//////////////////////////////////////////////////////////////
                             EXTERNAL FUNCTIONS
@@ -73,7 +73,7 @@ contract ReUSD is
 
     function lock(address _address, uint256 _amount) external {
         require(_amount > 0, "Amount must be greater than zero");
-        (string memory _tokenName, , , bool isMtoken, ) = collateralConfig
+        (, , , bool isMtoken, ) = collateralConfig
             .getCollateral(_address);
         if (isMtoken) {
             IMAmMMF(_address).transferFrom(msg.sender, address(this), _amount);
@@ -85,7 +85,7 @@ contract ReUSD is
             _amount
         );
         _mint(msg.sender, reUSDAmount);
-        emit SwapReUSD(msg.sender, reUSDAmount, _tokenName);
+        emit SwapReUSD(msg.sender, reUSDAmount, _address);
     }
 
     /**
@@ -95,7 +95,7 @@ contract ReUSD is
      */
     function redeem(address _address, uint256 _reUSDAmount) external {
         require(_reUSDAmount > 0, "Amount must be greater than zero");
-        (string memory _tokenName, , , bool isMtoken, ) = collateralConfig
+        (, , , bool isMtoken, ) = collateralConfig
             .getCollateral(_address);
         uint256 amount = collateralConfig.getAmountByReUSD(
             _address,
@@ -107,9 +107,7 @@ contract ReUSD is
             IERC20(_address).transfer(msg.sender, amount);
         }
         _burn(msg.sender, _reUSDAmount);
-        emit RedeemReUSD(msg.sender, _reUSDAmount, _tokenName);
-
-        // getAmountByReUSD
+        emit RedeemReUSD(msg.sender, _reUSDAmount, _address);
     }
 
     /**

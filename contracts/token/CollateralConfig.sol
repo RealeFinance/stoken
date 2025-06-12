@@ -3,7 +3,7 @@ pragma solidity ^0.8.22;
 
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {AccessControlEnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlEnumerableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IRWAOracle} from "contracts/Interfaces/rwaOracles/IRWAOracle.sol";
@@ -12,7 +12,7 @@ import "contracts/Interfaces/ICollateralConfig.sol";
 contract CollateralConfig is
     Initializable,
     ERC20Upgradeable,
-    AccessControlUpgradeable,
+    AccessControlEnumerableUpgradeable,
     UUPSUpgradeable,
     ICollateralConfig
 {

@@ -421,7 +421,7 @@ contract RAmMMF is
         ammmf.transferFrom(msg.sender, address(this), _AmMMFAmount);
         emit WrapCompleted(
             msg.sender,
-            AmMMFSharesAmount,
+            _AmMMFAmount,
             getRAmMMFByShares(AmMMFSharesAmount),
             getAmMMFPrice()
         );
@@ -429,7 +429,7 @@ contract RAmMMF is
             address(0),
             msg.sender,
             getRAmMMFByShares(AmMMFSharesAmount),
-            AmMMFSharesAmount
+            _AmMMFAmount
         );
     }
 
@@ -468,14 +468,14 @@ contract RAmMMF is
         emit UnWrapCompleted(
             msg.sender,
             _rAmMMFAmount,
-            AmMMFSharesAmount,
+            AmMMFSharesAmount / AMMMF_TO_RAMMMF_SHARES_MULTIPLIER,
             getAmMMFPrice()
         );
         emit TransferShares(
             msg.sender,
             address(0),
             _rAmMMFAmount,
-            AmMMFSharesAmount
+            AmMMFSharesAmount / AMMMF_TO_RAMMMF_SHARES_MULTIPLIER
         );
     }
 

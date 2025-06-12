@@ -65,7 +65,11 @@ contract ReUSD is
 
     event SwapReUSD(address indexed to, uint256 amount, address tokenAddress);
 
-    event RedeemReUSD(address indexed from, uint256 amount, address tokenAddress);
+    event RedeemReUSD(
+        address indexed from,
+        uint256 amount,
+        address tokenAddress
+    );
 
     /*//////////////////////////////////////////////////////////////
                             EXTERNAL FUNCTIONS
@@ -73,8 +77,7 @@ contract ReUSD is
 
     function lock(address _address, uint256 _amount) external {
         require(_amount > 0, "Amount must be greater than zero");
-        (, , , bool isMtoken, ) = collateralConfig
-            .getCollateral(_address);
+        (, , , bool isMtoken, ) = collateralConfig.getCollateral(_address);
         if (isMtoken) {
             IMAmMMF(_address).transferFrom(msg.sender, address(this), _amount);
         } else {
@@ -95,8 +98,7 @@ contract ReUSD is
      */
     function redeem(address _address, uint256 _reUSDAmount) external {
         require(_reUSDAmount > 0, "Amount must be greater than zero");
-        (, , , bool isMtoken, ) = collateralConfig
-            .getCollateral(_address);
+        (, , , bool isMtoken, ) = collateralConfig.getCollateral(_address);
         uint256 amount = collateralConfig.getAmountByReUSD(
             _address,
             _reUSDAmount

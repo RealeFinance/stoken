@@ -74,6 +74,21 @@ async function deployReUSDUpgrade(hre, _proxyAddress) {
   return proxy;
 }
 
+async function deployCollateralConfigUpgrade(hre, _proxyAddress) {
+  const CollateralConfig_V2 = await ethers.getContractFactory(
+    "CollateralConfig"
+  );
+  const collateralconfig_V2 = await CollateralConfig_V2.deploy();
+  await collateralconfig_V2.waitForDeployment();
+
+  // 2. 升级代理到新实现
+  const proxy = await hre.upgrades.upgradeProxy(
+    _proxyAddress,
+    CollateralConfig_V2
+  );
+  return proxy;
+}
+
 async function deployERC20(hre, _name, _symbol) {
   console.log(`${_name} 正在部署合约...`);
   const MockERC20 = await ethers.getContractFactory("Oracle");
@@ -105,4 +120,5 @@ module.exports = {
   deployReUSDUpgrade,
   deployERC20,
   deployCollateralConfig,
+  deployCollateralConfigUpgrade,
 };

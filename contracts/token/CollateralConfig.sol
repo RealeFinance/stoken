@@ -19,6 +19,8 @@ contract CollateralConfig is
     using SafeERC20 for IERC20;
     using SafeERC20 for ERC20Upgradeable;
 
+    bytes32 public constant REUSD_ADMIN = keccak256("REUSD_ADMIN");
+
     enum CollateralType {
         ERC20,
         MTOKEN, // Native isMtoken
@@ -64,6 +66,7 @@ contract CollateralConfig is
         require(oracleAddr != address(0), "Oracle address is zero");
         oracle = IRWAOracle(oracleAddr);
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(REUSD_ADMIN, msg.sender);
     }
 
     function _authorizeUpgrade(
@@ -78,9 +81,7 @@ contract CollateralConfig is
      * @notice Sets a new oracle address.
      * @param newOracle The address of the new oracle.
      */
-    function setOracle(
-        address newOracle
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setOracle(address newOracle) external onlyRole(REUSD_ADMIN) {
         require(newOracle != address(0), "Oracle address is zero");
         address oldOracle = address(oracle);
         oracle = IRWAOracle(newOracle);
@@ -123,7 +124,7 @@ contract CollateralConfig is
         uint _ratio,
         CollateralType _collateralType,
         bool _isEnabled
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyRole(REUSD_ADMIN) {
         require(bytes(_name).length != 0, "Collateral name is empty");
         require(_addr != address(0), "Collateral address is zero");
         require(
@@ -151,9 +152,7 @@ contract CollateralConfig is
      * @notice Deletes a Collateral.
      * @param _addr The address of the Collateral to delete.
      */
-    function deleteCollateral(
-        address _addr
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function deleteCollateral(address _addr) external onlyRole(REUSD_ADMIN) {
         require(_addr != address(0), "Collateral address is zero");
         require(
             addrToCollateral[_addr].addr != address(0),
@@ -238,7 +237,7 @@ contract CollateralConfig is
     function setCollateralEnabled(
         address _addr,
         bool _isEnabled
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyRole(REUSD_ADMIN) {
         require(_addr != address(0), "Collateral address is zero");
         require(
             addrToCollateral[_addr].addr != address(0),

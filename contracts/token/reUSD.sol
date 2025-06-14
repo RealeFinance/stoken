@@ -26,6 +26,9 @@ contract ReUSD is
 
     AggregatorV2V3Interface internal priceFeed;
 
+    // Mapping to track user locked amounts per collateral token
+    mapping(address => mapping(address => uint256)) private userLockedAmount;
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -75,6 +78,11 @@ contract ReUSD is
                             EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
+    /**
+     * @dev Locks a specified amount of collateral and mints reUSD tokens.
+     * @param _address The address of the collateral token.
+     * @param _amount The amount of collateral to lock.
+     */
     function lock(address _address, uint256 _amount) external {
         require(_amount > 0, "Amount must be greater than zero");
         (, , , bool isMtoken, ) = collateralConfig.getCollateral(_address);
@@ -88,16 +96,21 @@ contract ReUSD is
             _amount
         );
         _mint(msg.sender, reUSDAmount);
+        userLockedAmount[msg.sender][_address] += reUSDAmount;
         emit SwapReUSD(msg.sender, reUSDAmount, _address);
     }
 
     /**
-     * @dev Allows users to exchange their reUSD tokens for mAmMMF tokens.
-     * Burns the reUSD tokens and transfers mAmMMF to the user based on price.
-     * @param _reUSDAmount The amount of reUSD to exchange.
+     * @dev Redeems reUSD tokens for the underlying collateral.
+     * @param _address The address of the collateral token.
+     * @param _reUSDAmount The amount of reUSD tokens to redeem.
      */
     function redeem(address _address, uint256 _reUSDAmount) external {
         require(_reUSDAmount > 0, "Amount must be greater than zero");
+        require(
+            userLockedAmount[msg.sender][_address] >= _reUSDAmount,
+            "Redeem amount exceeds locked amount"
+        );
         (, , , bool isMtoken, ) = collateralConfig.getCollateral(_address);
         uint256 amount = collateralConfig.getAmountByReUSD(
             _address,
@@ -109,7 +122,19 @@ contract ReUSD is
             IERC20(_address).transfer(msg.sender, amount);
         }
         _burn(msg.sender, _reUSDAmount);
+        userLockedAmount[msg.sender][_address] -= _reUSDAmount;
         emit RedeemReUSD(msg.sender, _reUSDAmount, _address);
+    }
+
+    /**
+     * @dev Returns the maximum amount of reUSD the user can redeem for a given collateral token.
+     * @param _collateral The address of the collateral token.
+     * @return maxReUSD The maximum redeemable reUSD amount.
+     */
+    function maxRedeemableReUSD(
+        address _collateral
+    ) external view returns (uint256) {
+        return userLockedAmount[msg.sender][_collateral];
     }
 
     /**

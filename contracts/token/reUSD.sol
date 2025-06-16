@@ -66,12 +66,18 @@ contract ReUSD is
                                 EVENT
     //////////////////////////////////////////////////////////////*/
 
-    event SwapReUSD(address indexed to, uint256 amount, address tokenAddress);
+    event SwapReUSD(
+        address indexed to,
+        uint256 reUSDAmount,
+        address tokenAddress,
+        uint256 lockAmount
+    );
 
     event RedeemReUSD(
         address indexed from,
-        uint256 amount,
-        address tokenAddress
+        uint256 reUSDAmount,
+        address tokenAddress,
+        uint256 redeemAmount
     );
 
     /*//////////////////////////////////////////////////////////////
@@ -97,7 +103,7 @@ contract ReUSD is
         );
         _mint(msg.sender, reUSDAmount);
         userLockedAmount[msg.sender][_address] += reUSDAmount;
-        emit SwapReUSD(msg.sender, reUSDAmount, _address);
+        emit SwapReUSD(msg.sender, reUSDAmount, _address, _amount);
     }
 
     /**
@@ -123,7 +129,7 @@ contract ReUSD is
         }
         _burn(msg.sender, _reUSDAmount);
         userLockedAmount[msg.sender][_address] -= _reUSDAmount;
-        emit RedeemReUSD(msg.sender, _reUSDAmount, _address);
+        emit RedeemReUSD(msg.sender, _reUSDAmount, _address, amount);
     }
 
     /**

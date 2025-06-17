@@ -38,7 +38,7 @@ module.exports = {
     },
     // 可添加更多网络配置
     testnet: {
-      url: `https://hashkeychain-testnet.alt.technology`,
+      url: "https://testnet.hsk.xyz",
       accounts: [process.env.PRIVATE_KEY_2],
       chainId: 133,
       gasPrice: "auto",
@@ -46,11 +46,15 @@ module.exports = {
   },
   // Etherscan验证配置
   etherscan: {
+    // apiKey: {
+    //   mainnet: process.env.ETHERSCAN_API_KEY,
+    //   testnet: process.env.ETHERSCAN_API_KEY,
+    //   "hashkey-chain-testnet": "empty",
+    //   // 其他网络API密钥
+    // },
     apiKey: {
-      mainnet: process.env.ETHERSCAN_API_KEY,
-      testnet: process.env.ETHERSCAN_API_KEY,
+      testnet: "empty",
       "hashkey-chain-testnet": "empty",
-      // 其他网络API密钥
     },
     // 自定义网络配置
     customChains: [
@@ -67,10 +71,8 @@ module.exports = {
         network: "hashkey-chain-testnet",
         chainId: 133,
         urls: {
-          apiURL:
-            "https://hashkeychain-testnet-explorer.alt.technology:443/api",
-          browserURL:
-            "https://hashkeychain-testnet-explorer.alt.technology:443",
+          apiURL: "https://testnet-explorer.hsk.xyz/api",
+          browserURL: "https://testnet-explorer.hsk.xyz",
         },
       },
     ],

@@ -42,6 +42,7 @@ module.exports = {
       accounts: [process.env.PRIVATE_KEY_2],
       chainId: 133,
       gasPrice: "auto",
+      timeout: 2000000,
     },
   },
   // Etherscan验证配置

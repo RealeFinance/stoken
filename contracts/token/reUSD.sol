@@ -6,6 +6,8 @@ pragma solidity ^0.8.22;
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {IERC20, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
+import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
+import {AccessControlEnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlEnumerableUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {AggregatorV2V3Interface} from "@chainlink/contracts/src/v0.8/interfaces/FeedRegistryInterface.sol";
@@ -15,11 +17,13 @@ import "contracts/Interfaces/ICollateralConfig.sol";
 contract ReUSD is
     Initializable,
     ERC20Upgradeable,
+    ERC20PausableUpgradeable,
     ERC20PermitUpgradeable,
-    AccessControlUpgradeable,
+    AccessControlEnumerableUpgradeable,
     UUPSUpgradeable
 {
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
+    bytes32 public constant REBASE_ADMIN = keccak256("REBASE_ADMIN");
 
     // Address of the token config contract
     ICollateralConfig public collateralConfig;
@@ -49,18 +53,36 @@ contract ReUSD is
     ) public initializer {
         __ERC20_init(_name, _symbol);
         __ERC20Permit_init(_name);
+        __ERC20Pausable_init();
         __AccessControl_init();
         __UUPSUpgradeable_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(UPGRADER_ROLE, msg.sender);
+        _grantRole(REBASE_ADMIN, msg.sender);
 
         collateralConfig = ICollateralConfig(_collateralConfig);
     }
 
     function _authorizeUpgrade(
         address newImplementation
-    ) internal override onlyRole(UPGRADER_ROLE) {}
+    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
+    // The following functions are overrides required by Solidity.
+    function _update(
+        address from,
+        address to,
+        uint256 value
+    ) internal override(ERC20Upgradeable, ERC20PausableUpgradeable) {
+        super._update(from, to, value);
+    }
+
+    function pause() public onlyRole(REBASE_ADMIN) {
+        _pause();
+    }
+
+    function unpause() public onlyRole(REBASE_ADMIN) {
+        _unpause();
+    }
 
     /*//////////////////////////////////////////////////////////////
                                 EVENT
@@ -89,7 +111,7 @@ contract ReUSD is
      * @param _address The address of the collateral token.
      * @param _amount The amount of collateral to lock.
      */
-    function lock(address _address, uint256 _amount) external {
+    function lock(address _address, uint256 _amount) external whenNotPaused {
         require(_amount > 0, "Amount must be greater than zero");
         (, , , bool isMtoken, ) = collateralConfig.getCollateral(_address);
         if (isMtoken) {
@@ -111,7 +133,10 @@ contract ReUSD is
      * @param _address The address of the collateral token.
      * @param _reUSDAmount The amount of reUSD tokens to redeem.
      */
-    function redeem(address _address, uint256 _reUSDAmount) external {
+    function redeem(
+        address _address,
+        uint256 _reUSDAmount
+    ) external whenNotPaused {
         require(_reUSDAmount > 0, "Amount must be greater than zero");
         require(
             userLockedAmount[msg.sender][_address] >= _reUSDAmount,
@@ -151,7 +176,7 @@ contract ReUSD is
     function mint(
         address account,
         uint256 value
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyRole(REBASE_ADMIN) {
         _mint(account, value);
     }
 
@@ -163,7 +188,7 @@ contract ReUSD is
     function burn(
         address account,
         uint256 value
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyRole(REBASE_ADMIN) {
         _burn(account, value);
     }
 }

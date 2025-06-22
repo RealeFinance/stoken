@@ -7,7 +7,7 @@ import {AccessControlEnumerableUpgradeable} from "@openzeppelin/contracts-upgrad
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IRWAOracle} from "contracts/Interfaces/rwaOracles/IRWAOracle.sol";
-import "contracts/Interfaces/ICollateralConfig.sol";
+import {Collateral, CollateralType, ICollateralConfig} from "contracts/Interfaces/ICollateralConfig.sol";
 
 contract CollateralConfig is
     Initializable,
@@ -20,20 +20,6 @@ contract CollateralConfig is
     using SafeERC20 for ERC20Upgradeable;
 
     bytes32 public constant REUSD_ADMIN = keccak256("REUSD_ADMIN");
-
-    enum CollateralType {
-        ERC20,
-        MTOKEN, // Native isMtoken
-        OTHER
-    }
-
-    struct Collateral {
-        string name;
-        address addr;
-        uint ratio; // Ratio of the Collateral, e.g., 100 for 1:1 ratio; 125 for 125(Collateral):100(reUSD); 90 for 90(Collateral):100(reUSD)
-        CollateralType collateralType; // Type of the Collateral (e.g., NATIVE, ERC20, etc.)
-        bool isEnabled; // Whether the Collateral is enabled
-    }
 
     // Mapping from Collateral address to Collateral struct
     mapping(address => Collateral) public addrToCollateral;

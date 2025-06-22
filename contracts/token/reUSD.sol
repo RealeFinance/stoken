@@ -12,7 +12,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {AggregatorV2V3Interface} from "@chainlink/contracts/src/v0.8/interfaces/FeedRegistryInterface.sol";
 import {IMAmMMF} from "contracts/Interfaces/mAmMMF/ImAmMMF.sol";
-import "contracts/Interfaces/ICollateralConfig.sol";
+import {Collateral, CollateralType, ICollateralConfig} from "contracts/Interfaces/ICollateralConfig.sol";
 
 contract ReUSD is
     Initializable,
@@ -30,8 +30,10 @@ contract ReUSD is
 
     AggregatorV2V3Interface internal priceFeed;
 
-    // Mapping to track user locked amounts per collateral token
-    mapping(address => mapping(address => uint256)) private userLockedAmount;
+    // Total interest accrued in the system
+    uint256 public totalInterest;
+
+    address public stakedReUSD;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -48,6 +50,7 @@ contract ReUSD is
      */
     function initialize(
         address _collateralConfig,
+        address _stakedReUSD,
         string memory _name,
         string memory _symbol
     ) public initializer {
@@ -59,6 +62,8 @@ contract ReUSD is
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(REBASE_ADMIN, msg.sender);
+        totalInterest = 0;
+        stakedReUSD = _stakedReUSD;
 
         collateralConfig = ICollateralConfig(_collateralConfig);
     }
@@ -102,6 +107,10 @@ contract ReUSD is
         uint256 redeemAmount
     );
 
+    event AddInterestByReUSD(address indexed to, uint256 reUSDAmount);
+
+    event resetInterest();
+
     /*//////////////////////////////////////////////////////////////
                             EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
@@ -124,7 +133,6 @@ contract ReUSD is
             _amount
         );
         _mint(msg.sender, reUSDAmount);
-        userLockedAmount[msg.sender][_address] += reUSDAmount;
         emit SwapReUSD(msg.sender, reUSDAmount, _address, _amount);
     }
 
@@ -138,10 +146,6 @@ contract ReUSD is
         uint256 _reUSDAmount
     ) external whenNotPaused {
         require(_reUSDAmount > 0, "Amount must be greater than zero");
-        require(
-            userLockedAmount[msg.sender][_address] >= _reUSDAmount,
-            "Redeem amount exceeds locked amount"
-        );
         (, , , bool isMtoken, ) = collateralConfig.getCollateral(_address);
         uint256 amount = collateralConfig.getAmountByReUSD(
             _address,
@@ -153,19 +157,37 @@ contract ReUSD is
             IERC20(_address).transfer(msg.sender, amount);
         }
         _burn(msg.sender, _reUSDAmount);
-        userLockedAmount[msg.sender][_address] -= _reUSDAmount;
         emit RedeemReUSD(msg.sender, _reUSDAmount, _address, amount);
     }
 
     /**
-     * @dev Returns the maximum amount of reUSD the user can redeem for a given collateral token.
-     * @param _collateral The address of the collateral token.
-     * @return maxReUSD The maximum redeemable reUSD amount.
+     * @dev Updates the total interest accrued in the system by summing up the balances of all enabled collateral tokens.
+     * This function can only be called by the REBASE_ADMIN role.
      */
-    function maxRedeemableReUSD(
-        address _collateral
-    ) external view returns (uint256) {
-        return userLockedAmount[msg.sender][_collateral];
+    function updateTotalInterest() external onlyRole(REBASE_ADMIN) {
+        Collateral[] memory list = collateralConfig.getAllCollaterals();
+        uint256 _totalInterest = 0;
+        for (uint256 i = 0; i < list.length; i++) {
+            Collateral memory collateral = list[i];
+            if (collateral.isEnabled) {
+                _totalInterest =
+                    _totalInterest +
+                    IERC20(collateral.addr).balanceOf(address(this));
+            }
+        }
+        require(_totalInterest - totalSupply() > 0, "No interest to mint");
+        totalInterest = _totalInterest - totalSupply();
+        _mint(stakedReUSD, totalInterest);
+        emit AddInterestByReUSD(stakedReUSD, totalInterest);
+    }
+
+    function getTotalInterest() external view returns (uint256) {
+        return totalInterest;
+    }
+
+    function resetTotalInterest() external onlyRole(REBASE_ADMIN) {
+        totalInterest = 0;
+        emit resetInterest();
     }
 
     /**

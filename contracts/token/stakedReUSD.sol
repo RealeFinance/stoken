@@ -6,6 +6,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IReUSD} from "contracts/Interfaces/IReUSD.sol";
 
 contract StakedReUSD is
     Initializable,
@@ -13,27 +14,32 @@ contract StakedReUSD is
     ERC20PausableUpgradeable,
     AccessControlUpgradeable
 {
-    uint256 constant SECONDS_IN_A_DAY = 24 * 60 * 60;
+    bytes32 public constant STAKE_ADMIN = keccak256("STAKE_ADMIN");
 
     mapping(address => uint256) private interestBalances;
-
-    mapping(uint256 => uint256) public dailyInterestRates;
-
-    mapping(uint256 => bool) public dailyInterestUpdated;
 
     address[] private tokenHolders;
 
     using SafeERC20 for IERC20;
 
-    IERC20 public reUSD;
+    address public reUSD;
 
-    address public owner;
+    /*//////////////////////////////////////////////////////////////
+                                EVENT
+    //////////////////////////////////////////////////////////////*/
 
     event OwnershipTransferred(
         address indexed previousOwner,
         address indexed newOwner
     );
 
+    event calculateDailyInterestEvent(uint256 totalInterest);
+    event stakeEvent(address sender, uint256 amount);
+    event unStakeEvent(address sender, uint256 amount);
+
+    /*//////////////////////////////////////////////////////////////
+                              initialize
+    //////////////////////////////////////////////////////////////*/
     function initialize(
         string memory name,
         string memory symbol,
@@ -42,10 +48,10 @@ contract StakedReUSD is
         __ERC20_init(name, symbol);
         __ERC20Pausable_init();
         __AccessControl_init();
-        owner = msg.sender;
-        reUSD = IERC20(_reUSD);
+        reUSD = _reUSD;
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(STAKE_ADMIN, msg.sender);
     }
 
     function _update(
@@ -62,28 +68,11 @@ contract StakedReUSD is
         _updateTokenHolders(to);
     }
 
-    function getOwner() external view returns (address) {
-        return owner;
-    }
-
-    /**
-     * @notice Transfers ownership of the contract to a new address.
-     * @dev Can only be called by the current owner.
-     * @param newOwner The address of the new owner. Must not be the zero address.
-     */
-    function transferOwnership(
-        address newOwner
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(newOwner != address(0), "New owner is the zero address");
-        owner = newOwner;
-        emit OwnershipTransferred(msg.sender, newOwner);
-    }
-
     /**
      * @notice Pauses all token transfers.
      * @dev Can only be called by the owner.
      */
-    function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function pause() external onlyRole(STAKE_ADMIN) {
         _pause();
     }
 
@@ -91,7 +80,7 @@ contract StakedReUSD is
      * @notice Unpauses all token transfers.
      * @dev Can only be called by the owner.
      */
-    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function unpause() external onlyRole(STAKE_ADMIN) {
         _unpause();
     }
 
@@ -142,20 +131,6 @@ contract StakedReUSD is
     }
 
     /**
-     * @notice Sets the daily interest rate for a specific day.
-     * @dev Can only be called by the owner.
-     * @param day The day for which the interest rate is being set.
-     * @param rate The interest rate in basis points (1% = 100 basis points).
-     */
-    function setDailyInterestRate(
-        uint256 day,
-        uint256 rate
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(rate > 0, "Interest rate must be greater than zero");
-        dailyInterestRates[day / SECONDS_IN_A_DAY] = rate;
-    }
-
-    /**
      * @notice Retrieves the accumulated interest balance for an account.
      * @param account The address of the account.
      * @return The accumulated interest balance.
@@ -166,31 +141,17 @@ contract StakedReUSD is
         return interestBalances[account];
     }
 
-    /**
-     * @notice Calculates and updates the interest for all token holders for a specific day.
-     * @dev Can only be called by the owner and only once per day.
-     * @param _day The day for which the interest is being calculated.
-     */
-    function calculateDailyInterest(uint256 _day) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        uint256 day = _day / SECONDS_IN_A_DAY;
-        require(
-            !dailyInterestUpdated[day],
-            "Interest already updated for this day"
-        );
-        require(
-            dailyInterestRates[day] > 0,
-            "Interest rate not set for this day"
-        );
-
-        uint256 rate = dailyInterestRates[day];
+    function calculateDailyInterest() external onlyRole(STAKE_ADMIN) {
+        uint256 totalInterest = IReUSD(reUSD).getTotalInterest();
+        require(totalInterest > 0, "No interest to distribute");
         for (uint256 i = 0; i < tokenHolders.length; i++) {
             address account = tokenHolders[i];
             uint256 balance = balanceOf(account);
-            uint256 interest = (balance * rate) / 10000; // Basis points calculation
+            uint256 interest = (totalInterest * balance) / totalSupply();
             interestBalances[account] += interest;
         }
-
-        dailyInterestUpdated[day] = true;
+        IReUSD(reUSD).resetTotalInterest();
+        emit calculateDailyInterestEvent(totalInterest);
     }
 
     /**
@@ -202,20 +163,13 @@ contract StakedReUSD is
      */
     function stake(uint256 amount) external whenNotPaused {
         require(amount > 0, "Amount must be greater than zero");
-        require(
-            reUSD.balanceOf(msg.sender) >= amount,
-            "Insufficient reUSD balance"
-        );
-        require(
-            reUSD.allowance(msg.sender, address(this)) >= amount,
-            "Allowance not sufficient"
-        );
-
         // Transfer reUSD tokens from the user to the contract
-        reUSD.safeTransferFrom(msg.sender, address(this), amount);
+        IERC20(reUSD).safeTransferFrom(msg.sender, address(this), amount);
 
         // Mint stakedReUSD tokens to the user
         _mint(msg.sender, amount);
+
+        emit stakeEvent(msg.sender, amount);
     }
 
     /**
@@ -259,7 +213,8 @@ contract StakedReUSD is
         }
 
         // Transfer reUSD tokens from the contract to the user
-        require(reUSD.transfer(msg.sender, amount), "Transfer failed");
+        require(IERC20(reUSD).transfer(msg.sender, amount), "Transfer failed");
 
+        emit unStakeEvent(msg.sender, amount);
     }
 }

@@ -13,6 +13,7 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import {AggregatorV2V3Interface} from "@chainlink/contracts/src/v0.8/interfaces/FeedRegistryInterface.sol";
 import {IMAmMMF} from "contracts/Interfaces/mAmMMF/ImAmMMF.sol";
 import {Collateral, CollateralType, ICollateralConfig} from "contracts/Interfaces/ICollateralConfig.sol";
+import {IReUSD} from "contracts/Interfaces/IReUSD.sol";
 
 contract ReUSD is
     Initializable,
@@ -20,7 +21,8 @@ contract ReUSD is
     ERC20PausableUpgradeable,
     ERC20PermitUpgradeable,
     AccessControlEnumerableUpgradeable,
-    UUPSUpgradeable
+    UUPSUpgradeable,
+    IReUSD
 {
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
     bytes32 public constant REBASE_ADMIN = keccak256("REBASE_ADMIN");

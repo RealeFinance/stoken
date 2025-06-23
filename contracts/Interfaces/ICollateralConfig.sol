@@ -21,7 +21,6 @@ struct Collateral {
 /**
  * @title ICollateralConfig
  * @author zhangwenhai
- * @notice Interface for a blocklist contract to manage blocked addresses.
  */
 interface ICollateralConfig {
     /**

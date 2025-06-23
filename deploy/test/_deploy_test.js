@@ -8,7 +8,7 @@ async function main() {
     deployBlackList,
     deployAllowList,
     deployRAmMMF,
-  } = require("./_deploy_base").default;
+  } = require("./_deploy_base");
 
   // const BlackListToken = await deployBlackList(hre);
   // const BlackListAddress = await BlackListToken.getAddress();
@@ -16,21 +16,21 @@ async function main() {
   // const AllowListAddress = await AllowListToken.getAddress();
   const RAmMMFToken = await deployRAmMMF(
     hre,
-    process.env.TESTNET_AOABT_BlockList_ADDRESS,
-    process.env.TESTNET_AOABT_AllowList_ADDRESS,
-    process.env.AmMMF_ADDRESS,
-    "RAmMMF",
-    "RAmMMF"
+    process.env.TESTNET_AOABTB_BlockList_ADDRESS,
+    process.env.TESTNET_AOABTB_AllowList_ADDRESS,
+    process.env.TESTNET_AOABTB_ADDRESS,
+    "rAoABTb",
+    "rAoABTb"
   );
   const RAmMMFAddress = await RAmMMFToken.getAddress();
 
   console.log(
     "引用AOABT BlockList Token地址:",
-    process.env.TESTNET_AOABT_BlockList_ADDRESS
+    process.env.TESTNET_AOABTB_BlockList_ADDRESS
   );
   console.log(
     "引用AOABT AllowList Token地址:",
-    process.env.TESTNET_AOABT_AllowList_ADDRESS
+    process.env.TESTNET_AOABTB_AllowList_ADDRESS
   );
   console.log("             RAmMMF Token地址:", RAmMMFAddress);
 }

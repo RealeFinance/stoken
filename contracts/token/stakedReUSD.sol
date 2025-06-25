@@ -16,13 +16,13 @@ contract StakedReUSD is
 {
     bytes32 public constant STAKE_ADMIN = keccak256("STAKE_ADMIN");
 
-    mapping(address => uint256) private interestBalances;
-
     address[] private tokenHolders;
 
     using SafeERC20 for IERC20;
 
     address public reUSD;
+
+    uint256 public valueByReUSD;
 
     /*//////////////////////////////////////////////////////////////
                                 EVENT
@@ -34,8 +34,12 @@ contract StakedReUSD is
     );
 
     event calculateDailyInterestEvent(uint256 totalInterest);
-    event stakeEvent(address sender, uint256 amount);
-    event unStakeEvent(address sender, uint256 amount);
+    event stakeEvent(address sender, uint256 stakeAmount, uint256 reUSDAmount);
+    event unStakeEvent(
+        address sender,
+        uint256 stakeAmount,
+        uint256 reUSDAmount
+    );
 
     /*//////////////////////////////////////////////////////////////
                               initialize
@@ -49,6 +53,7 @@ contract StakedReUSD is
         __ERC20Pausable_init();
         __AccessControl_init();
         reUSD = _reUSD;
+        valueByReUSD = 0;
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(STAKE_ADMIN, msg.sender);
@@ -127,94 +132,55 @@ contract StakedReUSD is
     function getBalanceWithInterest(
         address account
     ) public view returns (uint256) {
-        return balanceOf(account) + interestBalances[account];
-    }
-
-    /**
-     * @notice Retrieves the accumulated interest balance for an account.
-     * @param account The address of the account.
-     * @return The accumulated interest balance.
-     */
-    function getInterestBalance(
-        address account
-    ) external view returns (uint256) {
-        return interestBalances[account];
+        return (balanceOf(account) * valueByReUSD) / totalSupply();
     }
 
     function calculateDailyInterest() external onlyRole(STAKE_ADMIN) {
         uint256 totalInterest = IReUSD(reUSD).getTotalInterest();
         require(totalInterest > 0, "No interest to distribute");
-        for (uint256 i = 0; i < tokenHolders.length; i++) {
-            address account = tokenHolders[i];
-            uint256 balance = balanceOf(account);
-            uint256 interest = (totalInterest * balance) / totalSupply();
-            interestBalances[account] += interest;
+        // Accumulate total interest into valueByReUSD
+        if (totalSupply() > 0) {
+            valueByReUSD += totalInterest;
+            IReUSD(reUSD).resetTotalInterest();
+            emit calculateDailyInterestEvent(totalInterest);
         }
-        IReUSD(reUSD).resetTotalInterest();
-        emit calculateDailyInterestEvent(totalInterest);
     }
 
     /**
-     * @notice Allows a user to stake a specified amount of reUSD tokens.
-     * @dev This function transfers the specified amount of reUSD tokens from the user to the contract
-     *      and mints an equivalent amount of stakedReUSD tokens for the user.
+     * @notice Allows a user to stake a specified reUSDAmount of reUSD tokens.
+     * @dev This function transfers the specified reUSDAmount of reUSD tokens from the user to the contract
+     *      and mints an equivalent reUSDAmount of stakedReUSD tokens for the user.
      *      The function is only executable when the contract is not paused.
-     * @param amount The amount of reUSD tokens to stake. Must be greater than zero.
+     * @param reUSDAmount The reUSDAmount of reUSD tokens to stake. Must be greater than zero.
      */
-    function stake(uint256 amount) external whenNotPaused {
-        require(amount > 0, "Amount must be greater than zero");
-        // Transfer reUSD tokens from the user to the contract
-        IERC20(reUSD).safeTransferFrom(msg.sender, address(this), amount);
-
+    function stake(uint256 reUSDAmount) external whenNotPaused {
+        require(reUSDAmount > 0, "Amount must be greater than zero");
+        uint256 stakeAmount = 0;
+        if (valueByReUSD == 0) {
+            stakeAmount = reUSDAmount;
+        } else {
+            stakeAmount = (reUSDAmount * totalSupply()) / valueByReUSD;
+        }
+        IERC20(reUSD).safeTransferFrom(msg.sender, address(this), reUSDAmount);
+        valueByReUSD += reUSDAmount;
         // Mint stakedReUSD tokens to the user
-        _mint(msg.sender, amount);
+        _mint(msg.sender, stakeAmount);
 
-        emit stakeEvent(msg.sender, amount);
+        emit stakeEvent(msg.sender, stakeAmount, reUSDAmount);
     }
 
-    /**
-     * @notice Allows users to unstake their stakedReUSD tokens and withdraw reUSD tokens.
-     * @dev The function first deducts the unstake amount from the principal balance (staked tokens).
-     *      If the unstake amount exceeds the principal balance, the remaining amount is deducted
-     *      from the accumulated interest balance. The function ensures that the user has sufficient
-     *      combined principal and interest balance to cover the unstake amount.
-     * @param amount The amount of stakedReUSD tokens to unstake.
-     */
-    function unstake(uint256 amount) external whenNotPaused {
-        require(amount > 0, "Amount must be greater than zero");
-        require(
-            getBalanceWithInterest(msg.sender) >= amount,
-            "Insufficient stakedReUSD balance"
-        );
-
-        uint256 principalBalance = balanceOf(msg.sender);
-        uint256 interestBalance = interestBalances[msg.sender];
-
-        if (amount <= principalBalance) {
-            // Burn the amount from the principal balance
-            _burn(msg.sender, amount);
-        } else {
-            // Calculate the remaining amount after exhausting the principal balance
-            // Calculate the portion of the unstake amount that will be covered by the interest balance
-            uint256 remainingAmount = amount - principalBalance;
-
-            // Ensure the interest balance is sufficient to cover the remaining amount
-            require(
-                remainingAmount <= interestBalance,
-                "Insufficient interest balance to unstake"
-            );
-
-            require(
-                interestBalances[msg.sender] >= remainingAmount,
-                "Insufficient interest balance"
-            );
-            interestBalances[msg.sender] -= remainingAmount;
-            _burn(msg.sender, principalBalance);
-        }
+    function unstake(uint256 stakeAmount) external whenNotPaused {
+        require(stakeAmount > 0, "Amount must be greater than zero");
+        uint256 reUSDAmount = (stakeAmount * valueByReUSD) / totalSupply();
 
         // Transfer reUSD tokens from the contract to the user
-        require(IERC20(reUSD).transfer(msg.sender, amount), "Transfer failed");
-
-        emit unStakeEvent(msg.sender, amount);
+        require(
+            IERC20(reUSD).transfer(msg.sender, reUSDAmount),
+            "Transfer failed"
+        );
+        valueByReUSD -= reUSDAmount;
+        // Burn the stakedReUSD tokens from the user
+        _burn(msg.sender, stakeAmount);
+        emit unStakeEvent(msg.sender, stakeAmount, reUSDAmount);
     }
 }

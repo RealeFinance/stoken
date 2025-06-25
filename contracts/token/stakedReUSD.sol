@@ -7,6 +7,7 @@ import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/acce
 import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IReUSD} from "contracts/Interfaces/IReUSD.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract StakedReUSD is
     Initializable,
@@ -132,7 +133,7 @@ contract StakedReUSD is
     function getBalanceWithInterest(
         address account
     ) public view returns (uint256) {
-        return (balanceOf(account) * valueByReUSD) / totalSupply();
+        return Math.mulDiv(balanceOf(account), valueByReUSD, totalSupply());
     }
 
     function calculateDailyInterest() external onlyRole(STAKE_ADMIN) {
@@ -159,7 +160,7 @@ contract StakedReUSD is
         if (valueByReUSD == 0) {
             stakeAmount = reUSDAmount;
         } else {
-            stakeAmount = (reUSDAmount * totalSupply()) / valueByReUSD;
+            stakeAmount = Math.mulDiv(reUSDAmount, totalSupply(), valueByReUSD);
         }
         IERC20(reUSD).safeTransferFrom(msg.sender, address(this), reUSDAmount);
         valueByReUSD += reUSDAmount;
@@ -171,9 +172,12 @@ contract StakedReUSD is
 
     function unstake(uint256 stakeAmount) external whenNotPaused {
         require(stakeAmount > 0, "Amount must be greater than zero");
-        uint256 reUSDAmount = (stakeAmount * valueByReUSD) / totalSupply();
-
-        // Transfer reUSD tokens from the contract to the user
+        uint256 reUSDAmount = Math.mulDiv(
+            stakeAmount,
+            valueByReUSD,
+            totalSupply()
+        );
+        // Transfer reUSD tokens from the contract to the user'
         require(
             IERC20(reUSD).transfer(msg.sender, reUSDAmount),
             "Transfer failed"

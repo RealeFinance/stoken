@@ -17,13 +17,24 @@ contract StakedReUSD is
 {
     bytes32 public constant STAKE_ADMIN = keccak256("STAKE_ADMIN");
 
-    address[] private tokenHolders;
+    struct UnstakeRequest {
+        uint256 unstaketimestamp;
+        uint256 unstakeAmount;
+    }
 
     using SafeERC20 for IERC20;
 
     address public reUSD;
 
     uint256 public valueByReUSD;
+
+    // Mapping to track the unstake request timestamp and amount for each user
+    mapping(address => UnstakeRequest) private unstakeRequestMap;
+    // Cooldown period in seconds (7 days)
+    uint256 public constant UNSTAKE_COOLDOWN = 7 days;
+
+    // Array to record addresses that have made an UnstakeRequest
+    address[] private unstakeRequestUsers;
 
     /*//////////////////////////////////////////////////////////////
                                 EVENT
@@ -70,8 +81,6 @@ contract StakedReUSD is
         whenNotPaused
     {
         super._update(from, to, value);
-        _updateTokenHolders(from);
-        _updateTokenHolders(to);
     }
 
     /**
@@ -91,41 +100,6 @@ contract StakedReUSD is
     }
 
     /**
-     * @dev Updates the list of token holders based on their balances.
-     *
-     * This function ensures that the `tokenHolders` array accurately reflects
-     * the current holders of tokens. It performs the following operations:
-     *
-     * - If the `account` is not already in the `tokenHolders` array and has a
-     *   positive token balance, it adds the `account` to the array.
-     * - If the `account` is already in the `tokenHolders` array but its token
-     *   balance is zero, it removes the `account` from the array by replacing
-     *   it with the last element and then popping the last element.
-     *
-     * @param account The address of the account to update in the `tokenHolders` array.
-     */
-    function _updateTokenHolders(address account) private {
-        bool exists = false;
-        for (uint256 i = 0; i < tokenHolders.length; i++) {
-            if (tokenHolders[i] == account) {
-                exists = true;
-                break;
-            }
-        }
-        if (!exists && balanceOf(account) > 0) {
-            tokenHolders.push(account);
-        } else if (exists && balanceOf(account) == 0) {
-            for (uint256 i = 0; i < tokenHolders.length; i++) {
-                if (tokenHolders[i] == account) {
-                    tokenHolders[i] = tokenHolders[tokenHolders.length - 1];
-                    tokenHolders.pop();
-                    break;
-                }
-            }
-        }
-    }
-
-    /**
      * @notice Retrieves the balance of an account, including the accumulated interest.
      * @param account The address of the account.
      * @return The total balance including interest.
@@ -136,6 +110,12 @@ contract StakedReUSD is
         return Math.mulDiv(balanceOf(account), valueByReUSD, totalSupply());
     }
 
+    /**
+     * @notice Calculates and distributes daily interest to staked reUSD holders.
+     * @dev This function can only be called by the STAKE_ADMIN role.
+     *      It retrieves the total interest from the reUSD contract, updates the valueByReUSD,
+     *      and resets the total interest in the reUSD contract.
+     */
     function calculateDailyInterest() external onlyRole(STAKE_ADMIN) {
         uint256 totalInterest = IReUSD(reUSD).getTotalInterest();
         require(totalInterest > 0, "No interest to distribute");
@@ -170,21 +150,124 @@ contract StakedReUSD is
         emit stakeEvent(msg.sender, stakeAmount, reUSDAmount);
     }
 
-    function unstake(uint256 stakeAmount) external whenNotPaused {
+    /**
+     * @notice Returns the list of UnstakeRequest objects for all users in unstakeRequestUsers.
+     */
+    function getUnstakeRequests()
+        external
+        view
+        onlyRole(STAKE_ADMIN)
+        returns (UnstakeRequest[] memory)
+    {
+        UnstakeRequest[] memory requests = new UnstakeRequest[](
+            unstakeRequestUsers.length
+        );
+        for (uint256 i = 0; i < unstakeRequestUsers.length; i++) {
+            requests[i] = unstakeRequestMap[unstakeRequestUsers[i]];
+        }
+        return requests;
+    }
+
+    /**
+     * @dev Internal function to add a user to the unstakeRequestUsers array if not already present.
+     */
+    function _addUnstakeRequestUser(address user) internal {
+        for (uint256 i = 0; i < unstakeRequestUsers.length; i++) {
+            if (unstakeRequestUsers[i] == user) {
+                return;
+            }
+        }
+        unstakeRequestUsers.push(user);
+    }
+
+    /**
+     * @notice Removes a user from the unstakeRequestUsers array.
+     * @dev Only removes the first occurrence if present.
+     * @param user The address to remove.
+     */
+    function _removeUnstakeRequestUser(address user) internal {
+        for (uint256 i = 0; i < unstakeRequestUsers.length; i++) {
+            if (unstakeRequestUsers[i] == user) {
+                unstakeRequestUsers[i] = unstakeRequestUsers[
+                    unstakeRequestUsers.length - 1
+                ];
+                unstakeRequestUsers.pop();
+                break;
+            }
+        }
+    }
+
+    /**
+     * @notice Returns the unstakeAmount for a given account's UnstakeRequest.
+     * @param account The address to query.
+     * @return The unstakeAmount requested by the account.
+     */
+    function getUnstakeRequestAmount(
+        address account
+    ) public view returns (uint256) {
+        return unstakeRequestMap[account].unstakeAmount;
+    }
+
+    /**
+     * @notice Returns the unstaketimestamp for a given account's UnstakeRequest.
+     * @param account The address to query.
+     * @return The unstaketimestamp of the account's unstake request.
+     */
+    function getUnstakeimestamp(address account) public view returns (uint256) {
+        return unstakeRequestMap[account].unstaketimestamp;
+    }
+
+    /**
+     * @notice Allows a user to request an unstake of a specified amount of stakedReUSD tokens.
+     * @dev The requested amount is added to any existing unstake request for the user.
+     *      The function checks that the user has sufficient balance and that the requested amount is greater than zero.
+     *      The unstake request is subject to a cooldown period defined by UNSTAKE_COOLDOWN.
+     * @param stakeAmount The amount of stakedReUSD tokens to request for unstaking.
+     */
+    function requestUnstake(uint256 stakeAmount) external whenNotPaused {
         require(stakeAmount > 0, "Amount must be greater than zero");
+        uint256 _totalAmount = stakeAmount +
+            getUnstakeRequestAmount(msg.sender);
+        require(balanceOf(msg.sender) >= _totalAmount, "Insufficient balance");
+        unstakeRequestMap[msg.sender] = UnstakeRequest({
+            unstaketimestamp: block.timestamp + UNSTAKE_COOLDOWN,
+            unstakeAmount: _totalAmount
+        });
+        _addUnstakeRequestUser(msg.sender);
+    }
+
+    /**
+     * @notice Allows a user to unstake their requested amount of stakedReUSD tokens after the cooldown period.
+     * @dev The function checks that the user has an unstake request and that the cooldown period has passed.
+     *      It transfers the equivalent reUSD amount back to the user and burns the stakedReUSD tokens.
+     */
+    function unstake() external whenNotPaused {
+        uint256 stakeAmount = getUnstakeRequestAmount(msg.sender);
+        require(stakeAmount > 0, "No unstake requested");
+        require(
+            block.timestamp >= getUnstakeimestamp(msg.sender),
+            "Cooldown not finished"
+        );
+
         uint256 reUSDAmount = Math.mulDiv(
             stakeAmount,
             valueByReUSD,
             totalSupply()
         );
-        // Transfer reUSD tokens from the contract to the user'
         require(
             IERC20(reUSD).transfer(msg.sender, reUSDAmount),
             "Transfer failed"
         );
         valueByReUSD -= reUSDAmount;
-        // Burn the stakedReUSD tokens from the user
         _burn(msg.sender, stakeAmount);
+
+        // Reset unstake request
+        unstakeRequestMap[msg.sender] = UnstakeRequest({
+            unstaketimestamp: 0,
+            unstakeAmount: 0
+        });
+        _removeUnstakeRequestUser(msg.sender);
+
         emit unStakeEvent(msg.sender, stakeAmount, reUSDAmount);
     }
 }

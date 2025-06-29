@@ -20,6 +20,7 @@ contract StakedReUSD is
     struct UnstakeRequest {
         uint256 unstaketimestamp;
         uint256 unstakeAmount;
+        uint256 unstakeAmountByReUSD;
     }
 
     using SafeERC20 for IERC20;
@@ -33,9 +34,6 @@ contract StakedReUSD is
     // Cooldown period in seconds (7 days)
     uint256 public constant UNSTAKE_COOLDOWN = 7 days;
 
-    // Array to record addresses that have made an UnstakeRequest
-    address[] private unstakeRequestUsers;
-
     /*//////////////////////////////////////////////////////////////
                                 EVENT
     //////////////////////////////////////////////////////////////*/
@@ -48,6 +46,11 @@ contract StakedReUSD is
     event calculateDailyInterestEvent(uint256 totalInterest);
     event stakeEvent(address sender, uint256 stakeAmount, uint256 reUSDAmount);
     event unStakeEvent(
+        address sender,
+        uint256 stakeAmount,
+        uint256 reUSDAmount
+    );
+    event withdrewEvent(
         address sender,
         uint256 stakeAmount,
         uint256 reUSDAmount
@@ -151,53 +154,6 @@ contract StakedReUSD is
     }
 
     /**
-     * @notice Returns the list of UnstakeRequest objects for all users in unstakeRequestUsers.
-     */
-    function getUnstakeRequests()
-        external
-        view
-        onlyRole(STAKE_ADMIN)
-        returns (UnstakeRequest[] memory)
-    {
-        UnstakeRequest[] memory requests = new UnstakeRequest[](
-            unstakeRequestUsers.length
-        );
-        for (uint256 i = 0; i < unstakeRequestUsers.length; i++) {
-            requests[i] = unstakeRequestMap[unstakeRequestUsers[i]];
-        }
-        return requests;
-    }
-
-    /**
-     * @dev Internal function to add a user to the unstakeRequestUsers array if not already present.
-     */
-    function _addUnstakeRequestUser(address user) internal {
-        for (uint256 i = 0; i < unstakeRequestUsers.length; i++) {
-            if (unstakeRequestUsers[i] == user) {
-                return;
-            }
-        }
-        unstakeRequestUsers.push(user);
-    }
-
-    /**
-     * @notice Removes a user from the unstakeRequestUsers array.
-     * @dev Only removes the first occurrence if present.
-     * @param user The address to remove.
-     */
-    function _removeUnstakeRequestUser(address user) internal {
-        for (uint256 i = 0; i < unstakeRequestUsers.length; i++) {
-            if (unstakeRequestUsers[i] == user) {
-                unstakeRequestUsers[i] = unstakeRequestUsers[
-                    unstakeRequestUsers.length - 1
-                ];
-                unstakeRequestUsers.pop();
-                break;
-            }
-        }
-    }
-
-    /**
      * @notice Returns the unstakeAmount for a given account's UnstakeRequest.
      * @param account The address to query.
      * @return The unstakeAmount requested by the account.
@@ -206,6 +162,12 @@ contract StakedReUSD is
         address account
     ) public view returns (uint256) {
         return unstakeRequestMap[account].unstakeAmount;
+    }
+
+    function getUnstakeRequestAmountByReUSD(
+        address account
+    ) public view returns (uint256) {
+        return unstakeRequestMap[account].unstakeAmountByReUSD;
     }
 
     /**
@@ -224,16 +186,25 @@ contract StakedReUSD is
      *      The unstake request is subject to a cooldown period defined by UNSTAKE_COOLDOWN.
      * @param stakeAmount The amount of stakedReUSD tokens to request for unstaking.
      */
-    function requestUnstake(uint256 stakeAmount) external whenNotPaused {
+    function unstake(uint256 stakeAmount) external whenNotPaused {
         require(stakeAmount > 0, "Amount must be greater than zero");
+        require(balanceOf(msg.sender) >= stakeAmount, "Insufficient balance");
         uint256 _totalAmount = stakeAmount +
             getUnstakeRequestAmount(msg.sender);
-        require(balanceOf(msg.sender) >= _totalAmount, "Insufficient balance");
+        uint256 reUSDAmount = Math.mulDiv(
+            _totalAmount,
+            valueByReUSD,
+            totalSupply()
+        );
+        _burn(msg.sender, stakeAmount);
+        valueByReUSD -= reUSDAmount;
         unstakeRequestMap[msg.sender] = UnstakeRequest({
             unstaketimestamp: block.timestamp + UNSTAKE_COOLDOWN,
-            unstakeAmount: _totalAmount
+            unstakeAmount: _totalAmount,
+            unstakeAmountByReUSD: reUSDAmount
         });
-        _addUnstakeRequestUser(msg.sender);
+
+        emit unStakeEvent(msg.sender, _totalAmount, reUSDAmount);
     }
 
     /**
@@ -241,33 +212,27 @@ contract StakedReUSD is
      * @dev The function checks that the user has an unstake request and that the cooldown period has passed.
      *      It transfers the equivalent reUSD amount back to the user and burns the stakedReUSD tokens.
      */
-    function unstake() external whenNotPaused {
+    function withdrew() external whenNotPaused {
         uint256 stakeAmount = getUnstakeRequestAmount(msg.sender);
+        uint256 reUSDAmount = getUnstakeRequestAmountByReUSD(msg.sender);
         require(stakeAmount > 0, "No unstake requested");
         require(
             block.timestamp >= getUnstakeimestamp(msg.sender),
             "Cooldown not finished"
         );
 
-        uint256 reUSDAmount = Math.mulDiv(
-            stakeAmount,
-            valueByReUSD,
-            totalSupply()
-        );
         require(
             IERC20(reUSD).transfer(msg.sender, reUSDAmount),
             "Transfer failed"
         );
-        valueByReUSD -= reUSDAmount;
-        _burn(msg.sender, stakeAmount);
 
         // Reset unstake request
         unstakeRequestMap[msg.sender] = UnstakeRequest({
             unstaketimestamp: 0,
-            unstakeAmount: 0
+            unstakeAmount: 0,
+            unstakeAmountByReUSD: 0
         });
-        _removeUnstakeRequestUser(msg.sender);
 
-        emit unStakeEvent(msg.sender, stakeAmount, reUSDAmount);
+        emit withdrewEvent(msg.sender, stakeAmount, reUSDAmount);
     }
 }

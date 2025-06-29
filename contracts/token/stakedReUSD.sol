@@ -27,7 +27,12 @@ contract StakedReUSD is
 
     address public reUSD;
 
+    // Total value of staked assets
     uint256 public valueByReUSD;
+
+    // Protocol income ratio (percentage of total interest distributed to the protocol)
+    // For example, if protocolIncomeRatio is 15, then 15% of the
+    uint256 public protocolIncomeRatio;
 
     // Mapping to track the unstake request timestamp and amount for each user
     mapping(address => UnstakeRequest) private unstakeRequestMap;
@@ -43,7 +48,10 @@ contract StakedReUSD is
         address indexed newOwner
     );
 
-    event calculateDailyInterestEvent(uint256 totalInterest);
+    event calculateDailyInterestEvent(
+        uint256 totalInterest,
+        uint256 protocolIncome
+    );
     event stakeEvent(address sender, uint256 stakeAmount, uint256 reUSDAmount);
     event unStakeEvent(
         address sender,
@@ -55,6 +63,7 @@ contract StakedReUSD is
         uint256 stakeAmount,
         uint256 reUSDAmount
     );
+    event protocolIncomeRatioChanged(uint256 oldRatio, uint256 newRatio);
 
     /*//////////////////////////////////////////////////////////////
                               initialize
@@ -69,6 +78,7 @@ contract StakedReUSD is
         __AccessControl_init();
         reUSD = _reUSD;
         valueByReUSD = 0;
+        protocolIncomeRatio = 15; // 15% of the total interest will be distributed to the protocol
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(STAKE_ADMIN, msg.sender);
@@ -103,6 +113,29 @@ contract StakedReUSD is
     }
 
     /**
+     * @notice Returns the current protocol income ratio.
+     * @return The protocol income ratio.
+     */
+    function getProtocolIncomeRatio() external view returns (uint256) {
+        return protocolIncomeRatio;
+    }
+
+    /**
+     * @notice Sets the protocol income ratio.
+     * @dev Only callable by STAKE_ADMIN.
+     * @param ratio The new protocol income ratio.
+     */
+    function setProtocolIncomeRatio(
+        uint256 ratio
+    ) external onlyRole(STAKE_ADMIN) {
+        require(ratio <= 100, "Ratio must be between 0 and 100");
+        require(ratio >= 0, "Ratio must be between 0 and 100");
+        uint256 oldRatio = protocolIncomeRatio;
+        protocolIncomeRatio = ratio;
+        emit protocolIncomeRatioChanged(oldRatio, ratio);
+    }
+
+    /**
      * @notice Retrieves the balance of an account, including the accumulated interest.
      * @param account The address of the account.
      * @return The total balance including interest.
@@ -123,10 +156,11 @@ contract StakedReUSD is
         uint256 totalInterest = IReUSD(reUSD).getTotalInterest();
         require(totalInterest > 0, "No interest to distribute");
         // Accumulate total interest into valueByReUSD
+        uint256 protocolIncome = (totalInterest * protocolIncomeRatio) / 100;
         if (totalSupply() > 0) {
-            valueByReUSD += totalInterest;
+            valueByReUSD += protocolIncome;
             IReUSD(reUSD).resetTotalInterest();
-            emit calculateDailyInterestEvent(totalInterest);
+            emit calculateDailyInterestEvent(totalInterest, protocolIncome);
         }
     }
 

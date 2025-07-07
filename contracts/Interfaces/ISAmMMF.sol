@@ -4,6 +4,33 @@
 pragma solidity ^0.8.22;
 
 interface ISAmMMF {
+    struct SubscribeData {
+        uint256 id; // Subscription ID
+        uint256 amount; // Amount of tokens subscribed
+        address user; // User address who subscribed
+        uint256 price; // Price of the subscription
+    }
+
+    struct WithdrawalData {
+        uint256 id; // Withdrawal ID
+        uint256 amount; // Amount of tokens to withdraw
+        address user; // User address who requested the withdrawal
+        uint256 price; // Price of the withdrawal
+    }
+
+    // TokenData structure to hold token ID and amount
+    struct TokenData {
+        uint256 id; // Token ID
+        uint256 mintTime; // Token minting time
+        uint256 price; // Token price
+        address tokenOwner; // Token owner address
+    }
+
+    struct TokenTemporary {
+        uint256 id; // Token ID
+        uint256 amount; // Token minting time
+    }
+
     event subscribeEvent(
         uint256 subscriptionId,
         uint256 amount,

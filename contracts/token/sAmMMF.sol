@@ -9,7 +9,7 @@ import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/
 import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {ISAmMMF} from "../Interfaces/ISAmMMF.sol";
+import "../Interfaces/ISAmMMF.sol";
 
 contract SAmMMF is
     Initializable,
@@ -23,36 +23,15 @@ contract SAmMMF is
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
     bytes32 public constant STOKEN_ADMIN = keccak256("STOKEN_ADMIN");
 
-    struct TokenTemporary {
-        uint256 id; // Token ID
-        uint256 amount; // Token minting time
-    }
+    // Technical Service Fee (%) 10 ==> 0.1%  50 ==> 0.5%  100 ==> 1%
+    uint256 private technicalServiceFeeRate = 10;
 
-    struct SubscribeData {
-        uint256 id; // Subscription ID
-        uint256 amount; // Amount of tokens subscribed
-        address user; // User address who subscribed
-        uint256 price; // Price of the subscription
-    }
     // subscriptionId => SubscribeData
     mapping(uint256 => SubscribeData) private _subscribeDataMap;
 
-    struct WithdrawalData {
-        uint256 id; // Withdrawal ID
-        uint256 amount; // Amount of tokens to withdraw
-        address user; // User address who requested the withdrawal
-        uint256 price; // Price of the withdrawal
-    }
     // withdrawalId => WithdrawalData
     mapping(uint256 => WithdrawalData) private _withdrawalDataMap;
 
-    // TokenData structure to hold token ID and amount
-    struct TokenData {
-        uint256 id; // Token ID
-        uint256 mintTime; // Token minting time
-        uint256 price; // Token price
-        address tokenOwner; // Token owner address
-    }
     // tokenId => TokenData
     mapping(uint256 => TokenData) private _tokenDataMap;
 
@@ -99,6 +78,24 @@ contract SAmMMF is
         uint256 value
     ) internal override(ERC20Upgradeable, ERC20PausableUpgradeable) {
         super._update(from, to, value);
+    }
+
+    /**
+     * @dev Set the technical service fee rate.
+     * @param newRate The new fee rate (in percent).
+     */
+    function setTechnicalServiceFeeRate(
+        uint256 newRate
+    ) external onlyRole(STOKEN_ADMIN) {
+        technicalServiceFeeRate = newRate;
+    }
+
+    /**
+     * @dev Get the current technical service fee rate.
+     * @return The current fee rate (in percent).
+     */
+    function getTechnicalServiceFeeRate() external view returns (uint256) {
+        return technicalServiceFeeRate;
     }
 
     /**
@@ -282,7 +279,7 @@ contract SAmMMF is
         address recipient,
         uint256 amount
     ) public override returns (bool) {
-        _transfer(msg.sender, recipient, amount);
+        _transferWithTokenId(msg.sender, recipient, amount);
         return true;
     }
 
@@ -291,16 +288,16 @@ contract SAmMMF is
         address recipient,
         uint256 amount
     ) public override returns (bool) {
-        _transfer(msg.sender, recipient, amount);
+        _transferWithTokenId(msg.sender, recipient, amount);
         _approve(sender, msg.sender, allowance(sender, msg.sender) - amount);
         return true;
     }
 
-    function _transfer(
+    function _transferWithTokenId(
         address from,
         address to,
         uint256 amount
-    ) internal override {
+    ) internal {
         TokenTemporary[] memory _tt = _removeTokenByIdList(from, amount);
         _addTokenByIdList(to, _tt);
     }

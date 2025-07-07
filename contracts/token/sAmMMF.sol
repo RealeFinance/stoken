@@ -9,6 +9,7 @@ import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/
 import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {ISAmMMF} from "../Interfaces/ISAmMMF.sol";
 
 contract SAmMMF is
     Initializable,
@@ -16,18 +17,42 @@ contract SAmMMF is
     ERC20PausableUpgradeable,
     ERC20PermitUpgradeable,
     AccessControlEnumerableUpgradeable,
-    UUPSUpgradeable
+    UUPSUpgradeable,
+    ISAmMMF
 {
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
     bytes32 public constant STOKEN_ADMIN = keccak256("STOKEN_ADMIN");
 
-    // TokenData structure to hold token ID and amount
-    struct TokenData {
-        uint256 tokenId; // Token ID
-        uint256 tokenMintTime; // Token minting time
-        address tokenOwner; // Token owner address
+    struct TokenTemporary {
+        uint256 id; // Token ID
+        uint256 amount; // Token minting time
     }
 
+    struct SubscribeData {
+        uint256 id; // Subscription ID
+        uint256 amount; // Amount of tokens subscribed
+        address user; // User address who subscribed
+        uint256 price; // Price of the subscription
+    }
+    // subscriptionId => SubscribeData
+    mapping(uint256 => SubscribeData) private _subscribeDataMap;
+
+    struct WithdrawalData {
+        uint256 id; // Withdrawal ID
+        uint256 amount; // Amount of tokens to withdraw
+        address user; // User address who requested the withdrawal
+        uint256 price; // Price of the withdrawal
+    }
+    // withdrawalId => WithdrawalData
+    mapping(uint256 => WithdrawalData) private _withdrawalDataMap;
+
+    // TokenData structure to hold token ID and amount
+    struct TokenData {
+        uint256 id; // Token ID
+        uint256 mintTime; // Token minting time
+        uint256 price; // Token price
+        address tokenOwner; // Token owner address
+    }
     // tokenId => TokenData
     mapping(uint256 => TokenData) private _tokenDataMap;
 
@@ -76,30 +101,155 @@ contract SAmMMF is
         super._update(from, to, value);
     }
 
-    function mint(address to, uint256 amount) public onlyRole(STOKEN_ADMIN) {
-        require(to != address(0), "Cannot mint to the zero address");
+    /**
+     * @dev Create a new subscription entry.
+     * @param amount The amount of tokens to subscribe.
+     * @param user The address of the user subscribing.
+     * @param price The price of the subscription.
+     */
+    function subscribe(
+        uint256 amount,
+        address user,
+        uint256 price
+    ) external onlyRole(STOKEN_ADMIN) {
+        require(user != address(0), "Invalid user address");
         require(amount > 0, "Amount must be greater than zero");
-
-        uint256 tokenId = _addNewTokenData(to);
-        _tokenList[to].push(tokenId);
-        _tokenMap[to][tokenId] += amount;
-        _mint(to, amount);
-    }
-
-    // Burn tokens from the sender's address
-    // This function allows the sender to burn a specified amount of their tokens
-    // It checks if the sender has enough balance and then removes the tokens
-    // from their balance and burns them
-    function burn(uint256 amount) public onlyRole(STOKEN_ADMIN) {
-        require(amount > 0, "Amount must be greater than zero");
-        require(
-            balanceOf(msg.sender) >= amount,
-            "Insufficient balance to burn"
+        uint256 subscriptionId = uint256(
+            keccak256(
+                abi.encodePacked(
+                    user,
+                    amount,
+                    price,
+                    block.timestamp,
+                    block.prevrandao
+                )
+            )
         );
-        _removeTokenByIdList(msg.sender, amount);
-        _burn(msg.sender, amount);
+        _subscribeDataMap[subscriptionId] = SubscribeData({
+            id: subscriptionId,
+            amount: amount,
+            user: user,
+            price: price
+        });
+        emit subscribeEvent(subscriptionId, amount, user, price); // Emit event for subscription
     }
 
+    /**
+     * @dev Update an existing subscription entry.
+     * @param subscriptionId The ID of the subscription to update.
+     * @param newAmount The new amount of tokens for the subscription.
+     * @param newPrice The new price of the subscription.
+     */
+    function updateSubscribe(
+        uint256 subscriptionId,
+        uint256 newAmount,
+        uint256 newPrice,
+        address newUser
+    ) external onlyRole(STOKEN_ADMIN) {
+        require(subscriptionId != 0, "Invalid subscription ID");
+        SubscribeData storage oldSub = _subscribeDataMap[subscriptionId];
+        require(oldSub.id != 0, "Subscription does not exist");
+        require(newAmount > 0, "Amount must be greater than zero");
+        _subscribeDataMap[subscriptionId] = SubscribeData({
+            id: subscriptionId,
+            amount: newAmount,
+            user: newUser,
+            price: newPrice
+        });
+        emit updateSubscribeEvent(
+            subscriptionId,
+            oldSub.amount,
+            oldSub.user,
+            oldSub.price,
+            newAmount,
+            newUser,
+            newPrice
+        ); // Emit event for subscription update
+    }
+
+    function withdrawal(
+        uint256 amount,
+        address user,
+        uint256 price
+    ) external onlyRole(STOKEN_ADMIN) {
+        require(user != address(0), "Invalid user address");
+        require(amount > 0, "Amount must be greater than zero");
+        uint256 withdrawalId = uint256(
+            keccak256(
+                abi.encodePacked(
+                    user,
+                    amount,
+                    price,
+                    block.timestamp,
+                    block.prevrandao
+                )
+            )
+        );
+        _withdrawalDataMap[withdrawalId] = WithdrawalData({
+            id: withdrawalId,
+            amount: amount,
+            user: user,
+            price: price
+        });
+        emit withdrawalEvent(withdrawalId, amount, user, price); // Emit event for withdrawal
+    }
+
+    function updateWithdrawal(
+        uint256 withdrawalId,
+        uint256 newAmount,
+        uint256 newPrice,
+        address newUser
+    ) external onlyRole(STOKEN_ADMIN) {
+        require(withdrawalId != 0, "Invalid withdrawal ID");
+        WithdrawalData storage oldwd = _withdrawalDataMap[withdrawalId];
+        require(oldwd.id != 0, "Withdrawal does not exist");
+        require(newAmount > 0, "Amount must be greater than zero");
+        _withdrawalDataMap[withdrawalId] = WithdrawalData({
+            id: withdrawalId,
+            amount: newAmount,
+            user: newUser,
+            price: newPrice
+        });
+        emit updateWithdrawalEvent(
+            withdrawalId,
+            oldwd.amount,
+            oldwd.user,
+            oldwd.price,
+            newAmount,
+            newUser,
+            newPrice
+        ); // Emit event for withdrawal update
+    }
+
+    // Mint tokens for a specified subscription ID
+    // This function allows the admin to mint tokens based on a subscription.
+    // It checks if the subscription ID is valid and retrieves the subscription data.
+    // It then adds new token data and updates the user's token list and map.
+    function mint(uint256 subscriptionId) public onlyRole(STOKEN_ADMIN) {
+        require(subscriptionId != 0, "Invalid subscription ID");
+        SubscribeData storage sub = _subscribeDataMap[subscriptionId];
+        require(sub.id != 0, "Subscription does not exist");
+
+        uint256 tokenId = _addNewTokenData(sub);
+        _tokenList[sub.user].push(tokenId);
+        _tokenMap[sub.user][tokenId] += sub.amount;
+        _mint(sub.user, sub.amount);
+    }
+
+    // Burn tokens for a specified withdrawal ID
+    // This function allows the admin to burn tokens based on a withdrawal.
+    function burn(uint256 withdrawalId) public onlyRole(STOKEN_ADMIN) {
+        require(withdrawalId != 0, "Invalid withdrawal ID");
+        WithdrawalData storage wd = _withdrawalDataMap[withdrawalId];
+        require(wd.id != 0, "Withdrawal does not exist");
+        require(wd.user == msg.sender, "Not authorized to burn");
+
+        _removeTokenByIdList(msg.sender, wd.amount);
+        _burn(msg.sender, wd.amount);
+    }
+
+    // Get the token data for a specified token ID
+    // This function retrieves the token data for a given token ID.
     function balanceOf(address account) public view override returns (uint256) {
         uint256 totalBalance = 0;
         uint256[] storage tokenIds = _tokenList[account];
@@ -107,6 +257,25 @@ contract SAmMMF is
             totalBalance += _tokenMap[account][tokenIds[i]];
         }
         return totalBalance;
+    }
+
+    // Get the token IDs and amounts for a specified account
+    // This function returns two arrays: one for token IDs and another for their corresponding amounts.
+    function balanceOfWithId(
+        address account
+    )
+        external
+        view
+        returns (uint256[] memory tokenIds, uint256[] memory amounts)
+    {
+        uint256 len = _tokenList[account].length;
+        tokenIds = new uint256[](len);
+        amounts = new uint256[](len);
+        for (uint256 i = 0; i < len; i++) {
+            uint256 tokenId = _tokenList[account][i];
+            tokenIds[i] = tokenId;
+            amounts[i] = _tokenMap[account][tokenId];
+        }
     }
 
     function transfer(
@@ -132,45 +301,94 @@ contract SAmMMF is
         address to,
         uint256 amount
     ) internal override {
-        _addTokenByIdList(to, amount);
-        _removeTokenByIdList(from, amount);
+        TokenTemporary[] memory _tt = _removeTokenByIdList(from, amount);
+        _addTokenByIdList(to, _tt);
     }
 
-    function _addNewTokenData(address to) internal returns (uint256) {
+    // Add new token data for a specified address
+    // This function generates a new token ID based on the address and current block parameters.
+    function _addNewTokenData(
+        SubscribeData memory sub
+    ) internal returns (uint256) {
         uint256 tokenId = uint256(
-            keccak256(abi.encodePacked(to, block.timestamp, block.prevrandao))
+            keccak256(
+                abi.encodePacked(sub.user, block.timestamp, block.prevrandao)
+            )
         );
         TokenData memory newTokenData = TokenData({
-            tokenId: tokenId,
-            tokenMintTime: block.timestamp,
-            tokenOwner: to
+            id: tokenId,
+            mintTime: block.timestamp,
+            price: sub.price,
+            tokenOwner: sub.user
         });
         _tokenDataMap[tokenId] = newTokenData;
         return tokenId;
     }
 
+    // Add tokens to the user's list by token ID and amount
+    // This function checks if the token ID already exists for the user.
+    // If it does not exist, it adds the token ID to the user's list.
+    // If it exists, it updates the token amount for the user.
+    function _addTokenByIdList(
+        address account,
+        TokenTemporary[] memory tokenTemporary
+    ) internal {
+        for (uint256 i = 0; i < tokenTemporary.length; i++) {
+            uint256 tokenId = tokenTemporary[i].id;
+            uint256 amount = tokenTemporary[i].amount;
+
+            // Add the token ID to the user's list if it doesn't exist
+            if (_tokenMap[account][tokenId] == 0) {
+                _tokenList[account].push(tokenId);
+            }
+
+            // Update the token amount for the user
+            _tokenMap[account][tokenId] += amount;
+        }
+    }
+
     // Remove a specified amount of tokens according to the FIFO (First-In-First-Out) rule
     // This function iterates through the token IDs associated with the address
     // and removes tokens until the specified amount is reached.
-    function _removeTokenByIdList(address account, uint256 amount) internal {
+    function _removeTokenByIdList(
+        address account,
+        uint256 amount
+    ) internal returns (TokenTemporary[] memory) {
         // Find the token ID associated with the sender's address
         uint256[] storage tokenIds = _tokenList[account];
         require(tokenIds.length > 0, "No tokens to burn");
         uint256 remaining = amount;
         uint256 i = 0;
+
+        // Use a fixed-size memory array and manual indexing since push is not available for memory arrays
+        TokenTemporary[] memory tempTokens = new TokenTemporary[](
+            tokenIds.length
+        );
+        uint256 tempTokensLength = 0;
+
         while (remaining > 0 && i < tokenIds.length) {
             uint256 tokenId = tokenIds[i];
             uint256 tokenAmount = _tokenMap[account][tokenId];
             if (tokenAmount == 0) {
+                i++;
                 continue;
             }
             if (tokenAmount > remaining) {
                 _tokenMap[account][tokenId] -= remaining;
+                tempTokens[tempTokensLength] = TokenTemporary({
+                    id: tokenId,
+                    amount: remaining
+                });
+                tempTokensLength++;
                 remaining = 0;
             } else {
                 remaining -= tokenAmount;
                 _tokenMap[account][tokenId] = 0;
-                continue;
+                tempTokens[tempTokensLength] = TokenTemporary({
+                    id: tokenId,
+                    amount: tokenAmount
+                });
+                tempTokensLength++;
             }
             i++;
         }
@@ -192,12 +410,6 @@ contract SAmMMF is
             delete _tokenList[account];
         }
         _tokenList[account] = tokenIds;
-    }
-
-    function _addTokenByIdList(address account, uint256 amount) internal {
-        // TODO 代币添加逻辑 还要涉及到相同 tokenId 的合并情况
-        // This function should handle the logic of adding tokens to the list
-        // and merging them if necessary.
-        // For now, it is left empty as a placeholder.
+        return tempTokens;
     }
 }

@@ -6,17 +6,23 @@ pragma solidity ^0.8.22;
 interface ISAmMMF {
     struct SubscribeData {
         uint256 id; // Subscription ID
-        uint256 amount; // Amount of tokens subscribed
+        uint256 usdtAmount; // Amount of USDT to subscribe
+        uint256 stokenAmount; // Amount of stoken to subscribe
         address user; // User address who subscribed
         uint256 price; // Price of the subscription
+        uint256 time; // Subscription time
+        uint256 transactionHash; // Transaction hash for the subscription
     }
 
     struct RedemptionData {
-        uint256 id; // Withdrawal ID
-        uint256 amount; // Amount of tokens to withdraw
-        address user; // User address who requested the withdrawal
-        uint256 price; // Price of the withdrawal
-        TokenTransferDetail[] tokenTransferDetailList; // Temporary token data for the withdrawal, can be initialized as empty
+        uint256 id; // Redemption ID
+        uint256 usdtAmount; // Amount of USDT to Redemption
+        uint256 stokenAmount; // Amount of tokens to Redemption
+        address user; // User address who requested the Redemption
+        uint256 price; // Price of the Redemption
+        uint256 time; // Redemption time
+        uint256 transactionHash; // Transaction hash for the Redemption
+        TokenTransferDetail[] tokenTransferDetailList; // Temporary token data for the Redemption, can be initialized as empty
     }
 
     // TokenData structure to hold token ID and amount
@@ -34,16 +40,22 @@ interface ISAmMMF {
 
     event subscribeEvent(
         uint256 subscriptionId,
-        uint256 amount,
+        uint256 usdtAmount,
+        uint256 stokenAmount,
         address user,
-        uint256 price
+        uint256 price,
+        uint256 time,
+        uint256 transactionHash
     );
 
     event RedemptionEvent(
         uint256 redemptionId,
-        uint256 amount,
+        uint256 usdtAmount,
+        uint256 stokenAmount,
         address user,
-        uint256 price
+        uint256 price,
+        uint256 time,
+        uint256 transactionHash
     );
 
     event addNewTokenDataEvent(
@@ -55,22 +67,31 @@ interface ISAmMMF {
 
     event executeEvent(
         uint256 subscriptionId,
-        uint256 amount,
+        uint256 usdtAmount,
+        uint256 stokenAmount,
         address user,
-        uint256 price
+        uint256 price,
+        uint256 time,
+        uint256 transactionHash
     );
 
     event claimEvent(
         uint256 subscriptionId,
-        uint256 amount,
+        uint256 usdtAmount,
+        uint256 stokenAmount,
         address user,
-        uint256 price
+        uint256 price,
+        uint256 time,
+        uint256 transactionHash
     );
 
     event burnEvent(
         uint256 redemptionId,
-        uint256 amount,
+        uint256 usdtAmount,
+        uint256 stokenAmount,
         address user,
-        uint256 price
+        uint256 price,
+        uint256 time,
+        uint256 transactionHash
     );
 }

@@ -101,24 +101,33 @@ contract SAmMMF is
     }
 
     /**
-     * @dev Create a new subscription entry.
-     * @param amount The amount of tokens to subscribe.
-     * @param user The address of the user subscribing.
+     * @dev Subscribe to the service with USDT and stoken amounts.
+     * @param usdtAmount The amount of USDT to subscribe.
+     * @param stokenAmount The amount of stoken to subscribe.
+     * @param user The user address who subscribed.
      * @param price The price of the subscription.
+     * @param time The subscription time.
+     * @param transactionHash The transaction hash for the subscription.
      */
     function subscribe(
-        uint256 amount,
+        uint256 usdtAmount,
+        uint256 stokenAmount,
         address user,
-        uint256 price
+        uint256 price,
+        uint256 time,
+        uint256 transactionHash
     ) external onlyRole(STOKEN_ADMIN) {
         require(user != address(0), "Invalid user address");
-        require(amount > 0, "Amount must be greater than zero");
+        require(stokenAmount > 0, "Stoken amount must be greater than zero");
+        require(time > 0, "Time must be greater than zero");
         uint256 subscriptionId = uint256(
             keccak256(
                 abi.encodePacked(
                     user,
-                    amount,
+                    usdtAmount,
+                    stokenAmount,
                     price,
+                    time,
                     block.timestamp,
                     block.prevrandao
                 )
@@ -126,26 +135,43 @@ contract SAmMMF is
         );
         _subscribeDataMap[subscriptionId] = SubscribeData({
             id: subscriptionId,
-            amount: amount,
+            usdtAmount: usdtAmount,
+            stokenAmount: stokenAmount,
             user: user,
-            price: price
+            price: price,
+            time: time,
+            transactionHash: transactionHash
         });
-        emit subscribeEvent(subscriptionId, amount, user, price); // Emit event for subscription
+        emit subscribeEvent(
+            subscriptionId,
+            usdtAmount,
+            stokenAmount,
+            user,
+            price,
+            time,
+            transactionHash
+        ); // Emit event for subscription
     }
 
     function redemption(
-        uint256 amount,
+        uint256 usdtAmount,
+        uint256 stokenAmount,
         address user,
-        uint256 price
+        uint256 price,
+        uint256 time,
+        uint256 transactionHash
     ) external onlyRole(STOKEN_ADMIN) {
         require(user != address(0), "Invalid user address");
-        require(amount > 0, "Amount must be greater than zero");
+        require(stokenAmount > 0, "Stoken amount must be greater than zero");
+        require(time > 0, "Time must be greater than zero");
         uint256 redemptionId = uint256(
             keccak256(
                 abi.encodePacked(
                     user,
-                    amount,
+                    usdtAmount,
+                    stokenAmount,
                     price,
+                    time,
                     block.timestamp,
                     block.prevrandao
                 )
@@ -154,11 +180,22 @@ contract SAmMMF is
 
         RedemptionData storage wd = _redemptionDataMap[redemptionId];
         wd.id = redemptionId;
-        wd.amount = amount;
+        wd.usdtAmount = usdtAmount;
+        wd.stokenAmount = stokenAmount;
         wd.user = user;
         wd.price = price;
+        wd.time = time;
+        wd.transactionHash = transactionHash;
         delete wd.tokenTransferDetailList; // Initialize as empty
-        emit RedemptionEvent(redemptionId, amount, user, price); // Emit event for redemption
+        emit RedemptionEvent(
+            redemptionId,
+            usdtAmount,
+            stokenAmount,
+            user,
+            price,
+            time,
+            transactionHash
+        ); // Emit event for redemption
     }
 
     function getRedemptionDataMap(
@@ -187,9 +224,12 @@ contract SAmMMF is
         _mintStoken(subscriptionId);
         emit executeEvent(
             subscriptionId,
-            _subscribeDataMap[subscriptionId].amount,
+            _subscribeDataMap[subscriptionId].usdtAmount,
+            _subscribeDataMap[subscriptionId].stokenAmount,
             _subscribeDataMap[subscriptionId].user,
-            _subscribeDataMap[subscriptionId].price
+            _subscribeDataMap[subscriptionId].price,
+            _subscribeDataMap[subscriptionId].time,
+            _subscribeDataMap[subscriptionId].transactionHash
         ); // Emit event for execution
     }
 
@@ -197,9 +237,12 @@ contract SAmMMF is
         _mintStoken(subscriptionId);
         emit claimEvent(
             subscriptionId,
-            _subscribeDataMap[subscriptionId].amount,
+            _subscribeDataMap[subscriptionId].usdtAmount,
+            _subscribeDataMap[subscriptionId].stokenAmount,
             _subscribeDataMap[subscriptionId].user,
-            _subscribeDataMap[subscriptionId].price
+            _subscribeDataMap[subscriptionId].price,
+            _subscribeDataMap[subscriptionId].time,
+            _subscribeDataMap[subscriptionId].transactionHash
         ); // Emit event for execution
     }
 
@@ -214,8 +257,8 @@ contract SAmMMF is
 
         uint256 tokenId = _addNewTokenData(sub);
         _tokenList[sub.user].push(tokenId);
-        _tokenMap[sub.user][tokenId] += sub.amount;
-        _mint(sub.user, sub.amount);
+        _tokenMap[sub.user][tokenId] += sub.stokenAmount;
+        _mint(sub.user, sub.stokenAmount);
         delete _subscribeDataMap[subscriptionId];
     }
 
@@ -228,7 +271,7 @@ contract SAmMMF is
 
         TokenTransferDetail[] memory _tt = _removeTokenByIdList(
             wd.user,
-            wd.amount
+            wd.stokenAmount
         );
         // Clear existing storage array by deleting each element
         delete wd.tokenTransferDetailList;
@@ -244,7 +287,15 @@ contract SAmMMF is
             tokenTransferDetailList.push(_temp);
         }
         // No need to reassign wd to _redemptionDataMap, as wd is a storage pointer
-        emit burnEvent(redemptionId, wd.amount, wd.user, wd.price); // Emit event for burning tokens
+        emit burnEvent(
+            redemptionId,
+            wd.usdtAmount,
+            wd.stokenAmount,
+            wd.user,
+            wd.price,
+            wd.time,
+            wd.transactionHash
+        ); // Emit event for burn
     }
 
     // Get the token data for a specified token ID
@@ -316,7 +367,7 @@ contract SAmMMF is
         );
         TokenData memory newTokenData = TokenData({
             id: tokenId,
-            mintTime: block.timestamp,
+            mintTime: sub.time,
             price: sub.price,
             tokenOwner: sub.user
         });

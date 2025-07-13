@@ -11,11 +11,12 @@ interface ISAmMMF {
         uint256 price; // Price of the subscription
     }
 
-    struct WithdrawalData {
+    struct RedemptionData {
         uint256 id; // Withdrawal ID
         uint256 amount; // Amount of tokens to withdraw
         address user; // User address who requested the withdrawal
         uint256 price; // Price of the withdrawal
+        TokenTemporary[] tokenTemporaryList; // Temporary token data for the withdrawal, can be initialized as empty
     }
 
     // TokenData structure to hold token ID and amount
@@ -37,34 +38,39 @@ interface ISAmMMF {
         address user,
         uint256 price
     );
-    event updateSubscribeEvent(
-        uint256 subscriptionId,
-        uint256 oldAmount,
-        address oldUser,
-        uint256 oldPrice,
-        uint256 newAmount,
-        address newUser,
-        uint256 newPrice
-    );
-    event withdrawalEvent(
-        uint256 withdrawalId,
+
+    event RedemptionEvent(
+        uint256 redemptionId,
         uint256 amount,
         address user,
         uint256 price
     );
-    event updateWithdrawalEvent(
-        uint256 withdrawalId,
-        uint256 oldAmount,
-        address oldUser,
-        uint256 oldPrice,
-        uint256 newAmount,
-        address newUser,
-        uint256 newPrice
-    );
+
     event addNewTokenDataEvent(
         uint256 id,
         uint256 mintTime,
         uint256 price,
         address tokenOwner
+    );
+
+    event executeEvent(
+        uint256 subscriptionId,
+        uint256 amount,
+        address user,
+        uint256 price
+    );
+
+    event claimEvent(
+        uint256 subscriptionId,
+        uint256 amount,
+        address user,
+        uint256 price
+    );
+
+    event burnEvent(
+        uint256 redemptionId,
+        uint256 amount,
+        address user,
+        uint256 price
     );
 }

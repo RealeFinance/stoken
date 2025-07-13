@@ -29,8 +29,8 @@ contract SAmMMF is
     // subscriptionId => SubscribeData
     mapping(uint256 => SubscribeData) private _subscribeDataMap;
 
-    // withdrawalId => WithdrawalData
-    mapping(uint256 => WithdrawalData) private _withdrawalDataMap;
+    // redemptionId => redemptionData
+    mapping(uint256 => RedemptionData) private _redemptionDataMap;
 
     // tokenId => TokenData
     mapping(uint256 => TokenData) private _tokenDataMap;
@@ -131,47 +131,14 @@ contract SAmMMF is
         emit subscribeEvent(subscriptionId, amount, user, price); // Emit event for subscription
     }
 
-    /**
-     * @dev Update an existing subscription entry.
-     * @param subscriptionId The ID of the subscription to update.
-     * @param newAmount The new amount of tokens for the subscription.
-     * @param newPrice The new price of the subscription.
-     */
-    function updateSubscribe(
-        uint256 subscriptionId,
-        uint256 newAmount,
-        uint256 newPrice,
-        address newUser
-    ) external onlyRole(STOKEN_ADMIN) {
-        require(subscriptionId != 0, "Invalid subscription ID");
-        SubscribeData storage oldSub = _subscribeDataMap[subscriptionId];
-        require(oldSub.id != 0, "Subscription does not exist");
-        require(newAmount > 0, "Amount must be greater than zero");
-        _subscribeDataMap[subscriptionId] = SubscribeData({
-            id: subscriptionId,
-            amount: newAmount,
-            user: newUser,
-            price: newPrice
-        });
-        emit updateSubscribeEvent(
-            subscriptionId,
-            oldSub.amount,
-            oldSub.user,
-            oldSub.price,
-            newAmount,
-            newUser,
-            newPrice
-        ); // Emit event for subscription update
-    }
-
-    function withdrawal(
+    function redemption(
         uint256 amount,
         address user,
         uint256 price
     ) external onlyRole(STOKEN_ADMIN) {
         require(user != address(0), "Invalid user address");
         require(amount > 0, "Amount must be greater than zero");
-        uint256 withdrawalId = uint256(
+        uint256 redemptionId = uint256(
             keccak256(
                 abi.encodePacked(
                     user,
@@ -182,47 +149,60 @@ contract SAmMMF is
                 )
             )
         );
-        _withdrawalDataMap[withdrawalId] = WithdrawalData({
-            id: withdrawalId,
+
+        _redemptionDataMap[redemptionId] = RedemptionData({
+            id: redemptionId,
             amount: amount,
             user: user,
-            price: price
+            price: price,
+            tokenTemporaryList: new TokenTemporary[](0) // Initialize as empty
         });
-        emit withdrawalEvent(withdrawalId, amount, user, price); // Emit event for withdrawal
+        emit RedemptionEvent(redemptionId, amount, user, price); // Emit event for redemption
     }
 
-    function updateWithdrawal(
-        uint256 withdrawalId,
-        uint256 newAmount,
-        uint256 newPrice,
-        address newUser
+    function getRedemptionDataMap(
+        uint256 redemptionId
+    ) external view onlyRole(STOKEN_ADMIN) returns (RedemptionData memory) {
+        require(redemptionId != 0, "Invalid redemption ID");
+        return _redemptionDataMap[redemptionId];
+    }
+
+    function removeRedemptionData(
+        uint256 redemptionId
     ) external onlyRole(STOKEN_ADMIN) {
-        require(withdrawalId != 0, "Invalid withdrawal ID");
-        WithdrawalData storage oldwd = _withdrawalDataMap[withdrawalId];
-        require(oldwd.id != 0, "Withdrawal does not exist");
-        require(newAmount > 0, "Amount must be greater than zero");
-        _withdrawalDataMap[withdrawalId] = WithdrawalData({
-            id: withdrawalId,
-            amount: newAmount,
-            user: newUser,
-            price: newPrice
-        });
-        emit updateWithdrawalEvent(
-            withdrawalId,
-            oldwd.amount,
-            oldwd.user,
-            oldwd.price,
-            newAmount,
-            newUser,
-            newPrice
-        ); // Emit event for withdrawal update
+        require(redemptionId != 0, "Invalid redemption ID");
+        require(
+            _redemptionDataMap[redemptionId].id != 0,
+            "redemption does not exist"
+        );
+        delete _redemptionDataMap[redemptionId];
+    }
+
+    function execute(uint256 subscriptionId) public onlyRole(STOKEN_ADMIN) {
+        _mintStoken(subscriptionId);
+        emit executeEvent(
+            subscriptionId,
+            _subscribeDataMap[subscriptionId].amount,
+            _subscribeDataMap[subscriptionId].user,
+            _subscribeDataMap[subscriptionId].price
+        ); // Emit event for execution
+    }
+
+    function claim(uint256 subscriptionId) public {
+        _mintStoken(subscriptionId);
+        emit claimEvent(
+            subscriptionId,
+            _subscribeDataMap[subscriptionId].amount,
+            _subscribeDataMap[subscriptionId].user,
+            _subscribeDataMap[subscriptionId].price
+        ); // Emit event for execution
     }
 
     // Mint tokens for a specified subscription ID
     // This function allows the admin to mint tokens based on a subscription.
     // It checks if the subscription ID is valid and retrieves the subscription data.
     // It then adds new token data and updates the user's token list and map.
-    function mint(uint256 subscriptionId) public onlyRole(STOKEN_ADMIN) {
+    function _mintStoken(uint256 subscriptionId) internal {
         require(subscriptionId != 0, "Invalid subscription ID");
         SubscribeData storage sub = _subscribeDataMap[subscriptionId];
         require(sub.id != 0, "Subscription does not exist");
@@ -231,18 +211,31 @@ contract SAmMMF is
         _tokenList[sub.user].push(tokenId);
         _tokenMap[sub.user][tokenId] += sub.amount;
         _mint(sub.user, sub.amount);
+        delete _subscribeDataMap[subscriptionId];
     }
 
-    // Burn tokens for a specified withdrawal ID
-    // This function allows the admin to burn tokens based on a withdrawal.
-    function burn(uint256 withdrawalId) public onlyRole(STOKEN_ADMIN) {
-        require(withdrawalId != 0, "Invalid withdrawal ID");
-        WithdrawalData storage wd = _withdrawalDataMap[withdrawalId];
-        require(wd.id != 0, "Withdrawal does not exist");
-        require(wd.user == msg.sender, "Not authorized to burn");
+    // Burn tokens for a specified redemption ID
+    // This function allows the admin to burn tokens based on a redemption.
+    function burn(uint256 redemptionId) public onlyRole(STOKEN_ADMIN) {
+        require(redemptionId != 0, "Invalid redemption ID");
+        RedemptionData storage wd = _redemptionDataMap[redemptionId];
+        require(wd.id != 0, "redemption does not exist");
 
-        _removeTokenByIdList(msg.sender, wd.amount);
-        _burn(msg.sender, wd.amount);
+        TokenTemporary[] memory _tt = _removeTokenByIdList(wd.user, wd.amount);
+        // Clear existing storage array by deleting each element
+        delete wd.tokenTemporaryList;
+        TokenTemporary[] storage tokenTemporaryList = wd.tokenTemporaryList;
+        for (uint256 i = 0; i < _tt.length; i++) {
+            uint256 tokenId = _tt[i].id;
+            uint256 amount = _tt[i].amount;
+            TokenTemporary memory _temp = TokenTemporary({
+                id: tokenId,
+                amount: amount
+            });
+            tokenTemporaryList.push(_temp);
+        }
+        // No need to reassign wd to _redemptionDataMap, as wd is a storage pointer
+        emit burnEvent(redemptionId, wd.amount, wd.user, wd.price); // Emit event for burning tokens
     }
 
     // Get the token data for a specified token ID
@@ -405,8 +398,9 @@ contract SAmMMF is
         // If all tokens are burned, remove the address from the token list
         if (tokenIds.length == 0) {
             delete _tokenList[account];
+        } else {
+            _tokenList[account] = tokenIds;
         }
-        _tokenList[account] = tokenIds;
         return tempTokens;
     }
 }

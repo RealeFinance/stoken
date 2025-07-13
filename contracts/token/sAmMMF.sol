@@ -24,7 +24,7 @@ contract SAmMMF is
     bytes32 public constant STOKEN_ADMIN = keccak256("STOKEN_ADMIN");
 
     // Technical Service Fee (%) 10 ==> 0.1%  50 ==> 0.5%  100 ==> 1%
-    uint256 private technicalServiceFeeRate = 10;
+    uint256 private technicalServiceFeeRate;
 
     // subscriptionId => SubscribeData
     mapping(uint256 => SubscribeData) private _subscribeDataMap;
@@ -58,6 +58,8 @@ contract SAmMMF is
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(UPGRADER_ROLE, msg.sender);
+
+        technicalServiceFeeRate = 10; // Default technical service fee rate set to 0.1%
     }
 
     function _authorizeUpgrade(
@@ -150,13 +152,12 @@ contract SAmMMF is
             )
         );
 
-        _redemptionDataMap[redemptionId] = RedemptionData({
-            id: redemptionId,
-            amount: amount,
-            user: user,
-            price: price,
-            tokenTemporaryList: new TokenTemporary[](0) // Initialize as empty
-        });
+        RedemptionData storage wd = _redemptionDataMap[redemptionId];
+        wd.id = redemptionId;
+        wd.amount = amount;
+        wd.user = user;
+        wd.price = price;
+        delete wd.tokenTemporaryList; // Initialize as empty
         emit RedemptionEvent(redemptionId, amount, user, price); // Emit event for redemption
     }
 
@@ -164,6 +165,10 @@ contract SAmMMF is
         uint256 redemptionId
     ) external view onlyRole(STOKEN_ADMIN) returns (RedemptionData memory) {
         require(redemptionId != 0, "Invalid redemption ID");
+        require(
+            _redemptionDataMap[redemptionId].id != 0,
+            "redemption does not exist"
+        );
         return _redemptionDataMap[redemptionId];
     }
 
@@ -281,7 +286,7 @@ contract SAmMMF is
         address recipient,
         uint256 amount
     ) public override returns (bool) {
-        _transferWithTokenId(msg.sender, recipient, amount);
+        _transferWithTokenId(sender, recipient, amount);
         _approve(sender, msg.sender, allowance(sender, msg.sender) - amount);
         return true;
     }
@@ -385,21 +390,26 @@ contract SAmMMF is
         require(remaining == 0, "Not enough tokens to burn");
 
         // Clean up empty token IDs
+        uint256[] memory _tokenIds = new uint256[](tokenIds.length);
+        uint256 count = 0;
         for (uint256 j = 0; j < tokenIds.length; j++) {
-            if (_tokenMap[account][tokenIds[j]] == 0) {
-                // Remove empty tokenId from list
-                for (uint256 k = j; k < tokenIds.length - 1; k++) {
-                    tokenIds[k] = tokenIds[k + 1];
-                }
-                tokenIds.pop();
-                j--; // Adjust index after removal
+            if (_tokenMap[account][tokenIds[j]] != 0) {
+                _tokenIds[count] = tokenIds[j];
+                count++;
             }
         }
-        // If all tokens are burned, remove the address from the token list
-        if (tokenIds.length == 0) {
+        // Resize the array to the correct length
+        uint256[] storage tokenListStorage = _tokenList[account];
+        if (count == 0) {
             delete _tokenList[account];
         } else {
-            _tokenList[account] = tokenIds;
+            // Overwrite the storage array with the cleaned memory array
+            // First, clear the storage array
+            delete _tokenList[account];
+            // Then, copy the valid token IDs back to storage
+            for (uint256 k = 0; k < count; k++) {
+                tokenListStorage.push(_tokenIds[k]);
+            }
         }
         return tempTokens;
     }

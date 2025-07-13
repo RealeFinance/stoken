@@ -16,7 +16,7 @@ interface ISAmMMF {
         uint256 amount; // Amount of tokens to withdraw
         address user; // User address who requested the withdrawal
         uint256 price; // Price of the withdrawal
-        TokenTemporary[] tokenTemporaryList; // Temporary token data for the withdrawal, can be initialized as empty
+        TokenTransferDetail[] tokenTransferDetailList; // Temporary token data for the withdrawal, can be initialized as empty
     }
 
     // TokenData structure to hold token ID and amount
@@ -27,7 +27,7 @@ interface ISAmMMF {
         address tokenOwner; // Token owner address
     }
 
-    struct TokenTemporary {
+    struct TokenTransferDetail {
         uint256 id; // Token ID
         uint256 amount; // Token minting time
     }

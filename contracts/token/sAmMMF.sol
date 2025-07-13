@@ -157,7 +157,7 @@ contract SAmMMF is
         wd.amount = amount;
         wd.user = user;
         wd.price = price;
-        delete wd.tokenTemporaryList; // Initialize as empty
+        delete wd.tokenTransferDetailList; // Initialize as empty
         emit RedemptionEvent(redemptionId, amount, user, price); // Emit event for redemption
     }
 
@@ -226,18 +226,22 @@ contract SAmMMF is
         RedemptionData storage wd = _redemptionDataMap[redemptionId];
         require(wd.id != 0, "redemption does not exist");
 
-        TokenTemporary[] memory _tt = _removeTokenByIdList(wd.user, wd.amount);
+        TokenTransferDetail[] memory _tt = _removeTokenByIdList(
+            wd.user,
+            wd.amount
+        );
         // Clear existing storage array by deleting each element
-        delete wd.tokenTemporaryList;
-        TokenTemporary[] storage tokenTemporaryList = wd.tokenTemporaryList;
+        delete wd.tokenTransferDetailList;
+        TokenTransferDetail[] storage tokenTransferDetailList = wd
+            .tokenTransferDetailList;
         for (uint256 i = 0; i < _tt.length; i++) {
             uint256 tokenId = _tt[i].id;
             uint256 amount = _tt[i].amount;
-            TokenTemporary memory _temp = TokenTemporary({
+            TokenTransferDetail memory _temp = TokenTransferDetail({
                 id: tokenId,
                 amount: amount
             });
-            tokenTemporaryList.push(_temp);
+            tokenTransferDetailList.push(_temp);
         }
         // No need to reassign wd to _redemptionDataMap, as wd is a storage pointer
         emit burnEvent(redemptionId, wd.amount, wd.user, wd.price); // Emit event for burning tokens
@@ -296,7 +300,7 @@ contract SAmMMF is
         address to,
         uint256 amount
     ) internal {
-        TokenTemporary[] memory _tt = _removeTokenByIdList(from, amount);
+        TokenTransferDetail[] memory _tt = _removeTokenByIdList(from, amount);
         _addTokenByIdList(to, _tt);
     }
 
@@ -320,17 +324,27 @@ contract SAmMMF is
         return tokenId;
     }
 
+    // Get the token data for a specified token ID
+    // This function retrieves the token data for a given token ID.
+    function getTokenData(
+        uint256 tokenId
+    ) external view returns (TokenData memory) {
+        require(tokenId != 0, "Invalid token ID");
+        require(_tokenDataMap[tokenId].id != 0, "Token does not exist");
+        return _tokenDataMap[tokenId];
+    }
+
     // Add tokens to the user's list by token ID and amount
     // This function checks if the token ID already exists for the user.
     // If it does not exist, it adds the token ID to the user's list.
     // If it exists, it updates the token amount for the user.
     function _addTokenByIdList(
         address account,
-        TokenTemporary[] memory tokenTemporary
+        TokenTransferDetail[] memory tokenTransferDetail
     ) internal {
-        for (uint256 i = 0; i < tokenTemporary.length; i++) {
-            uint256 tokenId = tokenTemporary[i].id;
-            uint256 amount = tokenTemporary[i].amount;
+        for (uint256 i = 0; i < tokenTransferDetail.length; i++) {
+            uint256 tokenId = tokenTransferDetail[i].id;
+            uint256 amount = tokenTransferDetail[i].amount;
 
             // Add the token ID to the user's list if it doesn't exist
             if (_tokenMap[account][tokenId] == 0) {
@@ -348,7 +362,7 @@ contract SAmMMF is
     function _removeTokenByIdList(
         address account,
         uint256 amount
-    ) internal returns (TokenTemporary[] memory) {
+    ) internal returns (TokenTransferDetail[] memory) {
         // Find the token ID associated with the sender's address
         uint256[] storage tokenIds = _tokenList[account];
         require(tokenIds.length > 0, "No tokens to burn");
@@ -356,7 +370,7 @@ contract SAmMMF is
         uint256 i = 0;
 
         // Use a fixed-size memory array and manual indexing since push is not available for memory arrays
-        TokenTemporary[] memory tempTokens = new TokenTemporary[](
+        TokenTransferDetail[] memory tempTokens = new TokenTransferDetail[](
             tokenIds.length
         );
         uint256 tempTokensLength = 0;
@@ -370,7 +384,7 @@ contract SAmMMF is
             }
             if (tokenAmount > remaining) {
                 _tokenMap[account][tokenId] -= remaining;
-                tempTokens[tempTokensLength] = TokenTemporary({
+                tempTokens[tempTokensLength] = TokenTransferDetail({
                     id: tokenId,
                     amount: remaining
                 });
@@ -379,7 +393,7 @@ contract SAmMMF is
             } else {
                 remaining -= tokenAmount;
                 _tokenMap[account][tokenId] = 0;
-                tempTokens[tempTokensLength] = TokenTemporary({
+                tempTokens[tempTokensLength] = TokenTransferDetail({
                     id: tokenId,
                     amount: tokenAmount
                 });

@@ -1,7 +1,8 @@
 const { expect } = require("chai");
 const { ethers, upgrades } = require("hardhat");
+const { anyValue } = require("@nomicfoundation/hardhat-chai-matchers/withArgs");
 
-describe("SAmMMF", function () {
+describe("SAmMMF Contract", function () {
   let SAmMMF, sAmMMF;
   let owner, admin, user, other;
 
@@ -14,13 +15,11 @@ describe("SAmMMF", function () {
       { initializer: "initialize" }
     );
     await sAmMMF.waitForDeployment();
-
-    // Grant STOKEN_ADMIN role to admin
     const STOKEN_ADMIN = await sAmMMF.STOKEN_ADMIN();
     await sAmMMF.grantRole(STOKEN_ADMIN, admin.address);
   });
 
-  it("should initialize correctly", async function () {
+  it("should initialize with correct name, symbol, and roles", async function () {
     expect(await sAmMMF.name()).to.equal("Staked AMMF");
     expect(await sAmMMF.symbol()).to.equal("sAMMF");
     expect(
@@ -63,12 +62,8 @@ describe("SAmMMF", function () {
     const amount = ethers.parseEther("100");
     const price = ethers.parseEther("1");
     await sAmMMF.connect(admin).subscribe(amount, user.address, price);
-
-    // Find subscriptionId by event
-    const filter = sAmMMF.filters.subscribeEvent();
-    const logs = await sAmMMF.queryFilter(filter);
+    const logs = await sAmMMF.queryFilter(sAmMMF.filters.subscribeEvent());
     const subscriptionId = logs[0].args[0];
-
     await sAmMMF.connect(admin).execute(subscriptionId);
     expect(await sAmMMF.balanceOf(user.address)).to.equal(amount);
   });
@@ -93,11 +88,8 @@ describe("SAmMMF", function () {
     const amount = ethers.parseEther("50");
     const price = ethers.parseEther("2");
     await sAmMMF.connect(admin).subscribe(amount, user.address, price);
-
-    const filter = sAmMMF.filters.subscribeEvent();
-    const logs = await sAmMMF.queryFilter(filter);
+    const logs = await sAmMMF.queryFilter(sAmMMF.filters.subscribeEvent());
     const subscriptionId = logs[0].args[0];
-
     await sAmMMF.connect(user).claim(subscriptionId);
     expect(await sAmMMF.balanceOf(user.address)).to.equal(amount);
   });
@@ -106,15 +98,12 @@ describe("SAmMMF", function () {
     const amount = ethers.parseEther("100");
     const price = ethers.parseEther("1");
     await sAmMMF.connect(admin).subscribe(amount, user.address, price);
-
     const subLogs = await sAmMMF.queryFilter(sAmMMF.filters.subscribeEvent());
     const subscriptionId = subLogs[0].args[0];
     await sAmMMF.connect(admin).execute(subscriptionId);
-
     await sAmMMF.connect(admin).redemption(amount, user.address, price);
     const redLogs = await sAmMMF.queryFilter(sAmMMF.filters.RedemptionEvent());
     const redemptionId = redLogs[0].args[0];
-
     await sAmMMF.connect(admin).burn(redemptionId);
     expect(await sAmMMF.balanceOf(user.address)).to.equal(0);
   });
@@ -141,10 +130,8 @@ describe("SAmMMF", function () {
     await sAmMMF.connect(admin).redemption(amount, user.address, price);
     const logs = await sAmMMF.queryFilter(sAmMMF.filters.RedemptionEvent());
     const redemptionId = logs[0].args[0];
-
     const data = await sAmMMF.connect(admin).getRedemptionDataMap(redemptionId);
     expect(data.id).to.equal(redemptionId);
-
     await sAmMMF.connect(admin).removeRedemptionData(redemptionId);
     await expect(
       sAmMMF.connect(admin).getRedemptionDataMap(redemptionId)
@@ -164,11 +151,9 @@ describe("SAmMMF", function () {
     const amount = ethers.parseEther("20");
     const price = ethers.parseEther("1");
     await sAmMMF.connect(admin).subscribe(amount, user.address, price);
-
     const logs = await sAmMMF.queryFilter(sAmMMF.filters.subscribeEvent());
     const subscriptionId = logs[0].args[0];
     await sAmMMF.connect(admin).execute(subscriptionId);
-
     const [tokenIds, amounts] = await sAmMMF.balanceOfWithId(user.address);
     expect(tokenIds.length).to.equal(1);
     expect(amounts[0]).to.equal(amount);
@@ -178,11 +163,9 @@ describe("SAmMMF", function () {
     const amount = ethers.parseEther("30");
     const price = ethers.parseEther("1");
     await sAmMMF.connect(admin).subscribe(amount, user.address, price);
-
     const logs = await sAmMMF.queryFilter(sAmMMF.filters.subscribeEvent());
     const subscriptionId = logs[0].args[0];
     await sAmMMF.connect(admin).execute(subscriptionId);
-
     await sAmMMF.connect(user).transfer(other.address, amount);
     expect(await sAmMMF.balanceOf(user.address)).to.equal(0);
     expect(await sAmMMF.balanceOf(other.address)).to.equal(amount);
@@ -198,11 +181,9 @@ describe("SAmMMF", function () {
     const amount = ethers.parseEther("40");
     const price = ethers.parseEther("1");
     await sAmMMF.connect(admin).subscribe(amount, user.address, price);
-
     const logs = await sAmMMF.queryFilter(sAmMMF.filters.subscribeEvent());
     const subscriptionId = logs[0].args[0];
     await sAmMMF.connect(admin).execute(subscriptionId);
-
     await sAmMMF.connect(user).approve(other.address, amount);
     await sAmMMF
       .connect(other)
@@ -216,5 +197,60 @@ describe("SAmMMF", function () {
     await expect(
       sAmMMF.connect(other).transferFrom(user.address, other.address, 100)
     ).to.be.revertedWith("No tokens to burn");
+  });
+
+  // 补充测试：升级代理合约
+  it("should upgrade proxy contract", async function () {
+    const SAmMMFFactoryV2 = await ethers.getContractFactory("SAmMMF");
+    const upgraded = await upgrades.upgradeProxy(sAmMMF, SAmMMFFactoryV2);
+    expect(upgraded.address).to.equal(sAmMMF.address);
+  });
+
+  // 补充测试：检查事件是否正确发出
+  it("should emit subscribeEvent on subscribe", async function () {
+    const amount = ethers.parseEther("5");
+    const price = ethers.parseEther("1");
+    await expect(sAmMMF.connect(admin).subscribe(amount, user.address, price))
+      .to.emit(sAmMMF, "subscribeEvent")
+      .withArgs(anyValue, amount, user.address, price);
+  });
+
+  it("should emit RedemptionEvent on redemption", async function () {
+    const amount = ethers.parseEther("5");
+    const price = ethers.parseEther("1");
+    await expect(sAmMMF.connect(admin).redemption(amount, user.address, price))
+      .to.emit(sAmMMF, "RedemptionEvent")
+      .withArgs(anyValue, amount, user.address, price);
+  });
+
+  // 补充测试：多次订阅和赎回
+  it("should handle multiple subscriptions and redemptions", async function () {
+    const amount1 = ethers.parseEther("10");
+    const amount2 = ethers.parseEther("20");
+    const price = ethers.parseEther("1");
+    await sAmMMF.connect(admin).subscribe(amount1, user.address, price);
+    await sAmMMF.connect(admin).subscribe(amount2, user.address, price);
+    const logs = await sAmMMF.queryFilter(sAmMMF.filters.subscribeEvent());
+    await sAmMMF.connect(admin).execute(logs[0].args[0]);
+    await sAmMMF.connect(admin).execute(logs[1].args[0]);
+    expect(await sAmMMF.balanceOf(user.address)).to.equal(amount1 + amount2);
+
+    await sAmMMF.connect(admin).redemption(amount1, user.address, price);
+    const redLogs = await sAmMMF.queryFilter(sAmMMF.filters.RedemptionEvent());
+    await sAmMMF.connect(admin).burn(redLogs[0].args[0]);
+    expect(await sAmMMF.balanceOf(user.address)).to.equal(amount2);
+  });
+
+  // 补充测试：approve/allowance
+  it("should set and get allowance correctly", async function () {
+    const amount = ethers.parseEther("10");
+    const price = ethers.parseEther("1");
+    await sAmMMF.connect(admin).subscribe(amount, user.address, price);
+    const logs = await sAmMMF.queryFilter(sAmMMF.filters.subscribeEvent());
+    await sAmMMF.connect(admin).execute(logs[0].args[0]);
+    await sAmMMF.connect(user).approve(other.address, amount);
+    expect(await sAmMMF.allowance(user.address, other.address)).to.equal(
+      amount
+    );
   });
 });

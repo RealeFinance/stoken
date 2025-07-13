@@ -198,16 +198,16 @@ contract SAmMMF is
         ); // Emit event for redemption
     }
 
-    function getRedemptionDataMap(
-        uint256 redemptionId
-    ) external view onlyRole(STOKEN_ADMIN) returns (RedemptionData memory) {
-        require(redemptionId != 0, "Invalid redemption ID");
-        require(
-            _redemptionDataMap[redemptionId].id != 0,
-            "redemption does not exist"
-        );
-        return _redemptionDataMap[redemptionId];
-    }
+    // function getRedemptionDataMap(
+    //     uint256 redemptionId
+    // ) external view onlyRole(STOKEN_ADMIN) returns (RedemptionData memory) {
+    //     require(redemptionId != 0, "Invalid redemption ID");
+    //     require(
+    //         _redemptionDataMap[redemptionId].id != 0,
+    //         "redemption does not exist"
+    //     );
+    //     return _redemptionDataMap[redemptionId];
+    // }
 
     function removeRedemptionData(
         uint256 redemptionId
@@ -234,6 +234,10 @@ contract SAmMMF is
     }
 
     function claim(uint256 subscriptionId) public {
+        require(
+            _subscribeDataMap[subscriptionId].user == msg.sender,
+            "Only the subscriber can claim"
+        );
         _mintStoken(subscriptionId);
         emit claimEvent(
             subscriptionId,
@@ -378,11 +382,56 @@ contract SAmMMF is
     // Get the token data for a specified token ID
     // This function retrieves the token data for a given token ID.
     function getTokenData(
-        uint256 tokenId
-    ) external view returns (TokenData memory) {
-        require(tokenId != 0, "Invalid token ID");
-        require(_tokenDataMap[tokenId].id != 0, "Token does not exist");
-        return _tokenDataMap[tokenId];
+        uint256[] memory tokenIds
+    ) external view onlyRole(STOKEN_ADMIN) returns (TokenData[] memory) {
+        require(tokenIds.length > 0, "No token IDs provided");
+        TokenData[] memory tokenDataArray = new TokenData[](tokenIds.length);
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            uint256 tokenId = tokenIds[i];
+            require(
+                _tokenDataMap[tokenId].id != 0,
+                "Token data does not exist"
+            );
+            tokenDataArray[i] = _tokenDataMap[tokenId];
+        }
+        return tokenDataArray;
+    }
+
+    // Return redemption details for calculating technical service fee
+    function getTokenDataByRedemptionId(
+        uint256 redemptionId
+    )
+        external
+        view
+        onlyRole(STOKEN_ADMIN)
+        returns (TokenDataWithAmount[] memory)
+    {
+        require(redemptionId != 0, "Invalid redemption ID");
+        RedemptionData memory rd = _redemptionDataMap[redemptionId];
+        require(rd.id != 0, "Redemption does not exist");
+        TokenTransferDetail[] memory tokenTransferDetails = rd
+            .tokenTransferDetailList;
+        TokenDataWithAmount[]
+            memory tokenDataWithAmountArray = new TokenDataWithAmount[](
+                tokenTransferDetails.length
+            );
+        for (uint256 i = 0; i < tokenTransferDetails.length; i++) {
+            uint256 tokenId = tokenTransferDetails[i].id;
+            require(
+                _tokenDataMap[tokenId].id != 0,
+                "Token data does not exist"
+            );
+            TokenData memory tokenData = _tokenDataMap[tokenId];
+            tokenDataWithAmountArray[i] = TokenDataWithAmount({
+                id: tokenData.id,
+                mintTime: tokenData.mintTime,
+                redemptionTime: rd.time,
+                price: tokenData.price,
+                tokenOwner: tokenData.tokenOwner,
+                amount: tokenTransferDetails[i].amount
+            });
+        }
+        return tokenDataWithAmountArray;
     }
 
     // Add tokens to the user's list by token ID and amount

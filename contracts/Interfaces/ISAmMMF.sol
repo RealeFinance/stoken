@@ -29,7 +29,7 @@ interface ISAmMMF {
     struct TokenData {
         uint256 id; // Token ID
         uint256 mintTime; // Token minting time
-        uint256 price; // Token price
+        uint256 mintPrice; // Token price
         address tokenOwner; // Token owner address
     }
 
@@ -37,7 +37,7 @@ interface ISAmMMF {
         uint256 id; // Token ID
         uint256 mintTime; // Token minting time
         uint256 redemptionTime; // Token redemption time
-        uint256 price; // Token price
+        uint256 mintPrice; // Token price
         address tokenOwner; // Token owner address
         uint256 amount; // Amount of tokens
     }

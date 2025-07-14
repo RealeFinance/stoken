@@ -20,6 +20,7 @@ contract SAmMMF is
     UUPSUpgradeable,
     ISAmMMF
 {
+    bytes32 public constant VERSION = keccak256("VERSION_1");
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
     bytes32 public constant STOKEN_ADMIN = keccak256("STOKEN_ADMIN");
 
@@ -372,7 +373,7 @@ contract SAmMMF is
         TokenData memory newTokenData = TokenData({
             id: tokenId,
             mintTime: sub.time,
-            price: sub.price,
+            mintPrice: sub.price,
             tokenOwner: sub.user
         });
         _tokenDataMap[tokenId] = newTokenData;
@@ -426,7 +427,7 @@ contract SAmMMF is
                 id: tokenData.id,
                 mintTime: tokenData.mintTime,
                 redemptionTime: rd.time,
-                price: tokenData.price,
+                mintPrice: tokenData.mintPrice,
                 tokenOwner: tokenData.tokenOwner,
                 amount: tokenTransferDetails[i].amount
             });

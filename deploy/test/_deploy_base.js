@@ -99,18 +99,25 @@ async function deployERC20(hre, _name, _symbol) {
 }
 
 async function deploySAmMMF() {
-  const ContractFactory = await ethers.getContractFactory('SAmMMF')
-  const constructorArgs = ['SAmMMF', 'SAmMMF']
+  const Contract = await ethers.getContractFactory('SAmMMF')
+  const impl2 = await Contract.deploy()
+  await impl2.waitForDeployment()
 
-  console.log(`SAmMMF 正在部署合约...`)
-  const contract = await hre.upgrades.deployProxy(
-    ContractFactory,
-    constructorArgs,
-    { initializer: 'initialize' }
-  )
-  await contract.waitForDeployment()
+  const proxy2 = await upgrades.deployProxy(Contract, ['SAmMMF', 'SAmMMF'], {
+    initializer: 'initialize',
+  })
+  await proxy2.waitForDeployment()
+  return proxy2
+}
 
-  return contract
+async function deploySAmMMFUpgrade(hre, _proxyAddress) {
+  const SAmMMF_V2 = await ethers.getContractFactory('SAmMMF')
+  const sammmf_v2 = await SAmMMF_V2.deploy()
+  await sammmf_v2.waitForDeployment()
+
+  // 2. 升级代理到新实现
+  const proxy = await hre.upgrades.upgradeProxy(_proxyAddress, SAmMMF_V2)
+  return proxy
 }
 
 async function deployCollateralConfig(hre, _name, _symbol) {
@@ -137,4 +144,5 @@ module.exports = {
   deployCollateralConfig,
   deployCollateralConfigUpgrade,
   deploySAmMMF,
+  deploySAmMMFUpgrade,
 }

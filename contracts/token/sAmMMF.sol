@@ -117,7 +117,7 @@ contract SAmMMF is
         uint256 price,
         bytes32 time,
         uint256 transactionHash,
-        bytes32 offChainId
+        string memory offChainId
     ) external onlyRole(STOKEN_ADMIN) {
         require(user != address(0), "Invalid user address");
         require(stokenAmount > 0, "Stoken amount must be greater than zero");
@@ -162,7 +162,7 @@ contract SAmMMF is
         uint256 price,
         bytes32 time,
         uint256 transactionHash,
-        bytes32 offChainId
+        string memory offChainId
     ) external onlyRole(STOKEN_ADMIN) {
         require(user != address(0), "Invalid user address");
         require(stokenAmount > 0, "Stoken amount must be greater than zero");

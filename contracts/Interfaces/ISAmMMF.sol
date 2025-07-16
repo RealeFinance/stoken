@@ -55,7 +55,7 @@ interface ISAmMMF {
         uint256 price,
         bytes32 time,
         uint256 transactionHash,
-        bytes32 offChainId
+        string offChainId
     );
 
     event RedemptionEvent(
@@ -66,7 +66,7 @@ interface ISAmMMF {
         uint256 price,
         bytes32 time,
         uint256 transactionHash,
-        bytes32 offChainId
+        string offChainId
     );
 
     event addNewTokenDataEvent(

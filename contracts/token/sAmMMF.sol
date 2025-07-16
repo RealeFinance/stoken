@@ -234,6 +234,7 @@ contract SAmMMF is
             _subscribeDataMap[subscriptionId].time,
             _subscribeDataMap[subscriptionId].transactionHash
         ); // Emit event for execution
+        delete _subscribeDataMap[subscriptionId];
     }
 
     function claim(uint256 subscriptionId) public {
@@ -251,6 +252,7 @@ contract SAmMMF is
             _subscribeDataMap[subscriptionId].time,
             _subscribeDataMap[subscriptionId].transactionHash
         ); // Emit event for execution
+        delete _subscribeDataMap[subscriptionId];
     }
 
     // Mint tokens for a specified subscription ID
@@ -266,7 +268,6 @@ contract SAmMMF is
         _tokenList[sub.user].push(tokenId);
         _tokenMap[sub.user][tokenId] += sub.stokenAmount;
         _mint(sub.user, sub.stokenAmount);
-        delete _subscribeDataMap[subscriptionId];
     }
 
     // Burn tokens for a specified redemption ID

@@ -10,7 +10,7 @@ interface ISAmMMF {
         uint256 stokenAmount; // Amount of stoken to subscribe
         address user; // User address who subscribed
         uint256 price; // Price of the subscription
-        uint256 time; // Subscription time
+        bytes32 time; // Subscription time
         uint256 transactionHash; // Transaction hash for the subscription
     }
 
@@ -20,7 +20,7 @@ interface ISAmMMF {
         uint256 stokenAmount; // Amount of tokens to Redemption
         address user; // User address who requested the Redemption
         uint256 price; // Price of the Redemption
-        uint256 time; // Redemption time
+        bytes32 time; // Redemption time
         uint256 transactionHash; // Transaction hash for the Redemption
         TokenTransferDetail[] tokenTransferDetailList; // Temporary token data for the Redemption, can be initialized as empty
     }
@@ -28,15 +28,15 @@ interface ISAmMMF {
     // TokenData structure to hold token ID and amount
     struct TokenData {
         uint256 id; // Token ID
-        uint256 mintTime; // Token minting time
+        bytes32 mintTime; // Token minting time
         uint256 mintPrice; // Token price
         address tokenOwner; // Token owner address
     }
 
     struct TokenDataWithAmount {
         uint256 id; // Token ID
-        uint256 mintTime; // Token minting time
-        uint256 redemptionTime; // Token redemption time
+        bytes32 mintTime; // Token minting time
+        bytes32 redemptionTime; // Token redemption time
         uint256 mintPrice; // Token price
         address tokenOwner; // Token owner address
         uint256 amount; // Amount of tokens
@@ -53,8 +53,9 @@ interface ISAmMMF {
         uint256 stokenAmount,
         address user,
         uint256 price,
-        uint256 time,
-        uint256 transactionHash
+        bytes32 time,
+        uint256 transactionHash,
+        bytes32 offChainId
     );
 
     event RedemptionEvent(
@@ -63,8 +64,9 @@ interface ISAmMMF {
         uint256 stokenAmount,
         address user,
         uint256 price,
-        uint256 time,
-        uint256 transactionHash
+        bytes32 time,
+        uint256 transactionHash,
+        bytes32 offChainId
     );
 
     event addNewTokenDataEvent(
@@ -80,7 +82,7 @@ interface ISAmMMF {
         uint256 stokenAmount,
         address user,
         uint256 price,
-        uint256 time,
+        bytes32 time,
         uint256 transactionHash
     );
 
@@ -90,7 +92,7 @@ interface ISAmMMF {
         uint256 stokenAmount,
         address user,
         uint256 price,
-        uint256 time,
+        bytes32 time,
         uint256 transactionHash
     );
 
@@ -100,7 +102,7 @@ interface ISAmMMF {
         uint256 stokenAmount,
         address user,
         uint256 price,
-        uint256 time,
+        bytes32 time,
         uint256 transactionHash
     );
 }

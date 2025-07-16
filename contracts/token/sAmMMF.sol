@@ -20,7 +20,7 @@ contract SAmMMF is
     UUPSUpgradeable,
     ISAmMMF
 {
-    bytes32 public constant VERSION = keccak256("VERSION_1");
+    bytes32 public constant VERSION = keccak256("VERSION_2");
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
     bytes32 public constant STOKEN_ADMIN = keccak256("STOKEN_ADMIN");
 
@@ -115,12 +115,12 @@ contract SAmMMF is
         uint256 stokenAmount,
         address user,
         uint256 price,
-        uint256 time,
-        uint256 transactionHash
+        bytes32 time,
+        uint256 transactionHash,
+        bytes32 offChainId
     ) external onlyRole(STOKEN_ADMIN) {
         require(user != address(0), "Invalid user address");
         require(stokenAmount > 0, "Stoken amount must be greater than zero");
-        require(time > 0, "Time must be greater than zero");
         uint256 subscriptionId = uint256(
             keccak256(
                 abi.encodePacked(
@@ -150,7 +150,8 @@ contract SAmMMF is
             user,
             price,
             time,
-            transactionHash
+            transactionHash,
+            offChainId
         ); // Emit event for subscription
     }
 
@@ -159,12 +160,12 @@ contract SAmMMF is
         uint256 stokenAmount,
         address user,
         uint256 price,
-        uint256 time,
-        uint256 transactionHash
+        bytes32 time,
+        uint256 transactionHash,
+        bytes32 offChainId
     ) external onlyRole(STOKEN_ADMIN) {
         require(user != address(0), "Invalid user address");
         require(stokenAmount > 0, "Stoken amount must be greater than zero");
-        require(time > 0, "Time must be greater than zero");
         uint256 redemptionId = uint256(
             keccak256(
                 abi.encodePacked(
@@ -195,7 +196,8 @@ contract SAmMMF is
             user,
             price,
             time,
-            transactionHash
+            transactionHash,
+            offChainId
         ); // Emit event for redemption
     }
 

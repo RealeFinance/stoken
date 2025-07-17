@@ -58,6 +58,18 @@ interface ISAmMMF {
         string offChainId
     );
 
+    event onChainSubscribeEvent(
+        address uAddress,
+        uint256 usdtAmount,
+        address user
+    );
+
+    event onChainRedemptionEvent(
+        address uAddress,
+        uint256 usdtAmount,
+        address user
+    );
+
     event RedemptionEvent(
         uint256 redemptionId,
         uint256 usdtAmount,

@@ -9,8 +9,8 @@ import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/
 import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../Interfaces/ISAmMMF.sol";
-
 contract SAmMMF is
     Initializable,
     ERC20Upgradeable,
@@ -20,9 +20,13 @@ contract SAmMMF is
     UUPSUpgradeable,
     ISAmMMF
 {
+    using SafeERC20 for IERC20;
     bytes32 public constant VERSION = keccak256("VERSION_2");
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
     bytes32 public constant STOKEN_ADMIN = keccak256("STOKEN_ADMIN");
+
+    // Asset recipient address
+    address public assetRecipient;
 
     // Technical Service Fee (%) 10 ==> 0.1%  50 ==> 0.5%  100 ==> 1%
     uint256 private technicalServiceFeeRate;
@@ -49,7 +53,8 @@ contract SAmMMF is
 
     function initialize(
         string memory name,
-        string memory symbol
+        string memory symbol,
+        address _assetRecipient
     ) public initializer {
         __ERC20_init(name, symbol);
         __ERC20Pausable_init();
@@ -59,7 +64,7 @@ contract SAmMMF is
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(UPGRADER_ROLE, msg.sender);
-
+        assetRecipient = _assetRecipient;
         technicalServiceFeeRate = 10; // Default technical service fee rate set to 0.1%
     }
 
@@ -101,6 +106,18 @@ contract SAmMMF is
         return technicalServiceFeeRate;
     }
 
+    function onChainSubscribe(
+        address uAddress,
+        uint256 uAmount
+    ) external whenNotPaused {
+        require(uAmount > 0, "Amount must be greater than zero");
+        // TODO 判断 uAddress 是否是 USDT/USDC 合约地址
+
+        IERC20(uAddress).safeTransferFrom(msg.sender, assetRecipient, uAmount); // Transfer USDT from the user to this contract
+
+        emit onChainSubscribeEvent(uAddress, uAmount, msg.sender); // Emit event for off-chain subscription
+    }
+
     /**
      * @dev Subscribe to the service with USDT and stoken amounts.
      * @param usdtAmount The amount of USDT to subscribe.
@@ -118,7 +135,7 @@ contract SAmMMF is
         bytes32 time,
         uint256 transactionHash,
         string memory offChainId
-    ) external onlyRole(STOKEN_ADMIN) {
+    ) external onlyRole(STOKEN_ADMIN) whenNotPaused {
         require(user != address(0), "Invalid user address");
         require(stokenAmount > 0, "Stoken amount must be greater than zero");
         uint256 subscriptionId = uint256(
@@ -155,6 +172,18 @@ contract SAmMMF is
         ); // Emit event for subscription
     }
 
+    function onChainRedemption(
+        address uAddress,
+        uint256 stokenAmount
+    ) external whenNotPaused {
+        require(stokenAmount > 0, "Amount must be greater than zero");
+        // TODO 判断 uAddress 是否是 USDT/USDC 合约地址
+
+        transferFrom(msg.sender, assetRecipient, stokenAmount); // Transfer USDT from the user to this contract
+
+        emit onChainSubscribeEvent(uAddress, stokenAmount, msg.sender); // Emit event for off-chain redemption
+    }
+
     function redemption(
         uint256 usdtAmount,
         uint256 stokenAmount,
@@ -163,7 +192,7 @@ contract SAmMMF is
         bytes32 time,
         uint256 transactionHash,
         string memory offChainId
-    ) external onlyRole(STOKEN_ADMIN) {
+    ) external onlyRole(STOKEN_ADMIN) whenNotPaused {
         require(user != address(0), "Invalid user address");
         require(stokenAmount > 0, "Stoken amount must be greater than zero");
         uint256 redemptionId = uint256(
@@ -223,7 +252,9 @@ contract SAmMMF is
         delete _redemptionDataMap[redemptionId];
     }
 
-    function execute(uint256 subscriptionId) public onlyRole(STOKEN_ADMIN) {
+    function execute(
+        uint256 subscriptionId
+    ) public onlyRole(STOKEN_ADMIN) whenNotPaused {
         _mintStoken(subscriptionId);
         emit executeEvent(
             subscriptionId,
@@ -237,7 +268,7 @@ contract SAmMMF is
         delete _subscribeDataMap[subscriptionId];
     }
 
-    function claim(uint256 subscriptionId) public {
+    function claim(uint256 subscriptionId) public whenNotPaused {
         require(
             _subscribeDataMap[subscriptionId].user == msg.sender,
             "Only the subscriber can claim"
@@ -272,7 +303,9 @@ contract SAmMMF is
 
     // Burn tokens for a specified redemption ID
     // This function allows the admin to burn tokens based on a redemption.
-    function burn(uint256 redemptionId) public onlyRole(STOKEN_ADMIN) {
+    function burn(
+        uint256 redemptionId
+    ) public onlyRole(STOKEN_ADMIN) whenNotPaused {
         require(redemptionId != 0, "Invalid redemption ID");
         RedemptionData storage wd = _redemptionDataMap[redemptionId];
         require(wd.id != 0, "redemption does not exist");

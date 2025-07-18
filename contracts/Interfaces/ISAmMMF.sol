@@ -6,22 +6,24 @@ pragma solidity ^0.8.22;
 interface ISAmMMF {
     struct SubscribeData {
         uint256 id; // Subscription ID
-        uint256 usdtAmount; // Amount of USDT to subscribe
+        uint256 uAmount; // Amount of USDT to subscribe
+        address uAddress; // User address who subscribed
         uint256 stokenAmount; // Amount of stoken to subscribe
         address user; // User address who subscribed
         uint256 price; // Price of the subscription
         bytes32 time; // Subscription time
-        uint256 transactionHash; // Transaction hash for the subscription
+        bytes32 transactionHash; // Transaction hash for the subscription
     }
 
     struct RedemptionData {
         uint256 id; // Redemption ID
-        uint256 usdtAmount; // Amount of USDT to Redemption
+        uint256 uAmount; // Amount of USDT to Redemption
+        address uAddress; // User address who requested the Redemption
         uint256 stokenAmount; // Amount of tokens to Redemption
         address user; // User address who requested the Redemption
         uint256 price; // Price of the Redemption
         bytes32 time; // Redemption time
-        uint256 transactionHash; // Transaction hash for the Redemption
+        bytes32 transactionHash; // Transaction hash for the Redemption
         TokenTransferDetail[] tokenTransferDetailList; // Temporary token data for the Redemption, can be initialized as empty
     }
 
@@ -47,37 +49,70 @@ interface ISAmMMF {
         uint256 amount; // Token minting time
     }
 
+    event AssetRecipientUpdated(
+        address indexed oldRecipient,
+        address indexed newRecipient
+    );
+
     event subscribeEvent(
         uint256 subscriptionId,
-        uint256 usdtAmount,
+        uint256 uAmount,
+        address uAddress,
         uint256 stokenAmount,
         address user,
         uint256 price,
         bytes32 time,
-        uint256 transactionHash,
+        bytes32 transactionHash,
         string offChainId
     );
 
     event onChainSubscribeEvent(
+        uint256 subscriptionId,
+        uint256 uAmount,
         address uAddress,
-        uint256 usdtAmount,
         address user
     );
 
-    event onChainRedemptionEvent(
+    event overwriteOnChainSubscribeEvent(
+        uint256 subscriptionId,
+        uint256 uAmount,
         address uAddress,
-        uint256 usdtAmount,
-        address user
-    );
-
-    event RedemptionEvent(
-        uint256 redemptionId,
-        uint256 usdtAmount,
         uint256 stokenAmount,
         address user,
         uint256 price,
         bytes32 time,
-        uint256 transactionHash,
+        bytes32 transactionHash,
+        string offChainId
+    );
+
+    event onChainRedemptionEvent(
+        uint256 redemptionId,
+        address uAddress,
+        uint256 stokenAmount,
+        address user
+    );
+
+    event overwriteOnChainRedemptionEvent(
+        uint256 redemptionId,
+        uint256 uAmount,
+        address uAddress,
+        uint256 stokenAmount,
+        address user,
+        uint256 price,
+        bytes32 time,
+        bytes32 transactionHash,
+        string offChainId
+    );
+
+    event RedemptionEvent(
+        uint256 redemptionId,
+        uint256 uAmount,
+        address uAddress,
+        uint256 stokenAmount,
+        address user,
+        uint256 price,
+        bytes32 time,
+        bytes32 transactionHash,
         string offChainId
     );
 
@@ -90,31 +125,34 @@ interface ISAmMMF {
 
     event executeEvent(
         uint256 subscriptionId,
-        uint256 usdtAmount,
+        uint256 uAmount,
+        address uAddress,
         uint256 stokenAmount,
         address user,
         uint256 price,
         bytes32 time,
-        uint256 transactionHash
+        bytes32 transactionHash
     );
 
     event claimEvent(
         uint256 subscriptionId,
-        uint256 usdtAmount,
+        uint256 uAmount,
+        address uAddress,
         uint256 stokenAmount,
         address user,
         uint256 price,
         bytes32 time,
-        uint256 transactionHash
+        bytes32 transactionHash
     );
 
     event burnEvent(
         uint256 redemptionId,
-        uint256 usdtAmount,
+        uint256 uAmount,
+        address uAddress,
         uint256 stokenAmount,
         address user,
         uint256 price,
         bytes32 time,
-        uint256 transactionHash
+        bytes32 transactionHash
     );
 }

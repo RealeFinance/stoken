@@ -53,8 +53,7 @@ contract SAmMMF is
 
     function initialize(
         string memory name,
-        string memory symbol,
-        address _assetRecipient
+        string memory symbol
     ) public initializer {
         __ERC20_init(name, symbol);
         __ERC20Pausable_init();
@@ -64,7 +63,8 @@ contract SAmMMF is
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(UPGRADER_ROLE, msg.sender);
-        assetRecipient = _assetRecipient;
+
+        assetRecipient = address(this); // Set the asset recipient to this contract address
         technicalServiceFeeRate = 10; // Default technical service fee rate set to 0.1%
     }
 
@@ -106,6 +106,27 @@ contract SAmMMF is
         return technicalServiceFeeRate;
     }
 
+    /**
+     * @dev Set the asset recipient address.
+     * @param newRecipient The new asset recipient address.
+     */
+    function setAssetRecipient(
+        address newRecipient
+    ) external onlyRole(STOKEN_ADMIN) {
+        require(newRecipient != address(0), "Invalid address");
+        address oldRecipient = assetRecipient;
+        assetRecipient = newRecipient;
+        emit AssetRecipientUpdated(oldRecipient, newRecipient); // Emit event for asset recipient update
+    }
+
+    /**
+     * @dev Get the current asset recipient address.
+     * @return The asset recipient address.
+     */
+    function getAssetRecipient() external view returns (address) {
+        return assetRecipient;
+    }
+
     function onChainSubscribe(
         address uAddress,
         uint256 uAmount
@@ -115,25 +136,94 @@ contract SAmMMF is
 
         IERC20(uAddress).safeTransferFrom(msg.sender, assetRecipient, uAmount); // Transfer USDT from the user to this contract
 
-        emit onChainSubscribeEvent(uAddress, uAmount, msg.sender); // Emit event for off-chain subscription
+        uint256 subscriptionId = uint256(
+            keccak256(
+                abi.encodePacked(
+                    uAddress,
+                    uAmount,
+                    block.timestamp,
+                    block.prevrandao
+                )
+            )
+        );
+
+        _subscribeDataMap[subscriptionId] = SubscribeData({
+            id: subscriptionId,
+            uAmount: uAmount,
+            uAddress: uAddress,
+            stokenAmount: 0, // Initial stoken amount is zero
+            user: msg.sender,
+            price: 0, // Initial price is zero
+            time: bytes32(0), // Initial time is zero
+            transactionHash: 0 // Initial transaction hash is zero
+        });
+
+        emit onChainSubscribeEvent(
+            subscriptionId,
+            uAmount,
+            uAddress,
+            msg.sender
+        ); // Emit event for off-chain subscription
+    }
+
+    function overwriteOnChainSubscribe(
+        uint256 subscriptionId,
+        uint256 uAmount,
+        address uAddress,
+        uint256 stokenAmount,
+        address user,
+        uint256 price,
+        bytes32 time,
+        bytes32 transactionHash,
+        string memory offChainId
+    ) external onlyRole(STOKEN_ADMIN) whenNotPaused {
+        require(subscriptionId != 0, "Invalid subscription ID");
+        require(user != address(0), "Invalid user address");
+        require(stokenAmount > 0, "Stoken amount must be greater than zero");
+
+        _subscribeDataMap[subscriptionId] = SubscribeData({
+            id: subscriptionId,
+            uAmount: uAmount,
+            uAddress: uAddress,
+            stokenAmount: stokenAmount,
+            user: user,
+            price: price,
+            time: time,
+            transactionHash: transactionHash
+        });
+
+        emit overwriteOnChainSubscribeEvent(
+            subscriptionId,
+            uAmount,
+            uAddress,
+            stokenAmount,
+            user,
+            price,
+            time,
+            transactionHash,
+            offChainId
+        ); // Emit event for subscription
     }
 
     /**
      * @dev Subscribe to the service with USDT and stoken amounts.
-     * @param usdtAmount The amount of USDT to subscribe.
+     * @param uAmount The amount of USDT to subscribe.
+     * @param uAddress The address of the USDT contract.
      * @param stokenAmount The amount of stoken to subscribe.
      * @param user The user address who subscribed.
      * @param price The price of the subscription.
      * @param time The subscription time.
      * @param transactionHash The transaction hash for the subscription.
+     * @param offChainId The off-chain identifier for the subscription.
      */
     function subscribe(
-        uint256 usdtAmount,
+        uint256 uAmount,
+        address uAddress,
         uint256 stokenAmount,
         address user,
         uint256 price,
         bytes32 time,
-        uint256 transactionHash,
+        bytes32 transactionHash,
         string memory offChainId
     ) external onlyRole(STOKEN_ADMIN) whenNotPaused {
         require(user != address(0), "Invalid user address");
@@ -142,7 +232,8 @@ contract SAmMMF is
             keccak256(
                 abi.encodePacked(
                     user,
-                    usdtAmount,
+                    uAmount,
+                    uAddress,
                     stokenAmount,
                     price,
                     time,
@@ -153,7 +244,8 @@ contract SAmMMF is
         );
         _subscribeDataMap[subscriptionId] = SubscribeData({
             id: subscriptionId,
-            usdtAmount: usdtAmount,
+            uAmount: uAmount,
+            uAddress: uAddress,
             stokenAmount: stokenAmount,
             user: user,
             price: price,
@@ -162,7 +254,8 @@ contract SAmMMF is
         });
         emit subscribeEvent(
             subscriptionId,
-            usdtAmount,
+            uAmount,
+            uAddress,
             stokenAmount,
             user,
             price,
@@ -181,16 +274,83 @@ contract SAmMMF is
 
         transferFrom(msg.sender, assetRecipient, stokenAmount); // Transfer USDT from the user to this contract
 
-        emit onChainSubscribeEvent(uAddress, stokenAmount, msg.sender); // Emit event for off-chain redemption
+        uint256 redemptionId = uint256(
+            keccak256(
+                abi.encodePacked(
+                    uAddress,
+                    stokenAmount,
+                    block.timestamp,
+                    block.prevrandao
+                )
+            )
+        );
+
+        RedemptionData storage wd = _redemptionDataMap[redemptionId];
+        wd.id = redemptionId;
+        wd.uAmount = 0; // Set USDT amount to the stoken
+        wd.uAddress = uAddress; // Set user address to the uAddress
+        wd.stokenAmount = stokenAmount; // Set stoken amount to the stoken
+        wd.user = msg.sender; // Set user to the sender
+        wd.price = 0; // Initial price is zero
+        wd.time = bytes32(0); // Initial time is zero
+        wd.transactionHash = bytes32(0); // Initial transaction hash is zero
+        delete wd.tokenTransferDetailList; // Initialize as empty
+
+        emit onChainRedemptionEvent(
+            redemptionId,
+            uAddress,
+            stokenAmount,
+            msg.sender
+        ); // Emit event for off-chain redemption
     }
 
-    function redemption(
-        uint256 usdtAmount,
+    function overwriteOnChainRedemption(
+        uint256 redemptionId,
+        uint256 uAmount,
+        address uAddress,
         uint256 stokenAmount,
         address user,
         uint256 price,
         bytes32 time,
-        uint256 transactionHash,
+        bytes32 transactionHash,
+        string memory offChainId
+    ) external onlyRole(STOKEN_ADMIN) whenNotPaused {
+        require(redemptionId != 0, "Invalid redemption ID");
+        require(user != address(0), "Invalid user address");
+        require(stokenAmount > 0, "Stoken amount must be greater than zero");
+
+        RedemptionData storage wd = _redemptionDataMap[redemptionId];
+        wd.id = redemptionId;
+        wd.uAmount = uAmount;
+        wd.uAddress = uAddress;
+        wd.stokenAmount = stokenAmount;
+        wd.user = user;
+        wd.price = price;
+        wd.time = time;
+        wd.transactionHash = transactionHash;
+        delete wd.tokenTransferDetailList; // Initialize as empty
+
+        emit overwriteOnChainRedemptionEvent(
+            redemptionId,
+            uAmount,
+            uAddress,
+            stokenAmount,
+            user,
+            price,
+            time,
+            transactionHash,
+            offChainId
+        ); // Emit event for redemption
+    }
+
+    function redemption(
+        uint256 uAmount,
+        address uAddress,
+        uint256 stokenAmount,
+        address user,
+        uint256 price,
+        bytes32 time,
+        bytes32 transactionHash,
         string memory offChainId
     ) external onlyRole(STOKEN_ADMIN) whenNotPaused {
         require(user != address(0), "Invalid user address");
@@ -199,7 +359,8 @@ contract SAmMMF is
             keccak256(
                 abi.encodePacked(
                     user,
-                    usdtAmount,
+                    uAmount,
+                    uAddress,
                     stokenAmount,
                     price,
                     time,
@@ -211,7 +372,8 @@ contract SAmMMF is
 
         RedemptionData storage wd = _redemptionDataMap[redemptionId];
         wd.id = redemptionId;
-        wd.usdtAmount = usdtAmount;
+        wd.uAmount = uAmount;
+        wd.uAddress = uAddress;
         wd.stokenAmount = stokenAmount;
         wd.user = user;
         wd.price = price;
@@ -220,7 +382,8 @@ contract SAmMMF is
         delete wd.tokenTransferDetailList; // Initialize as empty
         emit RedemptionEvent(
             redemptionId,
-            usdtAmount,
+            uAmount,
+            uAddress,
             stokenAmount,
             user,
             price,
@@ -258,7 +421,8 @@ contract SAmMMF is
         _mintStoken(subscriptionId);
         emit executeEvent(
             subscriptionId,
-            _subscribeDataMap[subscriptionId].usdtAmount,
+            _subscribeDataMap[subscriptionId].uAmount,
+            _subscribeDataMap[subscriptionId].uAddress,
             _subscribeDataMap[subscriptionId].stokenAmount,
             _subscribeDataMap[subscriptionId].user,
             _subscribeDataMap[subscriptionId].price,
@@ -276,7 +440,8 @@ contract SAmMMF is
         _mintStoken(subscriptionId);
         emit claimEvent(
             subscriptionId,
-            _subscribeDataMap[subscriptionId].usdtAmount,
+            _subscribeDataMap[subscriptionId].uAmount,
+            _subscribeDataMap[subscriptionId].uAddress,
             _subscribeDataMap[subscriptionId].stokenAmount,
             _subscribeDataMap[subscriptionId].user,
             _subscribeDataMap[subscriptionId].price,
@@ -330,7 +495,8 @@ contract SAmMMF is
         // No need to reassign wd to _redemptionDataMap, as wd is a storage pointer
         emit burnEvent(
             redemptionId,
-            wd.usdtAmount,
+            wd.uAmount,
+            wd.uAddress,
             wd.stokenAmount,
             wd.user,
             wd.price,

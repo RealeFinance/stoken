@@ -11,6 +11,9 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../Interfaces/ISAmMMF.sol";
+import {Blacklistable} from "../BlackList/Blacklistable.sol";
+import {Ownable} from "../token/Ownable.sol";
+
 contract SAmMMF is
     Initializable,
     ERC20Upgradeable,
@@ -18,7 +21,9 @@ contract SAmMMF is
     ERC20PermitUpgradeable,
     AccessControlEnumerableUpgradeable,
     UUPSUpgradeable,
-    ISAmMMF
+    ISAmMMF,
+    Ownable,
+    Blacklistable
 {
     using SafeERC20 for IERC20;
     bytes32 public constant VERSION = keccak256("VERSION_2");
@@ -64,6 +69,9 @@ contract SAmMMF is
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(UPGRADER_ROLE, msg.sender);
 
+        blacklister = msg.sender;
+        setOwner(msg.sender);
+        
         assetRecipient = address(this); // Set the asset recipient to this contract address
         technicalServiceFeeRate = 10; // Default technical service fee rate set to 0.1%
     }
@@ -729,5 +737,40 @@ contract SAmMMF is
             }
         }
         return tempTokens;
+    }
+
+    /**
+     * @inheritdoc Blacklistable
+     */
+    function _blacklist(address _account) internal override {
+        _setBlacklistState(_account, true);
+    }
+
+    /**
+     * @inheritdoc Blacklistable
+     */
+    function _unBlacklist(address _account) internal override {
+        _setBlacklistState(_account, false);
+    }
+
+    /**
+     * @dev Helper method that sets the blacklist state of an account.
+     * @param _account         The address of the account.
+     * @param _shouldBlacklist True if the account should be blacklisted, false if the account should be unblacklisted.
+     */
+    function _setBlacklistState(
+        address _account,
+        bool _shouldBlacklist
+    ) internal virtual {
+        _deprecatedBlacklisted[_account] = _shouldBlacklist;
+    }
+
+    /**
+     * @inheritdoc Blacklistable
+     */
+    function _isBlacklisted(
+        address _account
+    ) internal view virtual override returns (bool) {
+        return _deprecatedBlacklisted[_account];
     }
 }

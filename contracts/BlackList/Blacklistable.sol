@@ -18,19 +18,27 @@
 
 pragma solidity ^0.8.22;
 
-import {Ownable} from "../token/Ownable.sol";
+import "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlEnumerableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 /**
  * @title Blacklistable Token
  * @dev Allows accounts to be blacklisted by a "blacklister" role
  */
-abstract contract Blacklistable is Ownable {
+abstract contract Blacklistable is
+    AccessControlEnumerableUpgradeable,
+    UUPSUpgradeable
+{
+    bytes32 public constant BLACKLIST_ADMIN_ROLE =
+        keccak256("BLACKLIST_ADMIN_ROLE");
+
     address public blacklister;
     mapping(address => bool) internal _deprecatedBlacklisted;
 
     event Blacklisted(address indexed _account);
     event UnBlacklisted(address indexed _account);
-    event BlacklisterChanged(address indexed newBlacklister);
+    event BlacklisterAdminAdd(address indexed newBlacklister);
+    event BlacklisterAdminRemove(address indexed newBlacklister);
 
     /**
      * @dev Throws if called by any account other than the blacklister.
@@ -86,13 +94,30 @@ abstract contract Blacklistable is Ownable {
      * @notice Updates the blacklister address.
      * @param _newBlacklister The address of the new blacklister.
      */
-    function updateBlacklister(address _newBlacklister) external onlyOwner {
+    function addBlacklistAdmin(
+        address _newBlacklister
+    ) external onlyRole(BLACKLIST_ADMIN_ROLE) {
         require(
             _newBlacklister != address(0),
             "Blacklistable: new blacklister is the zero address"
         );
-        blacklister = _newBlacklister;
-        emit BlacklisterChanged(blacklister);
+        _grantRole(BLACKLIST_ADMIN_ROLE, _newBlacklister);
+        emit BlacklisterAdminAdd(blacklister);
+    }
+
+    /**
+     * @notice Removes the blacklister role from an account.
+     * @param _blacklister The address of the blacklister to remove.
+     */
+    function removeBlacklistAdmin(
+        address _blacklister
+    ) external onlyRole(BLACKLIST_ADMIN_ROLE) {
+        require(
+            hasRole(BLACKLIST_ADMIN_ROLE, _blacklister),
+            "Blacklistable: account is not a blacklister"
+        );
+        _revokeRole(BLACKLIST_ADMIN_ROLE, _blacklister);
+        emit BlacklisterAdminRemove(_blacklister);
     }
 
     /**

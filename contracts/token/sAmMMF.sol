@@ -12,7 +12,6 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../Interfaces/ISAmMMF.sol";
 import {Blacklistable} from "../BlackList/Blacklistable.sol";
-import {Ownable} from "../token/Ownable.sol";
 
 contract SAmMMF is
     Initializable,
@@ -22,7 +21,6 @@ contract SAmMMF is
     AccessControlEnumerableUpgradeable,
     UUPSUpgradeable,
     ISAmMMF,
-    Ownable,
     Blacklistable
 {
     using SafeERC20 for IERC20;
@@ -68,10 +66,8 @@ contract SAmMMF is
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(UPGRADER_ROLE, msg.sender);
+        _grantRole(BLACKLIST_ADMIN_ROLE, msg.sender);
 
-        blacklister = msg.sender;
-        setOwner(msg.sender);
-        
         assetRecipient = address(this); // Set the asset recipient to this contract address
         technicalServiceFeeRate = 10; // Default technical service fee rate set to 0.1%
     }
@@ -138,7 +134,7 @@ contract SAmMMF is
     function onChainSubscribe(
         address uAddress,
         uint256 uAmount
-    ) external whenNotPaused {
+    ) external notBlacklisted(msg.sender) whenNotPaused {
         require(uAmount > 0, "Amount must be greater than zero");
         // TODO 判断 uAddress 是否是 USDT/USDC 合约地址
 
@@ -184,7 +180,7 @@ contract SAmMMF is
         bytes32 time,
         bytes32 transactionHash,
         string memory offChainId
-    ) external onlyRole(STOKEN_ADMIN) whenNotPaused {
+    ) external onlyRole(STOKEN_ADMIN) notBlacklisted(user) whenNotPaused {
         require(subscriptionId != 0, "Invalid subscription ID");
         require(user != address(0), "Invalid user address");
         require(stokenAmount > 0, "Stoken amount must be greater than zero");
@@ -233,7 +229,7 @@ contract SAmMMF is
         bytes32 time,
         bytes32 transactionHash,
         string memory offChainId
-    ) external onlyRole(STOKEN_ADMIN) whenNotPaused {
+    ) external onlyRole(STOKEN_ADMIN) notBlacklisted(user) whenNotPaused {
         require(user != address(0), "Invalid user address");
         require(stokenAmount > 0, "Stoken amount must be greater than zero");
         uint256 subscriptionId = uint256(
@@ -276,7 +272,7 @@ contract SAmMMF is
     function onChainRedemption(
         address uAddress,
         uint256 stokenAmount
-    ) external whenNotPaused {
+    ) external notBlacklisted(msg.sender) whenNotPaused {
         require(stokenAmount > 0, "Amount must be greater than zero");
         // TODO 判断 uAddress 是否是 USDT/USDC 合约地址
 
@@ -322,7 +318,7 @@ contract SAmMMF is
         bytes32 time,
         bytes32 transactionHash,
         string memory offChainId
-    ) external onlyRole(STOKEN_ADMIN) whenNotPaused {
+    ) external onlyRole(STOKEN_ADMIN) notBlacklisted(user) whenNotPaused {
         require(redemptionId != 0, "Invalid redemption ID");
         require(user != address(0), "Invalid user address");
         require(stokenAmount > 0, "Stoken amount must be greater than zero");
@@ -360,7 +356,7 @@ contract SAmMMF is
         bytes32 time,
         bytes32 transactionHash,
         string memory offChainId
-    ) external onlyRole(STOKEN_ADMIN) whenNotPaused {
+    ) external onlyRole(STOKEN_ADMIN) notBlacklisted(user) whenNotPaused {
         require(user != address(0), "Invalid user address");
         require(stokenAmount > 0, "Stoken amount must be greater than zero");
         uint256 redemptionId = uint256(
@@ -425,7 +421,12 @@ contract SAmMMF is
 
     function execute(
         uint256 subscriptionId
-    ) public onlyRole(STOKEN_ADMIN) whenNotPaused {
+    )
+        public
+        onlyRole(STOKEN_ADMIN)
+        notBlacklisted(_subscribeDataMap[subscriptionId].user)
+        whenNotPaused
+    {
         _mintStoken(subscriptionId);
         emit executeEvent(
             subscriptionId,
@@ -440,7 +441,14 @@ contract SAmMMF is
         delete _subscribeDataMap[subscriptionId];
     }
 
-    function claim(uint256 subscriptionId) public whenNotPaused {
+    function claim(
+        uint256 subscriptionId
+    )
+        public
+        notBlacklisted(msg.sender)
+        notBlacklisted(_subscribeDataMap[subscriptionId].user)
+        whenNotPaused
+    {
         require(
             _subscribeDataMap[subscriptionId].user == msg.sender,
             "Only the subscriber can claim"
@@ -478,7 +486,12 @@ contract SAmMMF is
     // This function allows the admin to burn tokens based on a redemption.
     function burn(
         uint256 redemptionId
-    ) public onlyRole(STOKEN_ADMIN) whenNotPaused {
+    )
+        public
+        onlyRole(STOKEN_ADMIN)
+        notBlacklisted(_redemptionDataMap[redemptionId].user)
+        whenNotPaused
+    {
         require(redemptionId != 0, "Invalid redemption ID");
         RedemptionData storage wd = _redemptionDataMap[redemptionId];
         require(wd.id != 0, "redemption does not exist");
@@ -546,7 +559,13 @@ contract SAmMMF is
     function transfer(
         address recipient,
         uint256 amount
-    ) public override returns (bool) {
+    )
+        public
+        override
+        notBlacklisted(msg.sender)
+        notBlacklisted(recipient)
+        returns (bool)
+    {
         _transferWithTokenId(msg.sender, recipient, amount);
         return true;
     }
@@ -555,7 +574,14 @@ contract SAmMMF is
         address sender,
         address recipient,
         uint256 amount
-    ) public override returns (bool) {
+    )
+        public
+        override
+        notBlacklisted(msg.sender)
+        notBlacklisted(sender)
+        notBlacklisted(recipient)
+        returns (bool)
+    {
         _transferWithTokenId(sender, recipient, amount);
         _approve(sender, msg.sender, allowance(sender, msg.sender) - amount);
         return true;
@@ -739,6 +765,10 @@ contract SAmMMF is
         return tempTokens;
     }
 
+    /*//////////////////////////////////////////////////////////////
+                              Blacklist
+    //////////////////////////////////////////////////////////////*/
+
     /**
      * @inheritdoc Blacklistable
      */
@@ -773,4 +803,8 @@ contract SAmMMF is
     ) internal view virtual override returns (bool) {
         return _deprecatedBlacklisted[_account];
     }
+
+    /*//////////////////////////////////////////////////////////////
+                              Blacklist
+    //////////////////////////////////////////////////////////////*/
 }

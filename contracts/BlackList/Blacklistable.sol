@@ -72,23 +72,6 @@ abstract contract Blacklistable is
         return _isBlacklisted(_account);
     }
 
-    /**
-     * @notice Adds account to blacklist.
-     * @param _account The address to blacklist.
-     */
-    function blacklist(address _account) external onlyBlacklister {
-        _blacklist(_account);
-        emit Blacklisted(_account);
-    }
-
-    /**
-     * @notice Removes account from blacklist.
-     * @param _account The address to remove from the blacklist.
-     */
-    function unBlacklist(address _account) external onlyBlacklister {
-        _unBlacklist(_account);
-        emit UnBlacklisted(_account);
-    }
 
     /**
      * @notice Updates the blacklister address.

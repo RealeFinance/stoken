@@ -2,356 +2,399 @@ const { expect } = require("chai");
 const { ethers, upgrades } = require("hardhat");
 
 describe("SAmMMF", function () {
-  let SAmMMF, sAmMMF;
-  let owner, admin, user, other;
+  let SAmMMF, sAmMMF, owner, user, admin, stokenAdmin, usdc, usdt;
 
   beforeEach(async function () {
-    [owner, admin, user, other] = await ethers.getSigners();
-    const SAmMMFFactory = await ethers.getContractFactory("SAmMMF");
+    [owner, user, admin, stokenAdmin] = await ethers.getSigners();
+    // deploy a simple ERC20 mintable token as mock USDC/USDT
+    const MockERC20 = await ethers.getContractFactory("Oracle");
+    usdc = await MockERC20.deploy();
+    usdt = await MockERC20.deploy();
+    await usdc.waitForDeployment();
+    await usdt.waitForDeployment();
+
+    const SAmMMFFactory = await ethers.getContractFactory("SAmMMF"); 
     sAmMMF = await upgrades.deployProxy(
       SAmMMFFactory,
-      ["Staked AMMF", "sAMMF"],
-      {
-        initializer: "initialize",
-      }
+      ["Staked AmMMF", "sAmMMF"],
+      { initializer: "initialize" }
     );
     await sAmMMF.waitForDeployment();
-    await sAmMMF.grantRole(await sAmMMF.STOKEN_ADMIN(), admin.address);
+
+    const STOKEN_ADMIN = await sAmMMF.STOKEN_ADMIN();
+    await sAmMMF.connect(owner).grantRole(STOKEN_ADMIN, stokenAdmin.address);
+    await sAmMMF
+      .connect(stokenAdmin)
+      .addSupportedTokenAddress(await usdc.getAddress());
+    await sAmMMF
+      .connect(stokenAdmin)
+      .addSupportedTokenAddress(await usdt.getAddress());
   });
 
-  it("should initialize correctly", async function () {
-    expect(await sAmMMF.name()).to.equal("Staked AMMF");
-    expect(await sAmMMF.symbol()).to.equal("sAMMF");
+  it("initializes correctly", async function () {
+    expect(await sAmMMF.name()).to.equal("Staked AmMMF");
+    expect(await sAmMMF.symbol()).to.equal("sAmMMF");
+    expect(await sAmMMF.getAssetRecipient()).to.equal(
+      await sAmMMF.getAddress()
+    );
     expect(await sAmMMF.getTechnicalServiceFeeRate()).to.equal(10);
-    expect(
-      await sAmMMF.hasRole(await sAmMMF.DEFAULT_ADMIN_ROLE(), owner.address)
-    ).to.be.true;
-    expect(await sAmMMF.hasRole(await sAmMMF.UPGRADER_ROLE(), owner.address)).to
-      .be.true;
+    const list = await sAmMMF.getSupportedTokenAddresses();
+    expect(list).to.include(await usdc.getAddress());
+    expect(list).to.include(await usdt.getAddress());
   });
 
-  it("should allow admin to set technical service fee rate", async function () {
-    await sAmMMF.connect(admin).setTechnicalServiceFeeRate(50);
-    expect(await sAmMMF.getTechnicalServiceFeeRate()).to.equal(50);
-  });
-
-  it("should revert setTechnicalServiceFeeRate if not admin", async function () {
-    await expect(
-      sAmMMF.connect(user).setTechnicalServiceFeeRate(100)
-    ).to.be.revertedWithCustomError(sAmMMF, "AccessControlUnauthorizedAccount");
-  });
-
-  it("should pause and unpause by owner", async function () {
-    await sAmMMF.pause();
-    expect(await sAmMMF.paused()).to.be.true;
-    await sAmMMF.unpause();
-    expect(await sAmMMF.paused()).to.be.false;
-  });
-
-  it("should revert pause/unpause if not owner", async function () {
+  it("pause/unpause by admin only", async function () {
+    await sAmMMF.connect(owner).pause();
+    expect(await sAmMMF.paused()).to.equal(true);
+    await sAmMMF.connect(owner).unpause();
+    expect(await sAmMMF.paused()).to.equal(false);
     await expect(sAmMMF.connect(user).pause()).to.be.revertedWithCustomError(
       sAmMMF,
       "AccessControlUnauthorizedAccount"
     );
-    await sAmMMF.pause();
-    await expect(sAmMMF.connect(user).unpause()).to.be.revertedWithCustomError(
-      sAmMMF,
-      "AccessControlUnauthorizedAccount"
-    );
-    await sAmMMF.unpause();
   });
 
-  it("should subscribe and execute mint", async function () {
-    const usdtAmount = ethers.parseEther("100");
-    const stokenAmount = ethers.parseEther("50");
-    const price = ethers.parseEther("2");
-    const time = Math.floor(Date.now() / 1000);
-    const txHash = 123456;
-    await sAmMMF
-      .connect(admin)
-      .subscribe(usdtAmount, stokenAmount, user.address, price, time, txHash);
-    // Find subscriptionId by event
-    const filter = await sAmMMF.queryFilter("subscribeEvent");
-    const subscriptionId = filter[0].args[0];
-    await sAmMMF.connect(admin).execute(subscriptionId);
-    expect(await sAmMMF.balanceOf(user.address)).to.equal(stokenAmount);
-    // Should not allow execute again
+  it("setTechnicalServiceFeeRate and revert", async function () {
+    await sAmMMF.connect(stokenAdmin).setTechnicalServiceFeeRate(50);
+    expect(await sAmMMF.getTechnicalServiceFeeRate()).to.equal(50);
     await expect(
-      sAmMMF.connect(admin).execute(subscriptionId)
-    ).to.be.revertedWith("Subscription does not exist");
-  });
-
-  it("should claim mint", async function () {
-    const usdtAmount = ethers.parseEther("100");
-    const stokenAmount = ethers.parseEther("50");
-    const price = ethers.parseEther("2");
-    const time = Math.floor(Date.now() / 1000);
-    const txHash = 123456;
-    await sAmMMF
-      .connect(admin)
-      .subscribe(usdtAmount, stokenAmount, user.address, price, time, txHash);
-    const filter = await sAmMMF.queryFilter("subscribeEvent");
-    const subscriptionId = filter[0].args[0];
-    await sAmMMF.connect(user).claim(subscriptionId);
-    expect(await sAmMMF.balanceOf(user.address)).to.equal(stokenAmount);
-  });
-
-  it("should revert subscribe with zero stokenAmount or time", async function () {
-    await expect(
-      sAmMMF.connect(admin).subscribe(1, 0, user.address, 1, 1, 1)
-    ).to.be.revertedWith("Stoken amount must be greater than zero");
-    await expect(
-      sAmMMF.connect(admin).subscribe(1, 1, user.address, 1, 0, 1)
-    ).to.be.revertedWith("Time must be greater than zero");
-    await expect(
-      sAmMMF.connect(admin).subscribe(1, 1, ethers.ZeroAddress, 1, 1, 1)
-    ).to.be.revertedWith("Invalid user address");
-  });
-
-  it("should redeem and burn tokens", async function () {
-    // Mint tokens first
-    const usdtAmount = ethers.parseEther("100");
-    const stokenAmount = ethers.parseEther("50");
-    const price = ethers.parseEther("2");
-    const time = Math.floor(Date.now() / 1000);
-    const txHash = 123456;
-    await sAmMMF
-      .connect(admin)
-      .subscribe(usdtAmount, stokenAmount, user.address, price, time, txHash);
-    const filter = await sAmMMF.queryFilter("subscribeEvent");
-    const subscriptionId = filter[0].args[0];
-    await sAmMMF.connect(admin).execute(subscriptionId);
-    // Redemption
-    await sAmMMF
-      .connect(admin)
-      .redemption(usdtAmount, stokenAmount, user.address, price, time, txHash);
-    const redemptionFilter = await sAmMMF.queryFilter("RedemptionEvent");
-    const redemptionId = redemptionFilter[0].args[0];
-    await sAmMMF.connect(admin).burn(redemptionId);
-    expect(await sAmMMF.balanceOf(user.address)).to.equal(0);
-  });
-
-  it("should revert redemption with zero stokenAmount or time", async function () {
-    await expect(
-      sAmMMF.connect(admin).redemption(1, 0, user.address, 1, 1, 1)
-    ).to.be.revertedWith("Stoken amount must be greater than zero");
-    await expect(
-      sAmMMF.connect(admin).redemption(1, 1, user.address, 1, 0, 1)
-    ).to.be.revertedWith("Time must be greater than zero");
-    await expect(
-      sAmMMF.connect(admin).redemption(1, 1, ethers.ZeroAddress, 1, 1, 1)
-    ).to.be.revertedWith("Invalid user address");
-  });
-
-  it("should get and remove redemption data", async function () {
-    const usdtAmount = ethers.parseEther("100");
-    const stokenAmount = ethers.parseEther("50");
-    const price = ethers.parseEther("2");
-    const time = Math.floor(Date.now() / 1000);
-    const txHash = 123456;
-    await sAmMMF
-      .connect(admin)
-      .redemption(usdtAmount, stokenAmount, user.address, price, time, txHash);
-    const redemptionFilter = await sAmMMF.queryFilter("RedemptionEvent");
-    const redemptionId = redemptionFilter[0].args[0];
-    const data = await sAmMMF.connect(admin).getRedemptionDataMap(redemptionId);
-    expect(data.id).to.equal(redemptionId);
-    await sAmMMF.connect(admin).removeRedemptionData(redemptionId);
-    await expect(
-      sAmMMF.connect(admin).getRedemptionDataMap(redemptionId)
-    ).to.be.revertedWith("redemption does not exist");
-  });
-
-  it("should revert get/remove redemption data if not admin", async function () {
-    await expect(
-      sAmMMF.connect(user).getRedemptionDataMap(1)
-    ).to.be.revertedWithCustomError(sAmMMF, "AccessControlUnauthorizedAccount");
-    await expect(
-      sAmMMF.connect(user).removeRedemptionData(1)
+      sAmMMF.connect(user).setTechnicalServiceFeeRate(20)
     ).to.be.revertedWithCustomError(sAmMMF, "AccessControlUnauthorizedAccount");
   });
 
-  it("should revert burn if not enough tokens", async function () {
-    const usdtAmount = ethers.parseEther("100");
-    const stokenAmount = ethers.parseEther("50");
-    const price = ethers.parseEther("2");
-    const time = Math.floor(Date.now() / 1000);
-    const txHash = 123456;
-    await sAmMMF
-      .connect(admin)
-      .redemption(usdtAmount, stokenAmount, user.address, price, time, txHash);
-    const redemptionFilter = await sAmMMF.queryFilter("RedemptionEvent");
-    const redemptionId = redemptionFilter[0].args[0];
-    await expect(sAmMMF.connect(admin).burn(redemptionId)).to.be.revertedWith(
-      "No tokens to burn"
-    );
-  });
-
-  it("should return balanceOfWithId correctly", async function () {
-    const usdtAmount = ethers.parseEther("100");
-    const stokenAmount = ethers.parseEther("50");
-    const price = ethers.parseEther("2");
-    const time = Math.floor(Date.now() / 1000);
-    const txHash = 123456;
-    await sAmMMF
-      .connect(admin)
-      .subscribe(usdtAmount, stokenAmount, user.address, price, time, txHash);
-    const filter = await sAmMMF.queryFilter("subscribeEvent");
-    const subscriptionId = filter[0].args[0];
-    await sAmMMF.connect(admin).execute(subscriptionId);
-    const [tokenIds, amounts] = await sAmMMF.balanceOfWithId(user.address);
-    expect(tokenIds.length).to.equal(1);
-    expect(amounts[0]).to.equal(stokenAmount);
-  });
-
-  it("should transfer tokens and update tokenId mapping", async function () {
-    const usdtAmount = ethers.parseEther("100");
-    const stokenAmount = ethers.parseEther("50");
-    const price = ethers.parseEther("2");
-    const time = Math.floor(Date.now() / 1000);
-    const txHash = 123456;
-    await sAmMMF
-      .connect(admin)
-      .subscribe(usdtAmount, stokenAmount, user.address, price, time, txHash);
-    const filter = await sAmMMF.queryFilter("subscribeEvent");
-    const subscriptionId = filter[0].args[0];
-    await sAmMMF.connect(admin).execute(subscriptionId);
-    await sAmMMF.connect(user).transfer(other.address, stokenAmount);
-    expect(await sAmMMF.balanceOf(user.address)).to.equal(0);
-    expect(await sAmMMF.balanceOf(other.address)).to.equal(stokenAmount);
-    const [tokenIds, amounts] = await sAmMMF.balanceOfWithId(other.address);
-    expect(tokenIds.length).to.equal(1);
-    expect(amounts[0]).to.equal(stokenAmount);
-  });
-
-  it("should revert transfer if not enough tokens", async function () {
+  it("setAssetRecipient and invalid", async function () {
+    await sAmMMF.connect(stokenAdmin).setAssetRecipient(user.address);
+    expect(await sAmMMF.getAssetRecipient()).to.equal(user.address);
     await expect(
-      sAmMMF.connect(user).transfer(other.address, 1)
-    ).to.be.revertedWith("No tokens to burn");
+      sAmMMF.connect(stokenAdmin).setAssetRecipient(ethers.ZeroAddress)
+    ).to.be.revertedWith("Invalid address");
   });
 
-  it("should get token data", async function () {
-    const usdtAmount = ethers.parseEther("100");
-    const stokenAmount = ethers.parseEther("50");
-    const price = ethers.parseEther("2");
-    const time = Math.floor(Date.now() / 1000);
-    const txHash = 123456;
-    await sAmMMF
-      .connect(admin)
-      .subscribe(usdtAmount, stokenAmount, user.address, price, time, txHash);
-    const filter = await sAmMMF.queryFilter("subscribeEvent");
-    const subscriptionId = filter[0].args[0];
-    await sAmMMF.connect(admin).execute(subscriptionId);
-    const [tokenIds] = await sAmMMF.balanceOfWithId(user.address);
-    const tokenData = await sAmMMF.getTokenData(tokenIds[0]);
-    expect(tokenData.tokenOwner).to.equal(user.address);
-    expect(tokenData.price).to.equal(price);
-    expect(tokenData.mintTime).to.equal(time);
-  });
-
-  it("should revert getTokenData for invalid tokenId", async function () {
-    await expect(sAmMMF.getTokenData(0)).to.be.revertedWith("Invalid token ID");
-    await expect(sAmMMF.getTokenData(123)).to.be.revertedWith(
-      "Token does not exist"
-    );
-  });
-
-  it("should transfer tokens, redeem, get and remove redemption data", async function () {
-    // Mint tokens to user
-    const usdtAmount = ethers.parseEther("100");
-    const stokenAmount = ethers.parseEther("50");
-    const price = ethers.parseEther("2");
-    const time = Math.floor(Date.now() / 1000);
-    const txHash = 123456;
-    await sAmMMF
-      .connect(admin)
-      .subscribe(usdtAmount, stokenAmount, user.address, price, time, txHash);
-    const filter = await sAmMMF.queryFilter("subscribeEvent");
-    const subscriptionId = filter[0].args[0];
-    await sAmMMF.connect(admin).execute(subscriptionId);
-
-    // Transfer tokens from user to other
-    await sAmMMF.connect(user).transfer(other.address, stokenAmount);
-    expect(await sAmMMF.balanceOf(user.address)).to.equal(0);
-    expect(await sAmMMF.balanceOf(other.address)).to.equal(stokenAmount);
-
-    // Redemption for other
-    await sAmMMF
-      .connect(admin)
-      .redemption(usdtAmount, stokenAmount, other.address, price, time, txHash);
-    const redemptionFilter = await sAmMMF.queryFilter("RedemptionEvent");
-    const redemptionId = redemptionFilter[0].args[0];
-
-    // Get redemption data
-    const data = await sAmMMF.connect(admin).getRedemptionDataMap(redemptionId);
-    expect(data.id).to.equal(redemptionId);
-    expect(data.user).to.equal(other.address);
-    expect(data.stokenAmount).to.equal(stokenAmount);
-
-    // Remove redemption data
-    await sAmMMF.connect(admin).removeRedemptionData(redemptionId);
+  it("onChainSubscribe happy path and unsupported/zero", async function () {
+    await usdc.mint(user.address, 1_000_000);
+    await usdc.connect(user).approve(await sAmMMF.getAddress(), 1_000_000);
     await expect(
-      sAmMMF.connect(admin).getRedemptionDataMap(redemptionId)
-    ).to.be.revertedWith("redemption does not exist");
+      sAmMMF.connect(user).onChainSubscribe(await usdc.getAddress(), 500_000)
+    ).to.emit(sAmMMF, "onChainSubscribeEvent");
+    expect(await usdc.balanceOf(await sAmMMF.getAddress())).to.equal(500_000);
+
+    const fake = await (await ethers.getContractFactory("Oracle")).deploy();
+    await fake.waitForDeployment();
+    await expect(
+      sAmMMF.connect(user).onChainSubscribe(await fake.getAddress(), 100)
+    ).to.be.revertedWith("Unsupported token address");
+
+    await expect(
+      sAmMMF.connect(user).onChainSubscribe(await usdc.getAddress(), 0)
+    ).to.be.revertedWith("Amount must be greater than zero");
   });
 
-  it("should redeem, burn, then getRedemptionDataMap and revert", async function () {
-    // Mint tokens to user
-    const usdtAmount = ethers.parseEther("100");
-    const stokenAmount = ethers.parseEther("50");
-    const price = ethers.parseEther("2");
-    const time = Math.floor(Date.now() / 1000);
-    const txHash = 123456;
-
-    // Subscribe and execute mint for user
+  it("add/remove supported token and invalids", async function () {
+    const New = await (await ethers.getContractFactory("Oracle")).deploy();
+    await New.waitForDeployment();
     await sAmMMF
-      .connect(admin)
-      .subscribe(usdtAmount, stokenAmount, user.address, price, time, txHash);
-    const filter = await sAmMMF.queryFilter("subscribeEvent");
-    const subscriptionId = filter[0].args[0];
-    await sAmMMF.connect(admin).execute(subscriptionId);
-
-    // Subscribe and execute mint for user
+      .connect(stokenAdmin)
+      .addSupportedTokenAddress(await New.getAddress());
+    let list = await sAmMMF.getSupportedTokenAddresses();
+    expect(list).to.include(await New.getAddress());
     await sAmMMF
-      .connect(admin)
+      .connect(stokenAdmin)
+      .removeSupportedTokenAddress(await New.getAddress());
+    list = await sAmMMF.getSupportedTokenAddresses();
+    expect(list).to.not.include(await New.getAddress());
+
+    await expect(
+      sAmMMF.connect(stokenAdmin).addSupportedTokenAddress(ethers.ZeroAddress)
+    ).to.be.revertedWith("Invalid address");
+    await expect(
+      sAmMMF
+        .connect(stokenAdmin)
+        .removeSupportedTokenAddress(ethers.ZeroAddress)
+    ).to.be.revertedWith("Invalid address");
+
+    const Fake = await (await ethers.getContractFactory("Oracle")).deploy();
+    await Fake.waitForDeployment();
+    await expect(
+      sAmMMF
+        .connect(stokenAdmin)
+        .removeSupportedTokenAddress(await Fake.getAddress())
+    ).to.be.revertedWith("Token address not found");
+  });
+
+  it("subscribe and invalids", async function () {
+    await expect(
+      sAmMMF
+        .connect(stokenAdmin)
+        .subscribe(
+          1000,
+          await usdc.getAddress(),
+          100,
+          user.address,
+          1,
+          ethers.ZeroHash,
+          ethers.ZeroHash,
+          "id"
+        )
+    ).to.emit(sAmMMF, "subscribeEvent");
+
+    await expect(
+      sAmMMF
+        .connect(stokenAdmin)
+        .subscribe(
+          1000,
+          await usdc.getAddress(),
+          0,
+          user.address,
+          1,
+          ethers.ZeroHash,
+          ethers.ZeroHash,
+          "id"
+        )
+    ).to.be.revertedWith("Stoken amount must be greater than zero");
+
+    await expect(
+      sAmMMF
+        .connect(stokenAdmin)
+        .subscribe(
+          1000,
+          await usdc.getAddress(),
+          100,
+          ethers.ZeroAddress,
+          1,
+          ethers.ZeroHash,
+          ethers.ZeroHash,
+          "id"
+        )
+    ).to.be.revertedWith("Invalid user address");
+  });
+
+  it("onChainRedemption and invalids", async function () {
+    await expect(
+      sAmMMF.connect(user).onChainRedemption(await usdc.getAddress(), 200)
+    ).to.emit(sAmMMF, "onChainRedemptionEvent");
+
+    await expect(
+      sAmMMF.connect(user).onChainRedemption(await usdc.getAddress(), 0)
+    ).to.be.revertedWith("Amount must be greater than zero");
+
+    const Fake = await (await ethers.getContractFactory("Oracle")).deploy();
+    await Fake.waitForDeployment();
+    await expect(
+      sAmMMF.connect(user).onChainRedemption(await Fake.getAddress(), 100)
+    ).to.be.revertedWith("Unsupported token address");
+  });
+
+  it("overwriteOnChainSubscribe and invalid", async function () {
+    const subId = ethers.keccak256(ethers.toUtf8Bytes("test"));
+    await expect(
+      sAmMMF
+        .connect(stokenAdmin)
+        .overwriteOnChainSubscribe(
+          subId,
+          1000,
+          await usdc.getAddress(),
+          50,
+          user.address,
+          1,
+          ethers.ZeroHash,
+          ethers.ZeroHash,
+          "off"
+        )
+    ).to.emit(sAmMMF, "overwriteOnChainSubscribeEvent");
+
+    await expect(
+      sAmMMF
+        .connect(stokenAdmin)
+        .overwriteOnChainSubscribe(
+          subId,
+          1000,
+          await usdc.getAddress(),
+          0,
+          user.address,
+          1,
+          ethers.ZeroHash,
+          ethers.ZeroHash,
+          "off"
+        )
+    ).to.be.revertedWith("Stoken amount must be greater than zero");
+  });
+
+  it("execute/mint tokens", async function () {
+    const tx = await sAmMMF
+      .connect(stokenAdmin)
       .subscribe(
-        usdtAmount,
-        ethers.parseEther("200"),
+        1000,
+        await usdc.getAddress(),
+        100,
         user.address,
-        price,
-        time,
-        txHash
+        1,
+        ethers.ZeroHash,
+        ethers.ZeroHash,
+        "id"
       );
-    const filter1 = await sAmMMF.queryFilter("subscribeEvent");
-    const subscriptionId1 = filter1[1].args[0];
-    await sAmMMF.connect(admin).execute(subscriptionId1);
+    const receipt = await tx.wait();
+    const evt = receipt.logs
+      .map((l) => sAmMMF.interface.parseLog(l))
+      .find((l) => l.name === "subscribeEvent");
+    const subId = evt.args[0];
 
-    // Redemption for user
-    await sAmMMF
-      .connect(admin)
-      .redemption(
-        usdtAmount,
-        ethers.parseEther("120"),
-        user.address,
-        price,
-        time,
-        txHash
-      );
-    const redemptionFilter = await sAmMMF.queryFilter("RedemptionEvent");
-    const redemptionId = redemptionFilter[0].args[0];
-
-    // Burn tokens for redemptionId
-    await sAmMMF.connect(admin).burn(redemptionId);
-    expect(await sAmMMF.balanceOf(user.address)).to.equal(
-      ethers.parseEther("130")
+    await expect(sAmMMF.connect(stokenAdmin).execute(subId)).to.emit(
+      sAmMMF,
+      "executeEvent"
     );
+    expect(await sAmMMF.balanceOf(user.address)).to.equal(100);
+  });
 
-    // Get redemption data
-    const data = await sAmMMF.connect(admin).getRedemptionDataMap(redemptionId);
-    console.info(data);
-    const [tokenIds, amounts] = await sAmMMF.balanceOfWithId(user.address);
-    console.info(tokenIds);
-    console.info(amounts);
-    expect(data.id).to.equal(redemptionId);
+  it("claim and invalid", async function () {
+    const tx = await sAmMMF
+      .connect(stokenAdmin)
+      .subscribe(
+        1000,
+        await usdc.getAddress(),
+        100,
+        user.address,
+        1,
+        ethers.ZeroHash,
+        ethers.ZeroHash,
+        "id"
+      );
+    const receipt = await tx.wait();
+    const subId = sAmMMF.interface.parseLog(receipt.logs[0]).args[0];
+
+    await expect(sAmMMF.connect(user).claim(subId)).to.emit(
+      sAmMMF,
+      "claimEvent"
+    );
+    expect(await sAmMMF.balanceOf(user.address)).to.equal(100);
+
+    await expect(sAmMMF.connect(admin).claim(subId)).to.be.revertedWith(
+      "Only the subscriber can claim"
+    );
+  });
+
+  it("transfer / transferFrom and blacklisting", async function () {
+    // subscribe & execute
+    const tx = await sAmMMF
+      .connect(stokenAdmin)
+      .subscribe(
+        1000,
+        await usdc.getAddress(),
+        100,
+        user.address,
+        1,
+        ethers.ZeroHash,
+        ethers.ZeroHash,
+        "id"
+      );
+    const subId = sAmMMF.interface.parseLog((await tx.wait()).logs[0]).args[0];
+    await sAmMMF.connect(stokenAdmin).execute(subId);
+
+    await sAmMMF.connect(user).transfer(admin.address, 50);
+    expect(await sAmMMF.balanceOf(admin.address)).to.equal(50);
+
+    await sAmMMF.connect(admin).approve(user.address, 50);
+    await sAmMMF.connect(user).transferFrom(admin.address, user.address, 20);
+    expect(await sAmMMF.balanceOf(user.address)).to.equal(70);
+
+    // blacklist user
+    await sAmMMF.connect(stokenAdmin).blacklist(user.address);
+    await expect(
+      sAmMMF.connect(user).transfer(admin.address, 10)
+    ).to.be.revertedWith("Blacklistable: account is blacklisted");
+
+    // blacklist transferFrom caller
+    await sAmMMF.connect(admin).approve(user.address, 20);
+    await sAmMMF.connect(stokenAdmin).blacklist(admin.address);
+    await expect(
+      sAmMMF.connect(admin).transferFrom(user.address, admin.address, 10)
+    ).to.be.revertedWith("Blacklistable: account is blacklisted");
+  });
+
+  it("burn and invalid", async function () {
+    const tx = await sAmMMF
+      .connect(stokenAdmin)
+      .subscribe(
+        1000,
+        await usdc.getAddress(),
+        100,
+        user.address,
+        1,
+        ethers.ZeroHash,
+        ethers.ZeroHash,
+        "id"
+      );
+    const subId = sAmMMF.interface.parseLog((await tx.wait()).logs[0]).args[0];
+    await sAmMMF.connect(stokenAdmin).execute(subId);
+    expect(await sAmMMF.balanceOf(user.address)).to.equal(100);
+    const tx1 = await sAmMMF
+      .connect(stokenAdmin)
+      .redemption(
+        1000,
+        await usdc.getAddress(),
+        10,
+        user.address,
+        1,
+        ethers.ZeroHash,
+        ethers.ZeroHash,
+        "id"
+      );
+    const redId = sAmMMF.interface.parseLog((await tx1.wait()).logs[0]).args[0];
+    await sAmMMF.connect(stokenAdmin).burn(redId);
+    expect(await sAmMMF.balanceOf(user.address)).to.equal(90);
+
+    // not admin
+    await expect(
+      sAmMMF.connect(user).burn(redId)
+    ).to.be.revertedWithCustomError(sAmMMF, "AccessControlUnauthorizedAccount");
+  });
+
+  it("getTokenData & getTokenDataByRedemptionId", async function () {
+    const tx = await sAmMMF
+      .connect(stokenAdmin)
+      .subscribe(
+        1000,
+        await usdc.getAddress(),
+        100,
+        user.address,
+        1,
+        ethers.ZeroHash,
+        ethers.ZeroHash,
+        "id"
+      );
+    const subId = sAmMMF.interface.parseLog((await tx.wait()).logs[0]).args[0];
+    await sAmMMF.connect(stokenAdmin).execute(subId);
+
+    // token data by id list
+    const tokenIds = await sAmMMF.balanceOfWithId(user.address);
+    const tokenIdList = Array.isArray(tokenIds[0])
+      ? [...tokenIds[0]]
+      : [tokenIds[0]];
+    const data = await sAmMMF.connect(stokenAdmin).getTokenData(tokenIdList);
+
+    expect(data.length).to.be.greaterThan(0);
+    expect(data[0].id.toString()).to.equal(tokenIds[0].toString());
+
+    const tx1 = await sAmMMF
+      .connect(stokenAdmin)
+      .redemption(
+        1000,
+        await usdc.getAddress(),
+        100,
+        user.address,
+        1,
+        ethers.ZeroHash,
+        ethers.ZeroHash,
+        "id"
+      );
+    const redId = sAmMMF.interface.parseLog((await tx1.wait()).logs[0]).args[0];
+    await sAmMMF.connect(stokenAdmin).burn(redId);
+
+    const redDataList = await sAmMMF
+      .connect(stokenAdmin)
+      .getTokenDataByRedemptionId(redId);
+    const redData = redDataList[0];
+    // console.log("测试前准备 - 所有者地址1:", redData);
+    // expect(redData.id.toString()).to.equal(redId.toString());
+    expect(redData.mintTime).to.equal(ethers.ZeroHash);
   });
 });

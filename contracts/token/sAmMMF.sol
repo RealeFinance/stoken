@@ -49,6 +49,9 @@ contract SAmMMF is
     // Address → Token ID → Token amount
     mapping(address => mapping(uint256 => uint256)) private _tokenMap;
 
+    // List of supported USDT/USDC address
+    address[] private supportedTokenAddress;
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -67,9 +70,12 @@ contract SAmMMF is
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(UPGRADER_ROLE, msg.sender);
         _grantRole(BLACKLIST_ADMIN_ROLE, msg.sender);
+        blacklister = msg.sender; // Set the initial blacklister to the deployer
 
         assetRecipient = address(this); // Set the asset recipient to this contract address
         technicalServiceFeeRate = 10; // Default technical service fee rate set to 0.1%
+        supportedTokenAddress.push(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48); // USDC address on Ethereum mainnet
+        supportedTokenAddress.push(0xdAC17F958D2ee523a2206206994597C13D831ec7); // USDT address on Ethereum mainnet
     }
 
     function _authorizeUpgrade(
@@ -131,12 +137,17 @@ contract SAmMMF is
         return assetRecipient;
     }
 
+    /**
+     * @dev Subscribe to the service with USDT/USDC on-chain.
+     * @param uAddress The address of the USDT/USDC contract.
+     * @param uAmount The amount of USDT/USDC to subscribe.
+     */
     function onChainSubscribe(
         address uAddress,
         uint256 uAmount
     ) external notBlacklisted(msg.sender) whenNotPaused {
         require(uAmount > 0, "Amount must be greater than zero");
-        // TODO 判断 uAddress 是否是 USDT/USDC 合约地址
+        require(containsAddress(uAddress), "Unsupported token address");
 
         IERC20(uAddress).safeTransferFrom(msg.sender, assetRecipient, uAmount); // Transfer USDT from the user to this contract
 
@@ -170,6 +181,18 @@ contract SAmMMF is
         ); // Emit event for off-chain subscription
     }
 
+    /**
+     * @dev Overwrite on-chain subscription data.
+     * @param subscriptionId The ID of the subscription to overwrite.
+     * @param uAmount The amount of USDT/USDC to subscribe.
+     * @param uAddress The address of the USDT/USDC contract.
+     * @param stokenAmount The amount of stoken to subscribe.
+     * @param user The user address who subscribed.
+     * @param price The price of the subscription.
+     * @param time The subscription time.
+     * @param transactionHash The transaction hash for the subscription.
+     * @param offChainId The off-chain identifier for the subscription.
+     */
     function overwriteOnChainSubscribe(
         uint256 subscriptionId,
         uint256 uAmount,
@@ -269,14 +292,17 @@ contract SAmMMF is
         ); // Emit event for subscription
     }
 
+    /**
+     * @dev Handle on-chain redemption with USDT/USDC.
+     * @param uAddress The address of the USDT/USDC contract.
+     * @param stokenAmount The amount of stoken to redeem.
+     */
     function onChainRedemption(
         address uAddress,
         uint256 stokenAmount
     ) external notBlacklisted(msg.sender) whenNotPaused {
         require(stokenAmount > 0, "Amount must be greater than zero");
-        // TODO 判断 uAddress 是否是 USDT/USDC 合约地址
-
-        transferFrom(msg.sender, assetRecipient, stokenAmount); // Transfer USDT from the user to this contract
+        require(containsAddress(uAddress), "Unsupported token address");
 
         uint256 redemptionId = uint256(
             keccak256(
@@ -396,17 +422,6 @@ contract SAmMMF is
             offChainId
         ); // Emit event for redemption
     }
-
-    // function getRedemptionDataMap(
-    //     uint256 redemptionId
-    // ) external view onlyRole(STOKEN_ADMIN) returns (RedemptionData memory) {
-    //     require(redemptionId != 0, "Invalid redemption ID");
-    //     require(
-    //         _redemptionDataMap[redemptionId].id != 0,
-    //         "redemption does not exist"
-    //     );
-    //     return _redemptionDataMap[redemptionId];
-    // }
 
     function removeRedemptionData(
         uint256 redemptionId
@@ -770,6 +785,24 @@ contract SAmMMF is
     //////////////////////////////////////////////////////////////*/
 
     /**
+     * @notice Adds account to blacklist.
+     * @param _account The address to blacklist.
+     */
+    function blacklist(address _account) external onlyRole(STOKEN_ADMIN){
+        _blacklist(_account);
+        emit Blacklisted(_account);
+    }
+
+    /**
+     * @notice Removes account from blacklist.
+     * @param _account The address to remove from the blacklist.
+     */
+    function unBlacklist(address _account) external onlyRole(STOKEN_ADMIN){
+        _unBlacklist(_account);
+        emit UnBlacklisted(_account);
+    }
+
+    /**
      * @inheritdoc Blacklistable
      */
     function _blacklist(address _account) internal override {
@@ -805,6 +838,62 @@ contract SAmMMF is
     }
 
     /*//////////////////////////////////////////////////////////////
-                              Blacklist
+                        supportedTokenAddress
     //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @dev Returns the list of supported token addresses.
+     */
+    function getSupportedTokenAddresses()
+        external
+        view
+        returns (address[] memory)
+    {
+        return supportedTokenAddress;
+    }
+
+    /**
+     * @dev Adds a new supported token address.
+     * @param token The address to add.
+     */
+    function addSupportedTokenAddress(
+        address token
+    ) external onlyRole(STOKEN_ADMIN) {
+        require(token != address(0), "Invalid address");
+        supportedTokenAddress.push(token);
+    }
+
+    /**
+     * @dev Removes a supported token address.
+     * @param token The address to remove.
+     */
+    function removeSupportedTokenAddress(
+        address token
+    ) external onlyRole(STOKEN_ADMIN) {
+        require(token != address(0), "Invalid address");
+        for (uint256 i = 0; i < supportedTokenAddress.length; i++) {
+            if (supportedTokenAddress[i] == token) {
+                supportedTokenAddress[i] = supportedTokenAddress[
+                    supportedTokenAddress.length - 1
+                ];
+                supportedTokenAddress.pop();
+                return;
+            }
+        }
+        revert("Token address not found");
+    }
+
+    /**
+     * @dev Checks if an address is in the supported token addresses.
+     * @param addr The address to check.
+     * @return True if the address is supported, false otherwise.
+     */
+    function containsAddress(address addr) internal view returns (bool) {
+        for (uint i = 0; i < supportedTokenAddress.length; i++) {
+            if (supportedTokenAddress[i] == addr) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

@@ -59,7 +59,9 @@ contract SAmMMF is
 
     function initialize(
         string memory name,
-        string memory symbol
+        string memory symbol,
+        address supportedTokenAddress1,
+        address supportedTokenAddress2
     ) public initializer {
         __ERC20_init(name, symbol);
         __ERC20Pausable_init();
@@ -69,24 +71,23 @@ contract SAmMMF is
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(UPGRADER_ROLE, msg.sender);
-        _grantRole(BLACKLIST_ADMIN_ROLE, msg.sender);
-        blacklister = msg.sender; // Set the initial blacklister to the deployer
+        _grantRole(STOKEN_BLACKLIST_ADMIN_ROLE, msg.sender);
 
         assetRecipient = address(this); // Set the asset recipient to this contract address
         technicalServiceFeeRate = 10; // Default technical service fee rate set to 0.1%
-        supportedTokenAddress.push(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48); // USDC address on Ethereum mainnet
-        supportedTokenAddress.push(0xdAC17F958D2ee523a2206206994597C13D831ec7); // USDT address on Ethereum mainnet
+        // supportedTokenAddress.push(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48); // USDC address on Ethereum mainnet
+        // supportedTokenAddress.push(0xdAC17F958D2ee523a2206206994597C13D831ec7); // USDT address on Ethereum mainnet
     }
 
     function _authorizeUpgrade(
         address newImplementation
     ) internal override onlyRole(UPGRADER_ROLE) {}
 
-    function pause() public onlyRole(DEFAULT_ADMIN_ROLE) {
+    function pause() public onlyRole(STOKEN_ADMIN) {
         _pause();
     }
 
-    function unpause() public onlyRole(DEFAULT_ADMIN_ROLE) {
+    function unpause() public onlyRole(STOKEN_ADMIN) {
         _unpause();
     }
 
@@ -106,6 +107,7 @@ contract SAmMMF is
         uint256 newRate
     ) external onlyRole(STOKEN_ADMIN) {
         technicalServiceFeeRate = newRate;
+        // TODO emit
     }
 
     /**
@@ -169,6 +171,7 @@ contract SAmMMF is
             stokenAmount: 0, // Initial stoken amount is zero
             user: msg.sender,
             price: 0, // Initial price is zero
+            // TODO 时间戳
             time: bytes32(0), // Initial time is zero
             transactionHash: 0 // Initial transaction hash is zero
         });
@@ -182,38 +185,36 @@ contract SAmMMF is
     }
 
     /**
-     * @dev Overwrite on-chain subscription data.
+     * @dev Overwrite the on-chain subscription data.
      * @param subscriptionId The ID of the subscription to overwrite.
-     * @param uAmount The amount of USDT/USDC to subscribe.
-     * @param uAddress The address of the USDT/USDC contract.
-     * @param stokenAmount The amount of stoken to subscribe.
-     * @param user The user address who subscribed.
      * @param price The price of the subscription.
+     * @param stokenAmount The amount of stoken to subscribe.
      * @param time The subscription time.
      * @param transactionHash The transaction hash for the subscription.
      * @param offChainId The off-chain identifier for the subscription.
      */
     function overwriteOnChainSubscribe(
         uint256 subscriptionId,
-        uint256 uAmount,
-        address uAddress,
-        uint256 stokenAmount,
-        address user,
         uint256 price,
+        uint256 stokenAmount,
         bytes32 time,
         bytes32 transactionHash,
         string memory offChainId
     ) external onlyRole(STOKEN_ADMIN) notBlacklisted(user) whenNotPaused {
         require(subscriptionId != 0, "Invalid subscription ID");
-        require(user != address(0), "Invalid user address");
         require(stokenAmount > 0, "Stoken amount must be greater than zero");
+        require(
+            _subscribeDataMap[subscriptionId].id != 0,
+            "Subscription does not exist"
+        );
 
+        SubscribeData storage sd = _subscribeDataMap[subscriptionId];
         _subscribeDataMap[subscriptionId] = SubscribeData({
-            id: subscriptionId,
-            uAmount: uAmount,
-            uAddress: uAddress,
+            id: sd.id,
+            uAmount: sd.uAmount,
+            uAddress: sd.uAddress,
             stokenAmount: stokenAmount,
-            user: user,
+            user: sd.user,
             price: price,
             time: time,
             transactionHash: transactionHash
@@ -221,10 +222,10 @@ contract SAmMMF is
 
         emit overwriteOnChainSubscribeEvent(
             subscriptionId,
-            uAmount,
-            uAddress,
+            // uAmount,
+            // uAddress,
             stokenAmount,
-            user,
+            // user,
             price,
             time,
             transactionHash,
@@ -322,6 +323,7 @@ contract SAmMMF is
         wd.stokenAmount = stokenAmount; // Set stoken amount to the stoken
         wd.user = msg.sender; // Set user to the sender
         wd.price = 0; // Initial price is zero
+        //TODO
         wd.time = bytes32(0); // Initial time is zero
         wd.transactionHash = bytes32(0); // Initial transaction hash is zero
         delete wd.tokenTransferDetailList; // Initialize as empty
@@ -337,24 +339,22 @@ contract SAmMMF is
     function overwriteOnChainRedemption(
         uint256 redemptionId,
         uint256 uAmount,
-        address uAddress,
-        uint256 stokenAmount,
-        address user,
+        // address uAddress,
+        // uint256 stokenAmount,
+        // address user,
         uint256 price,
         bytes32 time,
-        bytes32 transactionHash,
-        string memory offChainId
+        bytes32 transactionHash
     ) external onlyRole(STOKEN_ADMIN) notBlacklisted(user) whenNotPaused {
         require(redemptionId != 0, "Invalid redemption ID");
-        require(user != address(0), "Invalid user address");
-        require(stokenAmount > 0, "Stoken amount must be greater than zero");
-
+        require(uAmount > 0, "USDT amount must be greater than zero");
+        require(
+            _redemptionDataMap[redemptionId].id != 0,
+            "Redemption does not exist"
+        );
         RedemptionData storage wd = _redemptionDataMap[redemptionId];
         wd.id = redemptionId;
         wd.uAmount = uAmount;
-        wd.uAddress = uAddress;
-        wd.stokenAmount = stokenAmount;
-        wd.user = user;
         wd.price = price;
         wd.time = time;
         wd.transactionHash = transactionHash;
@@ -363,13 +363,12 @@ contract SAmMMF is
         emit overwriteOnChainRedemptionEvent(
             redemptionId,
             uAmount,
-            uAddress,
-            stokenAmount,
-            user,
+            // uAddress,
+            // stokenAmount,
+            // user,
             price,
             time,
-            transactionHash,
-            offChainId
+            transactionHash
         ); // Emit event for redemption
     }
 
@@ -443,41 +442,38 @@ contract SAmMMF is
         whenNotPaused
     {
         _mintStoken(subscriptionId);
+        SubscribeData sd = _subscribeDataMap[subscriptionId];
         emit executeEvent(
             subscriptionId,
-            _subscribeDataMap[subscriptionId].uAmount,
-            _subscribeDataMap[subscriptionId].uAddress,
-            _subscribeDataMap[subscriptionId].stokenAmount,
-            _subscribeDataMap[subscriptionId].user,
-            _subscribeDataMap[subscriptionId].price,
-            _subscribeDataMap[subscriptionId].time,
-            _subscribeDataMap[subscriptionId].transactionHash
+            sd.uAmount,
+            sd.uAddress,
+            sd.stokenAmount,
+            sd.user,
+            sd.price,
+            sd.time,
+            sd.transactionHash
         ); // Emit event for execution
         delete _subscribeDataMap[subscriptionId];
     }
 
     function claim(
         uint256 subscriptionId
-    )
-        public
-        notBlacklisted(msg.sender)
-        notBlacklisted(_subscribeDataMap[subscriptionId].user)
-        whenNotPaused
-    {
+    ) public notBlacklisted(msg.sender) whenNotPaused {
         require(
             _subscribeDataMap[subscriptionId].user == msg.sender,
             "Only the subscriber can claim"
         );
         _mintStoken(subscriptionId);
+        SubscribeData sd = _subscribeDataMap[subscriptionId];
         emit claimEvent(
             subscriptionId,
-            _subscribeDataMap[subscriptionId].uAmount,
-            _subscribeDataMap[subscriptionId].uAddress,
-            _subscribeDataMap[subscriptionId].stokenAmount,
-            _subscribeDataMap[subscriptionId].user,
-            _subscribeDataMap[subscriptionId].price,
-            _subscribeDataMap[subscriptionId].time,
-            _subscribeDataMap[subscriptionId].transactionHash
+            sd.uAmount,
+            sd.uAddress,
+            sd.stokenAmount,
+            sd.user,
+            sd.price,
+            sd.time,
+            sd.transactionHash
         ); // Emit event for execution
         delete _subscribeDataMap[subscriptionId];
     }
@@ -494,7 +490,7 @@ contract SAmMMF is
         uint256 tokenId = _addNewTokenData(sub);
         _tokenList[sub.user].push(tokenId);
         _tokenMap[sub.user][tokenId] += sub.stokenAmount;
-        _mint(sub.user, sub.stokenAmount);
+        // _mint(sub.user, sub.stokenAmount);
     }
 
     // Burn tokens for a specified redemption ID
@@ -569,6 +565,7 @@ contract SAmMMF is
             tokenIds[i] = tokenId;
             amounts[i] = _tokenMap[account][tokenId];
         }
+        return (tokenIds, amounts);
     }
 
     function transfer(
@@ -717,7 +714,7 @@ contract SAmMMF is
     ) internal returns (TokenTransferDetail[] memory) {
         // Find the token ID associated with the sender's address
         uint256[] storage tokenIds = _tokenList[account];
-        require(tokenIds.length > 0, "No tokens to burn");
+        require(tokenIds.length > 0, "Not enough tokens");
         uint256 remaining = amount;
         uint256 i = 0;
 
@@ -753,7 +750,7 @@ contract SAmMMF is
             }
             i++;
         }
-        require(remaining == 0, "Not enough tokens to burn");
+        require(remaining == 0, "Not enough tokens");
 
         // Clean up empty token IDs
         uint256[] memory _tokenIds = new uint256[](tokenIds.length);
@@ -762,17 +759,15 @@ contract SAmMMF is
             if (_tokenMap[account][tokenIds[j]] != 0) {
                 _tokenIds[count] = tokenIds[j];
                 count++;
+            } else {
+                // If the token amount is zero, we do not need to keep this token ID
+                delete _tokenMap[account][tokenIds[j]];
             }
         }
         // Resize the array to the correct length
         uint256[] storage tokenListStorage = _tokenList[account];
-        if (count == 0) {
-            delete _tokenList[account];
-        } else {
-            // Overwrite the storage array with the cleaned memory array
-            // First, clear the storage array
-            delete _tokenList[account];
-            // Then, copy the valid token IDs back to storage
+        delete _tokenList[account];
+        if (count != 0) {
             for (uint256 k = 0; k < count; k++) {
                 tokenListStorage.push(_tokenIds[k]);
             }
@@ -788,7 +783,7 @@ contract SAmMMF is
      * @notice Adds account to blacklist.
      * @param _account The address to blacklist.
      */
-    function blacklist(address _account) external onlyRole(STOKEN_ADMIN){
+    function blacklist(address _account) external onlyRole(STOKEN_ADMIN) {
         _blacklist(_account);
         emit Blacklisted(_account);
     }
@@ -797,7 +792,7 @@ contract SAmMMF is
      * @notice Removes account from blacklist.
      * @param _account The address to remove from the blacklist.
      */
-    function unBlacklist(address _account) external onlyRole(STOKEN_ADMIN){
+    function unBlacklist(address _account) external onlyRole(STOKEN_ADMIN) {
         _unBlacklist(_account);
         emit UnBlacklisted(_account);
     }

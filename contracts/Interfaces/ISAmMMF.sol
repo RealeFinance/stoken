@@ -11,8 +11,9 @@ interface ISAmMMF {
         uint256 stokenAmount; // Amount of stoken to subscribe
         address user; // User address who subscribed
         uint256 price; // Price of the subscription
+        // TODO 时间戳
         bytes32 time; // Subscription time
-        bytes32 transactionHash; // Transaction hash for the subscription
+        bytes32 transactionHash; // Transaction hash for the subscription TODO edit name
     }
 
     struct RedemptionData {
@@ -22,6 +23,7 @@ interface ISAmMMF {
         uint256 stokenAmount; // Amount of tokens to Redemption
         address user; // User address who requested the Redemption
         uint256 price; // Price of the Redemption
+        // TODO 时间戳
         bytes32 time; // Redemption time
         bytes32 transactionHash; // Transaction hash for the Redemption
         TokenTransferDetail[] tokenTransferDetailList; // Temporary token data for the Redemption, can be initialized as empty
@@ -30,6 +32,7 @@ interface ISAmMMF {
     // TokenData structure to hold token ID and amount
     struct TokenData {
         uint256 id; // Token ID
+        // TODO 时间戳
         bytes32 mintTime; // Token minting time
         uint256 mintPrice; // Token price
         address tokenOwner; // Token owner address
@@ -37,7 +40,9 @@ interface ISAmMMF {
 
     struct TokenDataWithAmount {
         uint256 id; // Token ID
+        // TODO 时间戳
         bytes32 mintTime; // Token minting time
+        // TODO 时间戳
         bytes32 redemptionTime; // Token redemption time
         uint256 mintPrice; // Token price
         address tokenOwner; // Token owner address
@@ -49,6 +54,7 @@ interface ISAmMMF {
         uint256 amount; // Token minting time
     }
 
+    // TODO edit name
     event AssetRecipientUpdated(
         address indexed oldRecipient,
         address indexed newRecipient
@@ -75,10 +81,10 @@ interface ISAmMMF {
 
     event overwriteOnChainSubscribeEvent(
         uint256 subscriptionId,
-        uint256 uAmount,
-        address uAddress,
+        // uint256 uAmount,
+        // address uAddress,
         uint256 stokenAmount,
-        address user,
+        // address user,
         uint256 price,
         bytes32 time,
         bytes32 transactionHash,

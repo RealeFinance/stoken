@@ -29,27 +29,15 @@ abstract contract Blacklistable is
     AccessControlEnumerableUpgradeable,
     UUPSUpgradeable
 {
-    bytes32 public constant BLACKLIST_ADMIN_ROLE =
-        keccak256("BLACKLIST_ADMIN_ROLE");
+    bytes32 public constant STOKEN_BLACKLIST_ADMIN_ROLE =
+        keccak256("STOKEN_BLACKLIST_ADMIN_ROLE");
 
-    address public blacklister;
     mapping(address => bool) internal _deprecatedBlacklisted;
 
     event Blacklisted(address indexed _account);
     event UnBlacklisted(address indexed _account);
     event BlacklisterAdminAdd(address indexed newBlacklister);
     event BlacklisterAdminRemove(address indexed newBlacklister);
-
-    /**
-     * @dev Throws if called by any account other than the blacklister.
-     */
-    modifier onlyBlacklister() {
-        require(
-            msg.sender == blacklister,
-            "Blacklistable: caller is not the blacklister"
-        );
-        _;
-    }
 
     /**
      * @dev Throws if argument account is blacklisted.

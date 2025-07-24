@@ -11,8 +11,7 @@ interface ISAmMMF {
         uint256 stokenAmount; // Amount of stoken to subscribe
         address user; // User address who subscribed
         uint256 price; // Price of the subscription
-        // TODO 时间戳
-        bytes32 time; // Subscription time
+        uint256 time; // Subscription time
         bytes32 transactionHash; // Transaction hash for the subscription TODO edit name
     }
 
@@ -23,8 +22,7 @@ interface ISAmMMF {
         uint256 stokenAmount; // Amount of tokens to Redemption
         address user; // User address who requested the Redemption
         uint256 price; // Price of the Redemption
-        // TODO 时间戳
-        bytes32 time; // Redemption time
+        uint256 time; // Redemption time
         bytes32 transactionHash; // Transaction hash for the Redemption
         TokenTransferDetail[] tokenTransferDetailList; // Temporary token data for the Redemption, can be initialized as empty
     }
@@ -32,18 +30,15 @@ interface ISAmMMF {
     // TokenData structure to hold token ID and amount
     struct TokenData {
         uint256 id; // Token ID
-        // TODO 时间戳
-        bytes32 mintTime; // Token minting time
+        uint256 mintTime; // Token minting time
         uint256 mintPrice; // Token price
         address tokenOwner; // Token owner address
     }
 
     struct TokenDataWithAmount {
         uint256 id; // Token ID
-        // TODO 时间戳
-        bytes32 mintTime; // Token minting time
-        // TODO 时间戳
-        bytes32 redemptionTime; // Token redemption time
+        uint256 mintTime; // Token minting time
+        uint256 redemptionTime; // Token redemption time
         uint256 mintPrice; // Token price
         address tokenOwner; // Token owner address
         uint256 amount; // Amount of tokens
@@ -54,11 +49,12 @@ interface ISAmMMF {
         uint256 amount; // Token minting time
     }
 
-    // TODO edit name
-    event AssetRecipientUpdated(
+    event assetRecipientUpdatedEvent(
         address indexed oldRecipient,
         address indexed newRecipient
     );
+
+    event technicalServiceFeeRateUpdatedEvent(uint256 oldRate, uint256 newRate);
 
     event subscribeEvent(
         uint256 subscriptionId,
@@ -67,7 +63,7 @@ interface ISAmMMF {
         uint256 stokenAmount,
         address user,
         uint256 price,
-        bytes32 time,
+        uint256 time,
         bytes32 transactionHash,
         string offChainId
     );
@@ -81,12 +77,9 @@ interface ISAmMMF {
 
     event overwriteOnChainSubscribeEvent(
         uint256 subscriptionId,
-        // uint256 uAmount,
-        // address uAddress,
         uint256 stokenAmount,
-        // address user,
         uint256 price,
-        bytes32 time,
+        uint256 time,
         bytes32 transactionHash,
         string offChainId
     );
@@ -101,13 +94,9 @@ interface ISAmMMF {
     event overwriteOnChainRedemptionEvent(
         uint256 redemptionId,
         uint256 uAmount,
-        address uAddress,
-        uint256 stokenAmount,
-        address user,
         uint256 price,
-        bytes32 time,
-        bytes32 transactionHash,
-        string offChainId
+        uint256 time,
+        bytes32 transactionHash
     );
 
     event RedemptionEvent(
@@ -117,7 +106,7 @@ interface ISAmMMF {
         uint256 stokenAmount,
         address user,
         uint256 price,
-        bytes32 time,
+        uint256 time,
         bytes32 transactionHash,
         string offChainId
     );
@@ -136,7 +125,7 @@ interface ISAmMMF {
         uint256 stokenAmount,
         address user,
         uint256 price,
-        bytes32 time,
+        uint256 time,
         bytes32 transactionHash
     );
 
@@ -147,7 +136,7 @@ interface ISAmMMF {
         uint256 stokenAmount,
         address user,
         uint256 price,
-        bytes32 time,
+        uint256 time,
         bytes32 transactionHash
     );
 
@@ -158,7 +147,7 @@ interface ISAmMMF {
         uint256 stokenAmount,
         address user,
         uint256 price,
-        bytes32 time,
+        uint256 time,
         bytes32 transactionHash
     );
 }

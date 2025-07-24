@@ -60,20 +60,19 @@ abstract contract Blacklistable is
         return _isBlacklisted(_account);
     }
 
-
     /**
      * @notice Updates the blacklister address.
      * @param _newBlacklister The address of the new blacklister.
      */
     function addBlacklistAdmin(
         address _newBlacklister
-    ) external onlyRole(BLACKLIST_ADMIN_ROLE) {
+    ) external onlyRole(STOKEN_BLACKLIST_ADMIN_ROLE) {
         require(
             _newBlacklister != address(0),
             "Blacklistable: new blacklister is the zero address"
         );
-        _grantRole(BLACKLIST_ADMIN_ROLE, _newBlacklister);
-        emit BlacklisterAdminAdd(blacklister);
+        _grantRole(STOKEN_BLACKLIST_ADMIN_ROLE, _newBlacklister);
+        emit BlacklisterAdminAdd(_newBlacklister);
     }
 
     /**
@@ -82,12 +81,12 @@ abstract contract Blacklistable is
      */
     function removeBlacklistAdmin(
         address _blacklister
-    ) external onlyRole(BLACKLIST_ADMIN_ROLE) {
+    ) external onlyRole(STOKEN_BLACKLIST_ADMIN_ROLE) {
         require(
-            hasRole(BLACKLIST_ADMIN_ROLE, _blacklister),
+            hasRole(STOKEN_BLACKLIST_ADMIN_ROLE, _blacklister),
             "Blacklistable: account is not a blacklister"
         );
-        _revokeRole(BLACKLIST_ADMIN_ROLE, _blacklister);
+        _revokeRole(STOKEN_BLACKLIST_ADMIN_ROLE, _blacklister);
         emit BlacklisterAdminRemove(_blacklister);
     }
 

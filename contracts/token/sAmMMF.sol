@@ -173,7 +173,7 @@ contract SAmMMF is
             user: msg.sender,
             price: 0, // Initial price is zero
             time: 0, // Initial time is zero
-            transactionHash: 0 // Initial transaction hash is zero
+            udaTxHash: 0 // Initial transaction hash is zero
         });
 
         emit onChainSubscribeEvent(
@@ -190,7 +190,7 @@ contract SAmMMF is
      * @param price The price of the subscription.
      * @param stokenAmount The amount of stoken to subscribe.
      * @param time The subscription time.
-     * @param transactionHash The transaction hash for the subscription.
+     * @param udaTxHash The transaction hash for the subscription.
      * @param offChainId The off-chain identifier for the subscription.
      */
     function overwriteOnChainSubscribe(
@@ -198,7 +198,7 @@ contract SAmMMF is
         uint256 price,
         uint256 stokenAmount,
         uint256 time,
-        bytes32 transactionHash,
+        bytes32 udaTxHash,
         string memory offChainId
     )
         external
@@ -222,7 +222,7 @@ contract SAmMMF is
             user: sd.user,
             price: price,
             time: time,
-            transactionHash: transactionHash
+            udaTxHash: udaTxHash
         });
 
         emit overwriteOnChainSubscribeEvent(
@@ -230,7 +230,7 @@ contract SAmMMF is
             stokenAmount,
             price,
             time,
-            transactionHash,
+            udaTxHash,
             offChainId
         ); // Emit event for subscription
     }
@@ -243,7 +243,7 @@ contract SAmMMF is
      * @param user The user address who subscribed.
      * @param price The price of the subscription.
      * @param time The subscription time.
-     * @param transactionHash The transaction hash for the subscription.
+     * @param udaTxHash The transaction hash for the subscription.
      * @param offChainId The off-chain identifier for the subscription.
      */
     function subscribe(
@@ -253,7 +253,7 @@ contract SAmMMF is
         address user,
         uint256 price,
         uint256 time,
-        bytes32 transactionHash,
+        bytes32 udaTxHash,
         string memory offChainId
     ) external onlyRole(STOKEN_ADMIN) notBlacklisted(user) whenNotPaused {
         require(user != address(0), "Invalid user address");
@@ -280,7 +280,7 @@ contract SAmMMF is
             user: user,
             price: price,
             time: time,
-            transactionHash: transactionHash
+            udaTxHash: udaTxHash
         });
         emit subscribeEvent(
             subscriptionId,
@@ -290,7 +290,7 @@ contract SAmMMF is
             user,
             price,
             time,
-            transactionHash,
+            udaTxHash,
             offChainId
         ); // Emit event for subscription
     }
@@ -317,7 +317,6 @@ contract SAmMMF is
                 )
             )
         );
-
         RedemptionData storage wd = _redemptionDataMap[redemptionId];
         wd.id = redemptionId;
         wd.uAmount = 0; // Set USDT amount to the stoken
@@ -326,8 +325,10 @@ contract SAmMMF is
         wd.user = msg.sender; // Set user to the sender
         wd.price = 0; // Initial price is zero
         wd.time = 0; // Initial time is zero
-        wd.transactionHash = bytes32(0); // Initial transaction hash is zero
+        wd.udaTxHash = bytes32(0); // Initial transaction hash is zero
         delete wd.tokenTransferDetailList; // Initialize as empty
+
+        _burn(redemptionId); // Burn the stoken amount for the user
 
         emit onChainRedemptionEvent(
             redemptionId,
@@ -335,6 +336,7 @@ contract SAmMMF is
             stokenAmount,
             msg.sender
         ); // Emit event for off-chain redemption
+        emit onChainBurnEvent(redemptionId, uAddress, stokenAmount, msg.sender);
     }
 
     function overwriteOnChainRedemption(
@@ -342,7 +344,7 @@ contract SAmMMF is
         uint256 uAmount,
         uint256 price,
         uint256 time,
-        bytes32 transactionHash
+        bytes32 udaTxHash
     )
         external
         onlyRole(STOKEN_ADMIN)
@@ -360,15 +362,14 @@ contract SAmMMF is
         wd.uAmount = uAmount;
         wd.price = price;
         wd.time = time;
-        wd.transactionHash = transactionHash;
-        delete wd.tokenTransferDetailList; // Initialize as empty
+        wd.udaTxHash = udaTxHash;
 
         emit overwriteOnChainRedemptionEvent(
             redemptionId,
             uAmount,
             price,
             time,
-            transactionHash
+            udaTxHash
         ); // Emit event for redemption
     }
 
@@ -379,7 +380,7 @@ contract SAmMMF is
         address user,
         uint256 price,
         uint256 time,
-        bytes32 transactionHash,
+        bytes32 udaTxHash,
         string memory offChainId
     ) external onlyRole(STOKEN_ADMIN) notBlacklisted(user) whenNotPaused {
         require(user != address(0), "Invalid user address");
@@ -407,7 +408,7 @@ contract SAmMMF is
         wd.user = user;
         wd.price = price;
         wd.time = time;
-        wd.transactionHash = transactionHash;
+        wd.udaTxHash = udaTxHash;
         delete wd.tokenTransferDetailList; // Initialize as empty
         emit RedemptionEvent(
             redemptionId,
@@ -417,7 +418,7 @@ contract SAmMMF is
             user,
             price,
             time,
-            transactionHash,
+            udaTxHash,
             offChainId
         ); // Emit event for redemption
     }
@@ -451,7 +452,7 @@ contract SAmMMF is
             sd.user,
             sd.price,
             sd.time,
-            sd.transactionHash
+            sd.udaTxHash
         ); // Emit event for execution
         delete _subscribeDataMap[subscriptionId];
     }
@@ -473,7 +474,7 @@ contract SAmMMF is
             sd.user,
             sd.price,
             sd.time,
-            sd.transactionHash
+            sd.udaTxHash
         ); // Emit event for execution
         delete _subscribeDataMap[subscriptionId];
     }
@@ -503,8 +504,24 @@ contract SAmMMF is
         whenNotPaused
     {
         require(redemptionId != 0, "Invalid redemption ID");
+
+        _burn(redemptionId); // Burn the stoken amount for the user
         RedemptionData storage wd = _redemptionDataMap[redemptionId];
-        require(wd.id != 0, "redemption does not exist");
+        emit burnEvent(
+            redemptionId,
+            wd.uAmount,
+            wd.uAddress,
+            wd.stokenAmount,
+            wd.user,
+            wd.price,
+            wd.time,
+            wd.udaTxHash
+        ); // Emit event for burn
+    }
+
+    function _burn(uint256 redemptionId) internal {
+        RedemptionData storage wd = _redemptionDataMap[redemptionId];
+        require(wd.id != 0, "Redemption does not exist");
 
         TokenTransferDetail[] memory _tt = _removeTokenByIdList(
             wd.user,
@@ -523,17 +540,6 @@ contract SAmMMF is
             });
             tokenTransferDetailList.push(_temp);
         }
-        // No need to reassign wd to _redemptionDataMap, as wd is a storage pointer
-        emit burnEvent(
-            redemptionId,
-            wd.uAmount,
-            wd.uAddress,
-            wd.stokenAmount,
-            wd.user,
-            wd.price,
-            wd.time,
-            wd.transactionHash
-        ); // Emit event for burn
     }
 
     // Get the token data for a specified token ID

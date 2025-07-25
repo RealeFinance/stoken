@@ -103,9 +103,13 @@ async function deploySAmMMF() {
   const impl2 = await Contract.deploy();
   await impl2.waitForDeployment();
 
-  const proxy2 = await upgrades.deployProxy(Contract, ["SAmMMF", "SAmMMF"], {
-    initializer: "initialize",
-  });
+  const proxy2 = await upgrades.deployProxy(
+    Contract,
+    ["SAmMMF", "SAmMMF", ethers.ZeroAddress, ethers.ZeroAddress],
+    {
+      initializer: "initialize",
+    }
+  );
   await proxy2.waitForDeployment();
   return proxy2;
 }

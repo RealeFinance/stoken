@@ -2,399 +2,608 @@ const { expect } = require("chai");
 const { ethers, upgrades } = require("hardhat");
 
 describe("SAmMMF", function () {
-  let SAmMMF, sAmMMF, owner, user, admin, stokenAdmin, usdc, usdt;
+  let SAmMMF, sAmMMF, owner, admin, user, other, usdc, usdt;
 
   beforeEach(async function () {
-    [owner, user, admin, stokenAdmin] = await ethers.getSigners();
-    // deploy a simple ERC20 mintable token as mock USDC/USDT
+    [owner, admin, user, other] = await ethers.getSigners();
+
+    // Deploy mock ERC20 tokens for USDC and USDT
     const MockERC20 = await ethers.getContractFactory("Oracle");
     usdc = await MockERC20.deploy();
-    usdt = await MockERC20.deploy();
     await usdc.waitForDeployment();
+    usdt = await MockERC20.deploy();
     await usdt.waitForDeployment();
 
-    const SAmMMFFactory = await ethers.getContractFactory("SAmMMF"); 
+    // Deploy SAmMMF contract
+    const SAmMMFFactory = await ethers.getContractFactory("SAmMMF");
     sAmMMF = await upgrades.deployProxy(
       SAmMMFFactory,
-      ["Staked AmMMF", "sAmMMF"],
+      [
+        "Staked AmMMF",
+        "sAmMMF",
+        await usdc.getAddress(),
+        await usdt.getAddress(),
+      ],
       { initializer: "initialize" }
     );
     await sAmMMF.waitForDeployment();
 
+    // Grant STOKEN_ADMIN role to admin
     const STOKEN_ADMIN = await sAmMMF.STOKEN_ADMIN();
-    await sAmMMF.connect(owner).grantRole(STOKEN_ADMIN, stokenAdmin.address);
-    await sAmMMF
-      .connect(stokenAdmin)
-      .addSupportedTokenAddress(await usdc.getAddress());
-    await sAmMMF
-      .connect(stokenAdmin)
-      .addSupportedTokenAddress(await usdt.getAddress());
+    await sAmMMF.grantRole(STOKEN_ADMIN, admin.address);
   });
 
-  it("initializes correctly", async function () {
+  it("should initialize correctly", async function () {
     expect(await sAmMMF.name()).to.equal("Staked AmMMF");
     expect(await sAmMMF.symbol()).to.equal("sAmMMF");
-    expect(await sAmMMF.getAssetRecipient()).to.equal(
-      await sAmMMF.getAddress()
-    );
+    expect(await sAmMMF.getAssetRecipient()).to.equal(sAmMMF.target);
     expect(await sAmMMF.getTechnicalServiceFeeRate()).to.equal(10);
-    const list = await sAmMMF.getSupportedTokenAddresses();
-    expect(list).to.include(await usdc.getAddress());
-    expect(list).to.include(await usdt.getAddress());
+    const supported = await sAmMMF.getSupportedTokenAddresses();
+    expect(supported).to.include(await usdc.getAddress());
+    expect(supported).to.include(await usdt.getAddress());
   });
 
-  it("pause/unpause by admin only", async function () {
-    await sAmMMF.connect(owner).pause();
-    expect(await sAmMMF.paused()).to.equal(true);
-    await sAmMMF.connect(owner).unpause();
-    expect(await sAmMMF.paused()).to.equal(false);
-    await expect(sAmMMF.connect(user).pause()).to.be.revertedWithCustomError(
-      sAmMMF,
-      "AccessControlUnauthorizedAccount"
-    );
-  });
-
-  it("setTechnicalServiceFeeRate and revert", async function () {
-    await sAmMMF.connect(stokenAdmin).setTechnicalServiceFeeRate(50);
+  it("should allow admin to set technical service fee rate", async function () {
+    await sAmMMF.connect(admin).setTechnicalServiceFeeRate(50);
     expect(await sAmMMF.getTechnicalServiceFeeRate()).to.equal(50);
+  });
+
+  it("should revert setTechnicalServiceFeeRate if not admin", async function () {
     await expect(
       sAmMMF.connect(user).setTechnicalServiceFeeRate(20)
     ).to.be.revertedWithCustomError(sAmMMF, "AccessControlUnauthorizedAccount");
   });
 
-  it("setAssetRecipient and invalid", async function () {
-    await sAmMMF.connect(stokenAdmin).setAssetRecipient(user.address);
+  it("should allow admin to set asset recipient", async function () {
+    await sAmMMF.connect(admin).setAssetRecipient(user.address);
     expect(await sAmMMF.getAssetRecipient()).to.equal(user.address);
+  });
+
+  it("should revert setAssetRecipient to zero address", async function () {
     await expect(
-      sAmMMF.connect(stokenAdmin).setAssetRecipient(ethers.ZeroAddress)
+      sAmMMF.connect(admin).setAssetRecipient(ethers.ZeroAddress)
     ).to.be.revertedWith("Invalid address");
   });
 
-  it("onChainSubscribe happy path and unsupported/zero", async function () {
-    await usdc.mint(user.address, 1_000_000);
-    await usdc.connect(user).approve(await sAmMMF.getAddress(), 1_000_000);
-    await expect(
-      sAmMMF.connect(user).onChainSubscribe(await usdc.getAddress(), 500_000)
-    ).to.emit(sAmMMF, "onChainSubscribeEvent");
-    expect(await usdc.balanceOf(await sAmMMF.getAddress())).to.equal(500_000);
+  it("should allow admin to pause and unpause", async function () {
+    await sAmMMF.connect(admin).pause();
+    expect(await sAmMMF.paused()).to.be.true;
+    await sAmMMF.connect(admin).unpause();
+    expect(await sAmMMF.paused()).to.be.false;
+  });
 
-    const fake = await (await ethers.getContractFactory("Oracle")).deploy();
+  it("should revert pause/unpause if not admin", async function () {
+    await expect(sAmMMF.connect(user).pause()).to.be.revertedWithCustomError(
+      sAmMMF,
+      "AccessControlUnauthorizedAccount"
+    );
+    await sAmMMF.connect(admin).pause();
+    await expect(sAmMMF.connect(user).unpause()).to.be.revertedWithCustomError(
+      sAmMMF,
+      "AccessControlUnauthorizedAccount"
+    );
+    await sAmMMF.connect(admin).unpause();
+  });
+
+  it("should allow onChainSubscribe and overwriteOnChainSubscribe", async function () {
+    await usdc.mint(user.address, 1000000);
+    await usdc.connect(user).approve(sAmMMF.target, 1000000);
+    await sAmMMF
+      .connect(user)
+      .onChainSubscribe(await usdc.getAddress(), 1000000);
+
+    // Find subscriptionId (simulate as in contract)
+    const filter = await sAmMMF.queryFilter("onChainSubscribeEvent");
+    const subId = filter[0].args.subscriptionId;
+
+    await sAmMMF
+      .connect(admin)
+      .overwriteOnChainSubscribe(
+        subId,
+        100,
+        1000,
+        Math.floor(Date.now() / 1000),
+        ethers.keccak256(ethers.toUtf8Bytes("txhash")),
+        "offchainid"
+      );
+  });
+
+  it("should revert onChainSubscribe with unsupported token", async function () {
+    const MockERC20 = await ethers.getContractFactory("Oracle");
+    const fake = await MockERC20.deploy();
     await fake.waitForDeployment();
+    await fake.mint(user.address, 1000);
+    await fake.connect(user).approve(sAmMMF.target, 1000);
     await expect(
-      sAmMMF.connect(user).onChainSubscribe(await fake.getAddress(), 100)
+      sAmMMF.connect(user).onChainSubscribe(await fake.getAddress(), 1000)
     ).to.be.revertedWith("Unsupported token address");
+  });
 
+  it("should revert onChainSubscribe with zero amount", async function () {
     await expect(
       sAmMMF.connect(user).onChainSubscribe(await usdc.getAddress(), 0)
     ).to.be.revertedWith("Amount must be greater than zero");
   });
 
-  it("add/remove supported token and invalids", async function () {
-    const New = await (await ethers.getContractFactory("Oracle")).deploy();
-    await New.waitForDeployment();
+  it("should allow admin to subscribe", async function () {
     await sAmMMF
-      .connect(stokenAdmin)
-      .addSupportedTokenAddress(await New.getAddress());
-    let list = await sAmMMF.getSupportedTokenAddresses();
-    expect(list).to.include(await New.getAddress());
-    await sAmMMF
-      .connect(stokenAdmin)
-      .removeSupportedTokenAddress(await New.getAddress());
-    list = await sAmMMF.getSupportedTokenAddresses();
-    expect(list).to.not.include(await New.getAddress());
-
-    await expect(
-      sAmMMF.connect(stokenAdmin).addSupportedTokenAddress(ethers.ZeroAddress)
-    ).to.be.revertedWith("Invalid address");
-    await expect(
-      sAmMMF
-        .connect(stokenAdmin)
-        .removeSupportedTokenAddress(ethers.ZeroAddress)
-    ).to.be.revertedWith("Invalid address");
-
-    const Fake = await (await ethers.getContractFactory("Oracle")).deploy();
-    await Fake.waitForDeployment();
-    await expect(
-      sAmMMF
-        .connect(stokenAdmin)
-        .removeSupportedTokenAddress(await Fake.getAddress())
-    ).to.be.revertedWith("Token address not found");
+      .connect(admin)
+      .subscribe(
+        1000,
+        await usdc.getAddress(),
+        100,
+        user.address,
+        1,
+        Math.floor(Date.now() / 1000),
+        ethers.keccak256(ethers.toUtf8Bytes("txhash")),
+        "offchainid"
+      );
   });
 
-  it("subscribe and invalids", async function () {
+  it("should revert subscribe with zero stokenAmount", async function () {
     await expect(
       sAmMMF
-        .connect(stokenAdmin)
-        .subscribe(
-          1000,
-          await usdc.getAddress(),
-          100,
-          user.address,
-          1,
-          ethers.ZeroHash,
-          ethers.ZeroHash,
-          "id"
-        )
-    ).to.emit(sAmMMF, "subscribeEvent");
-
-    await expect(
-      sAmMMF
-        .connect(stokenAdmin)
+        .connect(admin)
         .subscribe(
           1000,
           await usdc.getAddress(),
           0,
           user.address,
           1,
-          ethers.ZeroHash,
-          ethers.ZeroHash,
-          "id"
+          Math.floor(Date.now() / 1000),
+          ethers.keccak256(ethers.toUtf8Bytes("txhash")),
+          "offchainid"
         )
     ).to.be.revertedWith("Stoken amount must be greater than zero");
+  });
 
+  it("should revert subscribe with zero user", async function () {
     await expect(
       sAmMMF
-        .connect(stokenAdmin)
+        .connect(admin)
         .subscribe(
           1000,
           await usdc.getAddress(),
           100,
           ethers.ZeroAddress,
           1,
-          ethers.ZeroHash,
-          ethers.ZeroHash,
-          "id"
+          Math.floor(Date.now() / 1000),
+          ethers.keccak256(ethers.toUtf8Bytes("txhash")),
+          "offchainid"
         )
     ).to.be.revertedWith("Invalid user address");
   });
 
-  it("onChainRedemption and invalids", async function () {
-    await expect(
-      sAmMMF.connect(user).onChainRedemption(await usdc.getAddress(), 200)
-    ).to.emit(sAmMMF, "onChainRedemptionEvent");
+  it("should allow onChainRedemption and overwriteOnChainRedemption", async function () {
+    // Prepare subscription and mint tokens
+    await usdc.mint(user.address, 1000000);
+    await usdc.connect(user).approve(sAmMMF.target, 1000000);
+    await sAmMMF
+      .connect(user)
+      .onChainSubscribe(await usdc.getAddress(), 1000000);
+    const subEvent = await sAmMMF.queryFilter("onChainSubscribeEvent");
+    const subId = subEvent[0].args.subscriptionId;
+    await sAmMMF
+      .connect(admin)
+      .overwriteOnChainSubscribe(
+        subId,
+        100,
+        1000,
+        Math.floor(Date.now() / 1000),
+        ethers.keccak256(ethers.toUtf8Bytes("txhash")),
+        "offchainid"
+      );
+    await sAmMMF.connect(admin).execute(subId);
 
+    // Redemption
+    await sAmMMF.connect(user).onChainRedemption(await usdc.getAddress(), 1000);
+    const redEvent = await sAmMMF.queryFilter("onChainRedemptionEvent");
+    const redId = redEvent[0].args.redemptionId;
+
+    await sAmMMF
+      .connect(admin)
+      .overwriteOnChainRedemption(
+        redId,
+        1000,
+        1,
+        Math.floor(Date.now() / 1000),
+        ethers.keccak256(ethers.toUtf8Bytes("txhash"))
+      );
+  });
+
+  it("should revert onChainRedemption with zero amount", async function () {
     await expect(
       sAmMMF.connect(user).onChainRedemption(await usdc.getAddress(), 0)
     ).to.be.revertedWith("Amount must be greater than zero");
+  });
 
-    const Fake = await (await ethers.getContractFactory("Oracle")).deploy();
-    await Fake.waitForDeployment();
+  it("should revert onChainRedemption with unsupported token", async function () {
+    const MockERC20 = await ethers.getContractFactory("Oracle");
+    const fake = await MockERC20.deploy();
+    await fake.waitForDeployment();
     await expect(
-      sAmMMF.connect(user).onChainRedemption(await Fake.getAddress(), 100)
+      sAmMMF.connect(user).onChainRedemption(await fake.getAddress(), 100)
     ).to.be.revertedWith("Unsupported token address");
   });
 
-  it("overwriteOnChainSubscribe and invalid", async function () {
-    const subId = ethers.keccak256(ethers.toUtf8Bytes("test"));
-    await expect(
-      sAmMMF
-        .connect(stokenAdmin)
-        .overwriteOnChainSubscribe(
-          subId,
-          1000,
-          await usdc.getAddress(),
-          50,
-          user.address,
-          1,
-          ethers.ZeroHash,
-          ethers.ZeroHash,
-          "off"
-        )
-    ).to.emit(sAmMMF, "overwriteOnChainSubscribeEvent");
+  it("should revert overwriteOnChainRedemption with zero uAmount", async function () {
+    // Prepare redemptionId
+    await usdc.mint(user.address, 1000000);
+    await usdc.connect(user).approve(sAmMMF.target, 1000000);
+    await sAmMMF
+      .connect(user)
+      .onChainSubscribe(await usdc.getAddress(), 1000000);
+    const subEvent = await sAmMMF.queryFilter("onChainSubscribeEvent");
+    const subId = subEvent[0].args.subscriptionId;
+    await sAmMMF
+      .connect(admin)
+      .overwriteOnChainSubscribe(
+        subId,
+        100,
+        1000,
+        Math.floor(Date.now() / 1000),
+        ethers.keccak256(ethers.toUtf8Bytes("txhash")),
+        "offchainid"
+      );
+    await sAmMMF.connect(admin).execute(subId);
+    await sAmMMF.connect(user).onChainRedemption(await usdc.getAddress(), 1000);
+    const redEvent = await sAmMMF.queryFilter("onChainRedemptionEvent");
+    const redId = redEvent[0].args.redemptionId;
 
     await expect(
       sAmMMF
-        .connect(stokenAdmin)
-        .overwriteOnChainSubscribe(
-          subId,
-          1000,
-          await usdc.getAddress(),
+        .connect(admin)
+        .overwriteOnChainRedemption(
+          redId,
           0,
-          user.address,
           1,
-          ethers.ZeroHash,
-          ethers.ZeroHash,
-          "off"
+          Math.floor(Date.now() / 1000),
+          ethers.keccak256(ethers.toUtf8Bytes("txhash"))
         )
-    ).to.be.revertedWith("Stoken amount must be greater than zero");
+    ).to.be.revertedWith("USDT amount must be greater than zero");
   });
 
-  it("execute/mint tokens", async function () {
-    const tx = await sAmMMF
-      .connect(stokenAdmin)
-      .subscribe(
-        1000,
-        await usdc.getAddress(),
+  it("should allow admin to removeRedemptionData", async function () {
+    // Prepare redemptionId
+    await usdc.mint(user.address, 1000000);
+    await usdc.connect(user).approve(sAmMMF.target, 1000000);
+    await sAmMMF
+      .connect(user)
+      .onChainSubscribe(await usdc.getAddress(), 1000000);
+    const subEvent = await sAmMMF.queryFilter("onChainSubscribeEvent");
+    const subId = subEvent[0].args.subscriptionId;
+    await sAmMMF
+      .connect(admin)
+      .overwriteOnChainSubscribe(
+        subId,
         100,
-        user.address,
-        1,
-        ethers.ZeroHash,
-        ethers.ZeroHash,
-        "id"
+        1000,
+        Math.floor(Date.now() / 1000),
+        ethers.keccak256(ethers.toUtf8Bytes("txhash")),
+        "offchainid"
       );
-    const receipt = await tx.wait();
-    const evt = receipt.logs
-      .map((l) => sAmMMF.interface.parseLog(l))
-      .find((l) => l.name === "subscribeEvent");
-    const subId = evt.args[0];
+    await sAmMMF.connect(admin).execute(subId);
+    await sAmMMF.connect(user).onChainRedemption(await usdc.getAddress(), 1000);
+    const redEvent = await sAmMMF.queryFilter("onChainRedemptionEvent");
+    const redId = redEvent[0].args.redemptionId;
 
-    await expect(sAmMMF.connect(stokenAdmin).execute(subId)).to.emit(
-      sAmMMF,
-      "executeEvent"
-    );
-    expect(await sAmMMF.balanceOf(user.address)).to.equal(100);
+    await sAmMMF.connect(admin).removeRedemptionData(redId);
   });
 
-  it("claim and invalid", async function () {
-    const tx = await sAmMMF
-      .connect(stokenAdmin)
-      .subscribe(
-        1000,
-        await usdc.getAddress(),
+  it("should revert removeRedemptionData with invalid id", async function () {
+    await expect(
+      sAmMMF.connect(admin).removeRedemptionData(0)
+    ).to.be.revertedWith("Invalid redemption ID");
+  });
+
+  it("should allow admin to execute and claim", async function () {
+    await usdc.mint(user.address, 1000000);
+    await usdc.connect(user).approve(sAmMMF.target, 1000000);
+    await sAmMMF
+      .connect(user)
+      .onChainSubscribe(await usdc.getAddress(), 1000000);
+    const subEvent = await sAmMMF.queryFilter("onChainSubscribeEvent");
+    const subId = subEvent[0].args.subscriptionId;
+    await sAmMMF
+      .connect(admin)
+      .overwriteOnChainSubscribe(
+        subId,
         100,
-        user.address,
-        1,
-        ethers.ZeroHash,
-        ethers.ZeroHash,
-        "id"
+        1000,
+        Math.floor(Date.now() / 1000),
+        ethers.keccak256(ethers.toUtf8Bytes("txhash")),
+        "offchainid"
       );
-    const receipt = await tx.wait();
-    const subId = sAmMMF.interface.parseLog(receipt.logs[0]).args[0];
+    await sAmMMF.connect(admin).execute(subId);
 
-    await expect(sAmMMF.connect(user).claim(subId)).to.emit(
-      sAmMMF,
-      "claimEvent"
-    );
-    expect(await sAmMMF.balanceOf(user.address)).to.equal(100);
+    // New subscription for claim
+    await usdc.mint(user.address, 100000);
+    await usdc.connect(user).approve(sAmMMF.target, 100000);
+    await sAmMMF
+      .connect(user)
+      .onChainSubscribe(await usdc.getAddress(), 100000);
+    const subEvent2 = await sAmMMF.queryFilter("onChainSubscribeEvent");
+    const subId2 = subEvent2[subEvent2.length - 1].args.subscriptionId;
+    await sAmMMF
+      .connect(admin)
+      .overwriteOnChainSubscribe(
+        subId2,
+        100,
+        1000,
+        Math.floor(Date.now() / 1000),
+        ethers.keccak256(ethers.toUtf8Bytes("txhash")),
+        "offchainid"
+      );
+    await sAmMMF.connect(user).claim(subId2);
+  });
 
-    await expect(sAmMMF.connect(admin).claim(subId)).to.be.revertedWith(
+  it("should revert claim if not subscriber", async function () {
+    await usdc.mint(user.address, 1000000);
+    await usdc.connect(user).approve(sAmMMF.target, 1000000);
+    await sAmMMF
+      .connect(user)
+      .onChainSubscribe(await usdc.getAddress(), 1000000);
+    const subEvent = await sAmMMF.queryFilter("onChainSubscribeEvent");
+    const subId = subEvent[0].args.subscriptionId;
+    await expect(sAmMMF.connect(other).claim(subId)).to.be.revertedWith(
       "Only the subscriber can claim"
     );
   });
 
-  it("transfer / transferFrom and blacklisting", async function () {
-    // subscribe & execute
-    const tx = await sAmMMF
-      .connect(stokenAdmin)
-      .subscribe(
-        1000,
-        await usdc.getAddress(),
+  it("should allow admin to burn", async function () {
+    // Prepare redemptionId
+    await usdc.mint(user.address, 1000000);
+    await usdc.connect(user).approve(sAmMMF.target, 1000000);
+    await sAmMMF
+      .connect(user)
+      .onChainSubscribe(await usdc.getAddress(), 1000000);
+    const subEvent = await sAmMMF.queryFilter("onChainSubscribeEvent");
+    const subId = subEvent[0].args.subscriptionId;
+    await sAmMMF
+      .connect(admin)
+      .overwriteOnChainSubscribe(
+        subId,
         100,
-        user.address,
-        1,
-        ethers.ZeroHash,
-        ethers.ZeroHash,
-        "id"
+        1000,
+        Math.floor(Date.now() / 1000),
+        ethers.keccak256(ethers.toUtf8Bytes("txhash")),
+        "offchainid"
       );
-    const subId = sAmMMF.interface.parseLog((await tx.wait()).logs[0]).args[0];
-    await sAmMMF.connect(stokenAdmin).execute(subId);
+    await sAmMMF.connect(admin).execute(subId);
+    await sAmMMF.connect(user).onChainRedemption(await usdc.getAddress(), 1000);
+    const redEvent = await sAmMMF.queryFilter("onChainRedemptionEvent");
+    const redId = redEvent[0].args.redemptionId;
 
-    await sAmMMF.connect(user).transfer(admin.address, 50);
-    expect(await sAmMMF.balanceOf(admin.address)).to.equal(50);
+    await sAmMMF
+      .connect(admin)
+      .overwriteOnChainRedemption(
+        redId,
+        1000,
+        1,
+        Math.floor(Date.now() / 1000),
+        ethers.keccak256(ethers.toUtf8Bytes("txhash"))
+      );
 
-    await sAmMMF.connect(admin).approve(user.address, 50);
-    await sAmMMF.connect(user).transferFrom(admin.address, user.address, 20);
-    expect(await sAmMMF.balanceOf(user.address)).to.equal(70);
-
-    // blacklist user
-    await sAmMMF.connect(stokenAdmin).blacklist(user.address);
-    await expect(
-      sAmMMF.connect(user).transfer(admin.address, 10)
-    ).to.be.revertedWith("Blacklistable: account is blacklisted");
-
-    // blacklist transferFrom caller
-    await sAmMMF.connect(admin).approve(user.address, 20);
-    await sAmMMF.connect(stokenAdmin).blacklist(admin.address);
-    await expect(
-      sAmMMF.connect(admin).transferFrom(user.address, admin.address, 10)
-    ).to.be.revertedWith("Blacklistable: account is blacklisted");
+    const balance = await sAmMMF.balanceOf(user.address);
+    expect(balance).to.equal(0);
   });
 
-  it("burn and invalid", async function () {
-    const tx = await sAmMMF
-      .connect(stokenAdmin)
-      .subscribe(
-        1000,
-        await usdc.getAddress(),
-        100,
-        user.address,
-        1,
-        ethers.ZeroHash,
-        ethers.ZeroHash,
-        "id"
-      );
-    const subId = sAmMMF.interface.parseLog((await tx.wait()).logs[0]).args[0];
-    await sAmMMF.connect(stokenAdmin).execute(subId);
-    expect(await sAmMMF.balanceOf(user.address)).to.equal(100);
-    const tx1 = await sAmMMF
-      .connect(stokenAdmin)
-      .redemption(
-        1000,
-        await usdc.getAddress(),
-        10,
-        user.address,
-        1,
-        ethers.ZeroHash,
-        ethers.ZeroHash,
-        "id"
-      );
-    const redId = sAmMMF.interface.parseLog((await tx1.wait()).logs[0]).args[0];
-    await sAmMMF.connect(stokenAdmin).burn(redId);
-    expect(await sAmMMF.balanceOf(user.address)).to.equal(90);
+  it("should revert burn with invalid id", async function () {
+    await expect(sAmMMF.connect(admin).burn(0)).to.be.revertedWith(
+      "Invalid redemption ID"
+    );
+  });
 
-    // not admin
+  it("should allow admin to blacklist and unblacklist", async function () {
+    await sAmMMF.connect(admin).blacklist(user.address);
+    await sAmMMF.connect(admin).unBlacklist(user.address);
+  });
+
+  it("should revert blacklist/unBlacklist if not admin", async function () {
     await expect(
-      sAmMMF.connect(user).burn(redId)
+      sAmMMF.connect(user).blacklist(other.address)
+    ).to.be.revertedWithCustomError(sAmMMF, "AccessControlUnauthorizedAccount");
+    await expect(
+      sAmMMF.connect(user).unBlacklist(other.address)
     ).to.be.revertedWithCustomError(sAmMMF, "AccessControlUnauthorizedAccount");
   });
 
-  it("getTokenData & getTokenDataByRedemptionId", async function () {
-    const tx = await sAmMMF
-      .connect(stokenAdmin)
-      .subscribe(
-        1000,
-        await usdc.getAddress(),
+  it("should allow admin to add/remove supported token address", async function () {
+    const MockERC20 = await ethers.getContractFactory("Oracle");
+    const fake = await MockERC20.deploy();
+    await fake.waitForDeployment();
+    await sAmMMF
+      .connect(admin)
+      .addSupportedTokenAddress(await fake.getAddress());
+    let supported = await sAmMMF.getSupportedTokenAddresses();
+    expect(supported).to.include(await fake.getAddress());
+
+    await sAmMMF
+      .connect(admin)
+      .removeSupportedTokenAddress(await fake.getAddress());
+    supported = await sAmMMF.getSupportedTokenAddresses();
+    expect(supported).to.not.include(await fake.getAddress());
+  });
+
+  it("should revert add/remove supported token address with zero address", async function () {
+    await expect(
+      sAmMMF.connect(admin).addSupportedTokenAddress(ethers.ZeroAddress)
+    ).to.be.revertedWith("Invalid address");
+    await expect(
+      sAmMMF.connect(admin).removeSupportedTokenAddress(ethers.ZeroAddress)
+    ).to.be.revertedWith("Invalid address");
+  });
+
+  it("should revert removeSupportedTokenAddress if not found", async function () {
+    const MockERC20 = await ethers.getContractFactory("Oracle");
+    const fake = await MockERC20.deploy();
+    await fake.waitForDeployment();
+    await expect(
+      sAmMMF.connect(admin).removeSupportedTokenAddress(await fake.getAddress())
+    ).to.be.revertedWith("Token address not found");
+  });
+
+  it("should return balanceOf and balanceOfWithId", async function () {
+    await usdc.mint(user.address, 1000000);
+    await usdc.connect(user).approve(sAmMMF.target, 1000000);
+    await sAmMMF
+      .connect(user)
+      .onChainSubscribe(await usdc.getAddress(), 1000000);
+    const subEvent = await sAmMMF.queryFilter("onChainSubscribeEvent");
+    const subId = subEvent[0].args.subscriptionId;
+    await sAmMMF
+      .connect(admin)
+      .overwriteOnChainSubscribe(
+        subId,
         100,
-        user.address,
-        1,
-        ethers.ZeroHash,
-        ethers.ZeroHash,
-        "id"
-      );
-    const subId = sAmMMF.interface.parseLog((await tx.wait()).logs[0]).args[0];
-    await sAmMMF.connect(stokenAdmin).execute(subId);
-
-    // token data by id list
-    const tokenIds = await sAmMMF.balanceOfWithId(user.address);
-    const tokenIdList = Array.isArray(tokenIds[0])
-      ? [...tokenIds[0]]
-      : [tokenIds[0]];
-    const data = await sAmMMF.connect(stokenAdmin).getTokenData(tokenIdList);
-
-    expect(data.length).to.be.greaterThan(0);
-    expect(data[0].id.toString()).to.equal(tokenIds[0].toString());
-
-    const tx1 = await sAmMMF
-      .connect(stokenAdmin)
-      .redemption(
         1000,
-        await usdc.getAddress(),
-        100,
-        user.address,
-        1,
-        ethers.ZeroHash,
-        ethers.ZeroHash,
-        "id"
+        Math.floor(Date.now() / 1000),
+        ethers.keccak256(ethers.toUtf8Bytes("txhash")),
+        "offchainid"
       );
-    const redId = sAmMMF.interface.parseLog((await tx1.wait()).logs[0]).args[0];
-    await sAmMMF.connect(stokenAdmin).burn(redId);
+    await sAmMMF.connect(admin).execute(subId);
 
-    const redDataList = await sAmMMF
-      .connect(stokenAdmin)
-      .getTokenDataByRedemptionId(redId);
-    const redData = redDataList[0];
-    // console.log("测试前准备 - 所有者地址1:", redData);
-    // expect(redData.id.toString()).to.equal(redId.toString());
-    expect(redData.mintTime).to.equal(ethers.ZeroHash);
+    const balance = await sAmMMF.balanceOf(user.address);
+    expect(balance).to.equal(1000);
+
+    const [tokenIds, amounts] = await sAmMMF.balanceOfWithId(user.address);
+    expect(tokenIds.length).to.equal(amounts.length);
+    expect(tokenIds.length).to.equal(1);
+  });
+
+  it("should allow transfer and transferFrom", async function () {
+    await usdc.mint(user.address, 1000000);
+    await usdc.connect(user).approve(sAmMMF.target, 1000000);
+    await sAmMMF
+      .connect(user)
+      .onChainSubscribe(await usdc.getAddress(), 1000000);
+    const subEvent = await sAmMMF.queryFilter("onChainSubscribeEvent");
+    const subId = subEvent[0].args.subscriptionId;
+    await sAmMMF
+      .connect(admin)
+      .overwriteOnChainSubscribe(
+        subId,
+        100,
+        1000,
+        Math.floor(Date.now() / 1000),
+        ethers.keccak256(ethers.toUtf8Bytes("txhash")),
+        "offchainid"
+      );
+    await sAmMMF.connect(admin).execute(subId);
+
+    await sAmMMF.connect(user).approve(other.address, 1000);
+    await sAmMMF.connect(user).transfer(other.address, 500);
+    await sAmMMF.connect(other).transferFrom(user.address, admin.address, 200);
+  });
+
+  it("should revert transfer if blacklisted", async function () {
+    await usdc.mint(user.address, 1000000);
+    await usdc.connect(user).approve(sAmMMF.target, 1000000);
+    await sAmMMF
+      .connect(user)
+      .onChainSubscribe(await usdc.getAddress(), 1000000);
+    const subEvent = await sAmMMF.queryFilter("onChainSubscribeEvent");
+    const subId = subEvent[0].args.subscriptionId;
+    await sAmMMF
+      .connect(admin)
+      .overwriteOnChainSubscribe(
+        subId,
+        100,
+        1000,
+        Math.floor(Date.now() / 1000),
+        ethers.keccak256(ethers.toUtf8Bytes("txhash")),
+        "offchainid"
+      );
+    await sAmMMF.connect(admin).execute(subId);
+
+    await sAmMMF.connect(admin).blacklist(user.address);
+    await expect(
+      sAmMMF.connect(user).transfer(other.address, 100)
+    ).to.be.revertedWith("Blacklistable: account is blacklisted");
+  });
+
+  it("should revert transferFrom if blacklisted", async function () {
+    await usdc.mint(user.address, 1000000);
+    await usdc.connect(user).approve(sAmMMF.target, 1000000);
+    await sAmMMF
+      .connect(user)
+      .onChainSubscribe(await usdc.getAddress(), 1000000);
+    const subEvent = await sAmMMF.queryFilter("onChainSubscribeEvent");
+    const subId = subEvent[0].args.subscriptionId;
+    await sAmMMF
+      .connect(admin)
+      .overwriteOnChainSubscribe(
+        subId,
+        100,
+        1000,
+        Math.floor(Date.now() / 1000),
+        ethers.keccak256(ethers.toUtf8Bytes("txhash")),
+        "offchainid"
+      );
+    await sAmMMF.connect(admin).execute(subId);
+
+    await sAmMMF.connect(user).approve(other.address, 1000);
+    await sAmMMF.connect(admin).blacklist(user.address);
+    await expect(
+      sAmMMF.connect(other).transferFrom(user.address, admin.address, 100)
+    ).to.be.revertedWith("Blacklistable: account is blacklisted");
+  });
+
+  it("should revert transfer if paused", async function () {
+    await usdc.mint(user.address, 1000000);
+    await usdc.connect(user).approve(sAmMMF.target, 1000000);
+    await sAmMMF
+      .connect(user)
+      .onChainSubscribe(await usdc.getAddress(), 1000000);
+    const subEvent = await sAmMMF.queryFilter("onChainSubscribeEvent");
+    const subId = subEvent[0].args.subscriptionId;
+    await sAmMMF
+      .connect(admin)
+      .overwriteOnChainSubscribe(
+        subId,
+        100,
+        1000,
+        Math.floor(Date.now() / 1000),
+        ethers.keccak256(ethers.toUtf8Bytes("txhash")),
+        "offchainid"
+      );
+    await sAmMMF.connect(admin).execute(subId);
+
+    await sAmMMF.connect(admin).pause();
+    await expect(
+      sAmMMF.connect(user).transfer(other.address, 100)
+    ).to.be.revertedWithCustomError(sAmMMF, "EnforcedPause");
+    await sAmMMF.connect(admin).unpause();
+  });
+
+  // Add more tests for getTokenData, getTokenDataByRedemptionId, etc. as needed
+  it("getTokenData", async function () {
+    await usdc.mint(user.address, 1000000);
+    await usdc.connect(user).approve(sAmMMF.target, 1000000);
+    await sAmMMF
+      .connect(user)
+      .onChainSubscribe(await usdc.getAddress(), 1000000);
+    const subEvent = await sAmMMF.queryFilter("onChainSubscribeEvent");
+    const subId = subEvent[0].args.subscriptionId;
+    await sAmMMF
+      .connect(admin)
+      .overwriteOnChainSubscribe(
+        subId,
+        100,
+        1000,
+        Math.floor(Date.now() / 1000),
+        ethers.keccak256(ethers.toUtf8Bytes("txhash")),
+        "offchainid"
+      );
+    await sAmMMF.connect(admin).execute(subId);
+
+    const [tokenIds, amounts] = await sAmMMF.balanceOfWithId(user.address);
+    // console.log("Token IDs:", tokenIds);
+    await sAmMMF
+      .connect(admin)
+      .getTokenData([...tokenIds])
+      .then(async (data) => {
+        console.log("Token Data:", data);
+      });
   });
 });

@@ -581,6 +581,7 @@ contract SAmMMF is
         override
         notBlacklisted(msg.sender)
         notBlacklisted(recipient)
+        whenNotPaused
         returns (bool)
     {
         _transferWithTokenId(msg.sender, recipient, amount);
@@ -597,6 +598,7 @@ contract SAmMMF is
         notBlacklisted(msg.sender)
         notBlacklisted(sender)
         notBlacklisted(recipient)
+        whenNotPaused
         returns (bool)
     {
         _transferWithTokenId(sender, recipient, amount);

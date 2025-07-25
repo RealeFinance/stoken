@@ -1,0 +1,24 @@
+{
+  "name": "hardhat-project",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@openzeppelin/hardhat-upgrades": "^3.9.0",
+    "hardhat": "^2.23.0"
+  },
+  "dependencies": {
+    "@chainlink/contracts": "^1.3.0",
+    "@openzeppelin/contracts": "^5.3.0",
+    "@openzeppelin/contracts-upgradeable": "^5.3.0",
+    "dotenv": "^16.5.0"
+  },
+  "scripts": {
+    "c": "npx hardhat compile",
+    "test": "npx hardhat test",
+    "test:r": "npx hardhat test ./test/test_rAmMMF.js",
+    "deploy": "npx hardhat run ./deploy/test/_deploy.js --network hardhat",
+    "deploy:test": "npx hardhat run --network testnet ./deploy/test/_deploy_test.js",
+    "deploy:test:up": "npx hardhat run --network testnet ./deploy/test/_deploy_upgrade.js",
+    "verify":"npx hardhat verify --network testnet 0x96B6cFf52Efd01751Cdf2E7886555aD651cC4902"
+  }
+}

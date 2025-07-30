@@ -19,6 +19,6 @@
     "deploy": "npx hardhat run ./deploy/test/_deploy.js --network hardhat",
     "deploy:test": "npx hardhat run --network testnet ./deploy/test/_deploy_test.js",
     "deploy:test:up": "npx hardhat run --network testnet ./deploy/test/_deploy_upgrade.js",
-    "verify":"npx hardhat verify --network testnet 0x96B6cFf52Efd01751Cdf2E7886555aD651cC4902"
+    "verify":"npx hardhat verify --network testnet ***"
   }
 }

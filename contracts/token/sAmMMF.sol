@@ -147,7 +147,8 @@ contract SAmMMF is
      */
     function onChainSubscribe(
         address uAddress,
-        uint256 uAmount
+        uint256 uAmount,
+        uint16 source
     ) external notBlacklisted(msg.sender) whenNotPaused {
         require(uAmount > 0, "Amount must be greater than zero");
         require(containsAddress(uAddress), "Unsupported token address");
@@ -173,14 +174,16 @@ contract SAmMMF is
             user: msg.sender,
             price: 0, // Initial price is zero
             time: 0, // Initial time is zero
-            udaTxHash: 0 // Initial transaction hash is zero
+            udaTxHash: 0, // Initial transaction hash is zero
+            source: source // Source of the subscription
         });
 
         emit onChainSubscribeEvent(
             subscriptionId,
             uAmount,
             uAddress,
-            msg.sender
+            msg.sender,
+            source
         ); // Emit event for off-chain subscription
     }
 
@@ -222,7 +225,8 @@ contract SAmMMF is
             user: sd.user,
             price: price,
             time: time,
-            udaTxHash: udaTxHash
+            udaTxHash: udaTxHash,
+            source: sd.source // Keep the source of the subscription
         });
 
         emit overwriteOnChainSubscribeEvent(
@@ -267,11 +271,14 @@ contract SAmMMF is
                     stokenAmount,
                     price,
                     time,
-                    block.timestamp,
-                    block.prevrandao
+                    offChainId
                 )
             )
         );
+        require(
+            _subscribeDataMap[subscriptionId].id == 0,
+            "Subscription already exists"
+        ); // Ensure the subscription ID does not already exist
         _subscribeDataMap[subscriptionId] = SubscribeData({
             id: subscriptionId,
             uAmount: uAmount,
@@ -280,7 +287,8 @@ contract SAmMMF is
             user: user,
             price: price,
             time: time,
-            udaTxHash: udaTxHash
+            udaTxHash: udaTxHash,
+            source: 0
         });
         emit subscribeEvent(
             subscriptionId,
@@ -291,6 +299,7 @@ contract SAmMMF is
             price,
             time,
             udaTxHash,
+            0,
             offChainId
         ); // Emit event for subscription
     }
@@ -302,7 +311,8 @@ contract SAmMMF is
      */
     function onChainRedemption(
         address uAddress,
-        uint256 stokenAmount
+        uint256 stokenAmount,
+        uint16 source
     ) external notBlacklisted(msg.sender) whenNotPaused {
         require(stokenAmount > 0, "Amount must be greater than zero");
         require(containsAddress(uAddress), "Unsupported token address");
@@ -326,7 +336,7 @@ contract SAmMMF is
         wd.price = 0; // Initial price is zero
         wd.time = 0; // Initial time is zero
         wd.udaTxHash = bytes32(0); // Initial transaction hash is zero
-        delete wd.tokenTransferDetailList; // Initialize as empty
+        wd.source = source; // Source of the subscription
 
         _burn(redemptionId); // Burn the stoken amount for the user
 
@@ -334,9 +344,16 @@ contract SAmMMF is
             redemptionId,
             uAddress,
             stokenAmount,
-            msg.sender
+            msg.sender,
+            source
         ); // Emit event for off-chain redemption
-        emit onChainBurnEvent(redemptionId, uAddress, stokenAmount, msg.sender);
+        emit onChainBurnEvent(
+            redemptionId,
+            uAddress,
+            stokenAmount,
+            msg.sender,
+            source
+        ); // Emit event for on-chain burn
     }
 
     function overwriteOnChainRedemption(
@@ -394,13 +411,13 @@ contract SAmMMF is
                     stokenAmount,
                     price,
                     time,
-                    block.timestamp,
-                    block.prevrandao
+                    offChainId
                 )
             )
         );
 
         RedemptionData storage wd = _redemptionDataMap[redemptionId];
+        require(wd.id == 0, "Redemption already exists"); // Ensure the redemption ID does not already exist
         wd.id = redemptionId;
         wd.uAmount = uAmount;
         wd.uAddress = uAddress;
@@ -409,7 +426,8 @@ contract SAmMMF is
         wd.price = price;
         wd.time = time;
         wd.udaTxHash = udaTxHash;
-        delete wd.tokenTransferDetailList; // Initialize as empty
+        wd.source = 0;
+
         emit RedemptionEvent(
             redemptionId,
             uAmount,
@@ -419,19 +437,9 @@ contract SAmMMF is
             price,
             time,
             udaTxHash,
+            0, // Source of the redemption
             offChainId
         ); // Emit event for redemption
-    }
-
-    function removeRedemptionData(
-        uint256 redemptionId
-    ) external onlyRole(STOKEN_ADMIN) {
-        require(redemptionId != 0, "Invalid redemption ID");
-        require(
-            _redemptionDataMap[redemptionId].id != 0,
-            "redemption does not exist"
-        );
-        delete _redemptionDataMap[redemptionId];
     }
 
     function execute(
@@ -452,7 +460,8 @@ contract SAmMMF is
             sd.user,
             sd.price,
             sd.time,
-            sd.udaTxHash
+            sd.udaTxHash,
+            sd.source
         ); // Emit event for execution
         delete _subscribeDataMap[subscriptionId];
     }
@@ -474,7 +483,8 @@ contract SAmMMF is
             sd.user,
             sd.price,
             sd.time,
-            sd.udaTxHash
+            sd.udaTxHash,
+            sd.source
         ); // Emit event for execution
         delete _subscribeDataMap[subscriptionId];
     }
@@ -515,8 +525,10 @@ contract SAmMMF is
             wd.user,
             wd.price,
             wd.time,
-            wd.udaTxHash
+            wd.udaTxHash,
+            wd.source
         ); // Emit event for burn
+        delete _redemptionDataMap[redemptionId]; // Clear the redemption data after burning
     }
 
     function _burn(uint256 redemptionId) internal {
@@ -528,18 +540,15 @@ contract SAmMMF is
             wd.stokenAmount
         );
         // Clear existing storage array by deleting each element
-        delete wd.tokenTransferDetailList;
-        TokenTransferDetail[] storage tokenTransferDetailList = wd
-            .tokenTransferDetailList;
+        uint256[] memory tokenIds = new uint256[](_tt.length);
+        uint256[] memory amounts = new uint256[](_tt.length);
+
         for (uint256 i = 0; i < _tt.length; i++) {
-            uint256 tokenId = _tt[i].id;
-            uint256 amount = _tt[i].amount;
-            TokenTransferDetail memory _temp = TokenTransferDetail({
-                id: tokenId,
-                amount: amount
-            });
-            tokenTransferDetailList.push(_temp);
+            tokenIds[i] = _tt[i].id;
+            amounts[i] = _tt[i].amount;
         }
+
+        emit technicalServiceFeeEvent(redemptionId, tokenIds, amounts); // Emit event for technical service fee
     }
 
     // Get the token data for a specified token ID
@@ -639,7 +648,7 @@ contract SAmMMF is
     // This function retrieves the token data for a given token ID.
     function getTokenData(
         uint256[] memory tokenIds
-    ) external view onlyRole(STOKEN_ADMIN) returns (TokenData[] memory) {
+    ) external view returns (TokenData[] memory) {
         require(tokenIds.length > 0, "No token IDs provided");
         TokenData[] memory tokenDataArray = new TokenData[](tokenIds.length);
         for (uint256 i = 0; i < tokenIds.length; i++) {
@@ -651,43 +660,6 @@ contract SAmMMF is
             tokenDataArray[i] = _tokenDataMap[tokenId];
         }
         return tokenDataArray;
-    }
-
-    // Return redemption details for calculating technical service fee
-    function getTokenDataByRedemptionId(
-        uint256 redemptionId
-    )
-        external
-        view
-        onlyRole(STOKEN_ADMIN)
-        returns (TokenDataWithAmount[] memory)
-    {
-        require(redemptionId != 0, "Invalid redemption ID");
-        RedemptionData memory rd = _redemptionDataMap[redemptionId];
-        require(rd.id != 0, "Redemption does not exist");
-        TokenTransferDetail[] memory tokenTransferDetails = rd
-            .tokenTransferDetailList;
-        TokenDataWithAmount[]
-            memory tokenDataWithAmountArray = new TokenDataWithAmount[](
-                tokenTransferDetails.length
-            );
-        for (uint256 i = 0; i < tokenTransferDetails.length; i++) {
-            uint256 tokenId = tokenTransferDetails[i].id;
-            require(
-                _tokenDataMap[tokenId].id != 0,
-                "Token data does not exist"
-            );
-            TokenData memory tokenData = _tokenDataMap[tokenId];
-            tokenDataWithAmountArray[i] = TokenDataWithAmount({
-                id: tokenData.id,
-                mintTime: tokenData.mintTime,
-                redemptionTime: rd.time,
-                mintPrice: tokenData.mintPrice,
-                tokenOwner: tokenData.tokenOwner,
-                amount: tokenTransferDetails[i].amount
-            });
-        }
-        return tokenDataWithAmountArray;
     }
 
     // Add tokens to the user's list by token ID and amount
@@ -779,7 +751,25 @@ contract SAmMMF is
                 tokenListStorage.push(_tokenIds[k]);
             }
         }
-        return tempTokens;
+
+        // Remove TokenTransferDetail objects with id == 0 from tempTokens
+        uint256 validCount = 0;
+        for (uint256 m = 0; m < tempTokensLength; m++) {
+            if (tempTokens[m].id != 0) {
+                validCount++;
+            }
+        }
+        TokenTransferDetail[] memory result = new TokenTransferDetail[](
+            validCount
+        );
+        uint256 idx = 0;
+        for (uint256 n = 0; n < tempTokensLength; n++) {
+            if (tempTokens[n].id != 0) {
+                result[idx] = tempTokens[n];
+                idx++;
+            }
+        }
+        return result;
     }
 
     /*//////////////////////////////////////////////////////////////

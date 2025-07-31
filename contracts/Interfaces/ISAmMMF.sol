@@ -13,6 +13,7 @@ interface ISAmMMF {
         uint256 price; // Price of the subscription
         uint256 time; // Subscription time
         bytes32 udaTxHash; // Transaction hash for the subscription
+        uint16 source; // Source of the subscription
     }
 
     struct RedemptionData {
@@ -24,7 +25,7 @@ interface ISAmMMF {
         uint256 price; // Price of the Redemption
         uint256 time; // Redemption time
         bytes32 udaTxHash; // Transaction hash for the Redemption
-        TokenTransferDetail[] tokenTransferDetailList; // Temporary token data for the Redemption, can be initialized as empty
+        uint16 source; // Source of the subscription
     }
 
     // TokenData structure to hold token ID and amount
@@ -65,6 +66,7 @@ interface ISAmMMF {
         uint256 price,
         uint256 time,
         bytes32 udaTxHash,
+        uint16 source,
         string offChainId
     );
 
@@ -72,7 +74,8 @@ interface ISAmMMF {
         uint256 subscriptionId,
         uint256 uAmount,
         address uAddress,
-        address user
+        address user,
+        uint16 source
     );
 
     event overwriteOnChainSubscribeEvent(
@@ -88,14 +91,16 @@ interface ISAmMMF {
         uint256 redemptionId,
         address uAddress,
         uint256 stokenAmount,
-        address user
+        address user,
+        uint16 source
     );
 
     event onChainBurnEvent(
         uint256 redemptionId,
         address uAddress,
         uint256 stokenAmount,
-        address user
+        address user,
+        uint16 source
     );
 
     event overwriteOnChainRedemptionEvent(
@@ -115,6 +120,7 @@ interface ISAmMMF {
         uint256 price,
         uint256 time,
         bytes32 udaTxHash,
+        uint16 source,
         string offChainId
     );
 
@@ -133,7 +139,8 @@ interface ISAmMMF {
         address user,
         uint256 price,
         uint256 time,
-        bytes32 udaTxHash
+        bytes32 udaTxHash,
+        uint16 source
     );
 
     event claimEvent(
@@ -144,7 +151,8 @@ interface ISAmMMF {
         address user,
         uint256 price,
         uint256 time,
-        bytes32 udaTxHash
+        bytes32 udaTxHash,
+        uint16 source
     );
 
     event burnEvent(
@@ -155,6 +163,13 @@ interface ISAmMMF {
         address user,
         uint256 price,
         uint256 time,
-        bytes32 udaTxHash
+        bytes32 udaTxHash,
+        uint16 source
+    );
+
+    event technicalServiceFeeEvent(
+        uint256 redemptionId,
+        uint256[] tokenIds,
+        uint256[] amounts
     );
 }

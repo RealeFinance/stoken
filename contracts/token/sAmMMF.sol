@@ -748,7 +748,23 @@ contract SAmMMF is
                 tokenListStorage.push(_tokenIds[k]);
             }
         }
-        return tempTokens;
+
+        // Remove TokenTransferDetail objects with id == 0 from tempTokens
+        uint256 validCount = 0;
+        for (uint256 m = 0; m < tempTokensLength; m++) {
+          if (tempTokens[m].id != 0) {
+            validCount++;
+          }
+        }
+        TokenTransferDetail[] memory result = new TokenTransferDetail[](validCount);
+        uint256 idx = 0;
+        for (uint256 n = 0; n < tempTokensLength; n++) {
+          if (tempTokens[n].id != 0) {
+            result[idx] = tempTokens[n];
+            idx++;
+          }
+        }
+        return result;
     }
 
     /*//////////////////////////////////////////////////////////////

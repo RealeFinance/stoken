@@ -271,11 +271,14 @@ contract SAmMMF is
                     stokenAmount,
                     price,
                     time,
-                    block.timestamp,
-                    block.prevrandao
+                    offChainId
                 )
             )
         );
+        require(
+            _subscribeDataMap[subscriptionId].id == 0,
+            "Subscription already exists"
+        ); // Ensure the subscription ID does not already exist
         _subscribeDataMap[subscriptionId] = SubscribeData({
             id: subscriptionId,
             uAmount: uAmount,
@@ -408,13 +411,13 @@ contract SAmMMF is
                     stokenAmount,
                     price,
                     time,
-                    block.timestamp,
-                    block.prevrandao
+                    offChainId
                 )
             )
         );
 
         RedemptionData storage wd = _redemptionDataMap[redemptionId];
+        require(wd.id == 0, "Redemption already exists"); // Ensure the redemption ID does not already exist
         wd.id = redemptionId;
         wd.uAmount = uAmount;
         wd.uAddress = uAddress;
@@ -752,17 +755,19 @@ contract SAmMMF is
         // Remove TokenTransferDetail objects with id == 0 from tempTokens
         uint256 validCount = 0;
         for (uint256 m = 0; m < tempTokensLength; m++) {
-          if (tempTokens[m].id != 0) {
-            validCount++;
-          }
+            if (tempTokens[m].id != 0) {
+                validCount++;
+            }
         }
-        TokenTransferDetail[] memory result = new TokenTransferDetail[](validCount);
+        TokenTransferDetail[] memory result = new TokenTransferDetail[](
+            validCount
+        );
         uint256 idx = 0;
         for (uint256 n = 0; n < tempTokensLength; n++) {
-          if (tempTokens[n].id != 0) {
-            result[idx] = tempTokens[n];
-            idx++;
-          }
+            if (tempTokens[n].id != 0) {
+                result[idx] = tempTokens[n];
+                idx++;
+            }
         }
         return result;
     }

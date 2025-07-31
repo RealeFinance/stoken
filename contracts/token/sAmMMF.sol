@@ -645,7 +645,7 @@ contract SAmMMF is
     // This function retrieves the token data for a given token ID.
     function getTokenData(
         uint256[] memory tokenIds
-    ) external view onlyRole(STOKEN_ADMIN) returns (TokenData[] memory) {
+    ) external view returns (TokenData[] memory) {
         require(tokenIds.length > 0, "No token IDs provided");
         TokenData[] memory tokenDataArray = new TokenData[](tokenIds.length);
         for (uint256 i = 0; i < tokenIds.length; i++) {

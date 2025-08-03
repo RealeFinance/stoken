@@ -10,8 +10,10 @@ import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/toke
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {BaseStorage} from "../base/BaseStorage.sol";
 import "../Interfaces/ISAmMMF.sol";
 import {Blacklistable} from "../BlackList/Blacklistable.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract SAmMMF is
     Initializable,
@@ -20,19 +22,13 @@ contract SAmMMF is
     ERC20PermitUpgradeable,
     AccessControlEnumerableUpgradeable,
     UUPSUpgradeable,
-    ISAmMMF,
+    BaseStorage,
     Blacklistable
 {
     using SafeERC20 for IERC20;
     bytes32 public constant VERSION = keccak256("VERSION_2");
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
     bytes32 public constant STOKEN_ADMIN = keccak256("STOKEN_ADMIN");
-
-    // Asset recipient address
-    address public assetRecipient;
-
-    // Technical Service Fee (%) 10 ==> 0.1%  50 ==> 0.5%  100 ==> 1%
-    uint256 private technicalServiceFeeRate;
 
     // subscriptionId => SubscribeData
     mapping(uint256 => SubscribeData) private _subscribeDataMap;
@@ -48,9 +44,6 @@ contract SAmMMF is
 
     // Address → Token ID → Token amount
     mapping(address => mapping(uint256 => uint256)) private _tokenMap;
-
-    // List of supported USDT/USDC address
-    address[] private supportedTokenAddress;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -74,6 +67,9 @@ contract SAmMMF is
         _grantRole(STOKEN_BLACKLIST_ADMIN_ROLE, msg.sender);
 
         assetRecipient = address(this); // Set the asset recipient to this contract address
+        assetSender = address(this); // Set the asset sender to this contract address
+        serviceFeeRecipient = address(this); // Set the service fee recipient to this contract address
+
         technicalServiceFeeRate = 10; // Default technical service fee rate set to 0.1%
         supportedTokenAddress.push(supportedTokenAddress1); // USDC address on Ethereum mainnet
         supportedTokenAddress.push(supportedTokenAddress2); // USDT address on Ethereum mainnet
@@ -100,50 +96,11 @@ contract SAmMMF is
     }
 
     /**
-     * @dev Set the technical service fee rate.
-     * @param newRate The new fee rate (in percent).
-     */
-    function setTechnicalServiceFeeRate(
-        uint256 newRate
-    ) external onlyRole(STOKEN_ADMIN) {
-        uint256 oldRate = technicalServiceFeeRate;
-        technicalServiceFeeRate = newRate;
-        emit technicalServiceFeeRateUpdatedEvent(oldRate, newRate); // Emit event for technical service fee rate update
-    }
-
-    /**
-     * @dev Get the current technical service fee rate.
-     * @return The current fee rate (in percent).
-     */
-    function getTechnicalServiceFeeRate() external view returns (uint256) {
-        return technicalServiceFeeRate;
-    }
-
-    /**
-     * @dev Set the asset recipient address.
-     * @param newRecipient The new asset recipient address.
-     */
-    function setAssetRecipient(
-        address newRecipient
-    ) external onlyRole(STOKEN_ADMIN) {
-        require(newRecipient != address(0), "Invalid address");
-        address oldRecipient = assetRecipient;
-        assetRecipient = newRecipient;
-        emit assetRecipientUpdatedEvent(oldRecipient, newRecipient); // Emit event for asset recipient update
-    }
-
-    /**
-     * @dev Get the current asset recipient address.
-     * @return The asset recipient address.
-     */
-    function getAssetRecipient() external view returns (address) {
-        return assetRecipient;
-    }
-
-    /**
      * @dev Subscribe to the service with USDT/USDC on-chain.
      * @param uAddress The address of the USDT/USDC contract.
      * @param uAmount The amount of USDT/USDC to subscribe.
+     * @param source The source of the subscription (e.g., 0 for off-chain, 1 for on-chain).
+     * @notice onchainSubscribe ==> overwriteOnChainSubscribe ==> claim
      */
     function onChainSubscribe(
         address uAddress,
@@ -166,17 +123,12 @@ contract SAmMMF is
             )
         );
 
-        _subscribeDataMap[subscriptionId] = SubscribeData({
-            id: subscriptionId,
-            uAmount: uAmount,
-            uAddress: uAddress,
-            stokenAmount: 0, // Initial stoken amount is zero
-            user: msg.sender,
-            price: 0, // Initial price is zero
-            time: 0, // Initial time is zero
-            udaTxHash: 0, // Initial transaction hash is zero
-            source: source // Source of the subscription
-        });
+        SubscribeData storage sd = _subscribeDataMap[subscriptionId];
+        sd.id = subscriptionId;
+        sd.uAmount = uAmount; // Set USDT amount to the uAmount
+        sd.uAddress = uAddress; // Set user address to the uAddress
+        sd.source = source; // Source of the subscription
+        sd.user = msg.sender; // Set user to the sender
 
         emit onChainSubscribeEvent(
             subscriptionId,
@@ -217,17 +169,10 @@ contract SAmMMF is
         );
 
         SubscribeData storage sd = _subscribeDataMap[subscriptionId];
-        _subscribeDataMap[subscriptionId] = SubscribeData({
-            id: sd.id,
-            uAmount: sd.uAmount,
-            uAddress: sd.uAddress,
-            stokenAmount: stokenAmount,
-            user: sd.user,
-            price: price,
-            time: time,
-            udaTxHash: udaTxHash,
-            source: sd.source // Keep the source of the subscription
-        });
+        sd.stokenAmount = stokenAmount;
+        sd.price = price;
+        sd.time = time;
+        sd.udaTxHash = udaTxHash;
 
         emit overwriteOnChainSubscribeEvent(
             subscriptionId,
@@ -249,6 +194,7 @@ contract SAmMMF is
      * @param time The subscription time.
      * @param udaTxHash The transaction hash for the subscription.
      * @param offChainId The off-chain identifier for the subscription.
+     * @notice subscribe ==> execute
      */
     function subscribe(
         uint256 uAmount,
@@ -259,8 +205,14 @@ contract SAmMMF is
         uint256 time,
         bytes32 udaTxHash,
         string memory offChainId
-    ) external onlyRole(STOKEN_ADMIN) notBlacklisted(user) whenNotPaused {
-        require(user != address(0), "Invalid user address");
+    )
+        external
+        onlyRole(STOKEN_ADMIN)
+        notBlacklisted(user)
+        zeroAddress(user)
+        zeroAddress(user)
+        whenNotPaused
+    {
         require(stokenAmount > 0, "Stoken amount must be greater than zero");
         uint256 subscriptionId = uint256(
             keccak256(
@@ -308,12 +260,14 @@ contract SAmMMF is
      * @dev Handle on-chain redemption with USDT/USDC.
      * @param uAddress The address of the USDT/USDC contract.
      * @param stokenAmount The amount of stoken to redeem.
+     * @param source The source of the subscription.
+     * @notice onchainRedemption ==> overwriteOnChainRedemption ==> claimUSD
      */
     function onChainRedemption(
         address uAddress,
         uint256 stokenAmount,
         uint16 source
-    ) external notBlacklisted(msg.sender) whenNotPaused {
+    ) external notBlacklisted(msg.sender) zeroAddress(uAddress) whenNotPaused {
         require(stokenAmount > 0, "Amount must be greater than zero");
         require(containsAddress(uAddress), "Unsupported token address");
 
@@ -347,15 +301,24 @@ contract SAmMMF is
             msg.sender,
             source
         ); // Emit event for off-chain redemption
-        emit onChainBurnEvent(
-            redemptionId,
-            uAddress,
-            stokenAmount,
-            msg.sender,
-            source
-        ); // Emit event for on-chain burn
+        // emit onChainBurnEvent(
+        //     redemptionId,
+        //     uAddress,
+        //     stokenAmount,
+        //     msg.sender,
+        //     source
+        // ); // Emit event for on-chain burn
     }
 
+    /**
+     * @dev Overwrite the on-chain redemption data.
+     * @param redemptionId The ID of the redemption to overwrite.
+     * @param uAmount The amount of USDT/USDC to redeem.
+     * @param price The price of the redemption.
+     * @param time The redemption time.
+     * @param udaTxHash The transaction hash for the redemption.
+     * @notice onchainRedemption ==> overwriteOnChainRedemption ==> claimUSD
+     */
     function overwriteOnChainRedemption(
         uint256 redemptionId,
         uint256 uAmount,
@@ -381,15 +344,30 @@ contract SAmMMF is
         wd.time = time;
         wd.udaTxHash = udaTxHash;
 
+        _calculateTechnicalServiceFee(redemptionId); // Calculate the technical service fee
+
         emit overwriteOnChainRedemptionEvent(
             redemptionId,
             uAmount,
             price,
             time,
-            udaTxHash
+            udaTxHash,
+            wd.technicalServiceFee
         ); // Emit event for redemption
     }
 
+    /**
+     * @dev Subscribe to the service with USDT and stoken amounts.
+     * @param uAmount The amount of USDT to subscribe.
+     * @param uAddress The address of the USDT contract.
+     * @param stokenAmount The amount of stoken to subscribe.
+     * @param user The user address who subscribed.
+     * @param price The price of the subscription.
+     * @param time The subscription time.
+     * @param udaTxHash The transaction hash for the subscription.
+     * @param offChainId The off-chain identifier for the subscription.
+     * @notice redemption ==> burn
+     */
     function redemption(
         uint256 uAmount,
         address uAddress,
@@ -399,8 +377,14 @@ contract SAmMMF is
         uint256 time,
         bytes32 udaTxHash,
         string memory offChainId
-    ) external onlyRole(STOKEN_ADMIN) notBlacklisted(user) whenNotPaused {
-        require(user != address(0), "Invalid user address");
+    )
+        external
+        onlyRole(STOKEN_ADMIN)
+        notBlacklisted(user)
+        zeroAddress(uAddress)
+        zeroAddress(user)
+        whenNotPaused
+    {
         require(stokenAmount > 0, "Stoken amount must be greater than zero");
         uint256 redemptionId = uint256(
             keccak256(
@@ -489,6 +473,46 @@ contract SAmMMF is
         delete _subscribeDataMap[subscriptionId];
     }
 
+    function claimUSD(
+        uint256 redemptionId
+    ) public notBlacklisted(msg.sender) whenNotPaused {
+        require(
+            _redemptionDataMap[redemptionId].user == msg.sender,
+            "Only the redeemer can claim"
+        );
+        RedemptionData memory wd = _redemptionDataMap[redemptionId];
+        require(wd.id != 0, "Redemption does not exist");
+
+        // Convert wd.technicalServiceFee (18 decimals) to 6 decimals for subtraction
+        uint256 feeIn6Decimals = wd.technicalServiceFee / 1e12;
+        require(wd.uAmount >= feeIn6Decimals, "Fee exceeds amount");
+        IERC20(wd.uAddress).safeTransferFrom(
+            assetSender,
+            wd.user,
+            wd.uAmount - feeIn6Decimals
+        ); // Transfer USDT/USDC from the asset sender to the user
+
+        IERC20(wd.uAddress).safeTransferFrom(
+            assetSender,
+            serviceFeeRecipient,
+            feeIn6Decimals
+        ); // Transfer technical service fee to the service fee recipient
+
+        emit claimUSDEvent(
+            redemptionId,
+            wd.uAmount,
+            wd.uAddress,
+            wd.stokenAmount,
+            wd.user,
+            wd.price,
+            wd.time,
+            wd.udaTxHash,
+            wd.source,
+            wd.technicalServiceFee
+        ); // Emit event for claim USD
+        delete _redemptionDataMap[redemptionId];
+    }
+
     // Mint tokens for a specified subscription ID
     // This function allows the admin to mint tokens based on a subscription.
     // It checks if the subscription ID is valid and retrieves the subscription data.
@@ -516,6 +540,7 @@ contract SAmMMF is
         require(redemptionId != 0, "Invalid redemption ID");
 
         _burn(redemptionId); // Burn the stoken amount for the user
+        _calculateTechnicalServiceFee(redemptionId); // Calculate the technical service fee
         RedemptionData storage wd = _redemptionDataMap[redemptionId];
         emit burnEvent(
             redemptionId,
@@ -526,7 +551,8 @@ contract SAmMMF is
             wd.price,
             wd.time,
             wd.udaTxHash,
-            wd.source
+            wd.source,
+            wd.technicalServiceFee
         ); // Emit event for burn
         delete _redemptionDataMap[redemptionId]; // Clear the redemption data after burning
     }
@@ -539,16 +565,63 @@ contract SAmMMF is
             wd.user,
             wd.stokenAmount
         );
-        // Clear existing storage array by deleting each element
-        uint256[] memory tokenIds = new uint256[](_tt.length);
-        uint256[] memory amounts = new uint256[](_tt.length);
 
+        // Manually copy memory array to storage array
+        delete wd.tokenTransferDetails;
         for (uint256 i = 0; i < _tt.length; i++) {
-            tokenIds[i] = _tt[i].id;
-            amounts[i] = _tt[i].amount;
+            wd.tokenTransferDetails.push(_tt[i]);
         }
+    }
 
-        emit technicalServiceFeeEvent(redemptionId, tokenIds, amounts); // Emit event for technical service fee
+    function _calculateTechnicalServiceFee(
+        uint256 redemptionId
+    ) internal returns (uint256) {
+        RedemptionData storage wd = _redemptionDataMap[redemptionId];
+
+        require(
+            wd.tokenTransferDetails.length > 0,
+            "No token transfer details available"
+        );
+
+        uint256 totalfee = 0;
+        for (uint256 i = 0; i < wd.tokenTransferDetails.length; i++) {
+            TokenTransferDetail storage detail = wd.tokenTransferDetails[i];
+            TokenData storage tokenData = _tokenDataMap[detail.id];
+            uint256 timeDay = _getTimeIntervalByDay(
+                tokenData.mintTime,
+                wd.time
+            );
+            uint256 fee = detail.amount;
+            // SafeMath is not needed in Solidity >=0.8, but for explicitness:
+            // fee = (fee * tokenData.mintPrice);
+            fee = Math.mulDiv(fee, tokenData.mintPrice, 1e18); // Assuming mintPrice is in 18 decimals
+            // fee = (fee * timeDay * technicalServiceFeeRate) / 10000 / 365;
+            fee = Math.mulDiv(
+                fee,
+                timeDay * technicalServiceFeeRate,
+                10000 * 365
+            );
+            totalfee += fee;
+        }
+        wd.technicalServiceFee = totalfee;
+        return totalfee;
+    }
+
+    function _getTimeIntervalByDay(
+        uint256 mintTime,
+        uint256 redemptionTime
+    ) internal pure returns (uint256) {
+        require(
+            redemptionTime >= mintTime,
+            "Redemption time must be greater than or equal to mint time"
+        );
+        uint256 deltaSeconds = redemptionTime - mintTime;
+        if (deltaSeconds == 0) {
+            return 1; // If no time has passed, count as one day
+        }
+        // Calculate the number of days, rounding up if there is any remainder
+        // Round up to the nearest day, so 1 second or 1.1 days both count as 2 days
+        return (deltaSeconds + 1 days - 1) / 1 days;
     }
 
     // Get the token data for a specified token ID
@@ -619,7 +692,9 @@ contract SAmMMF is
         address from,
         address to,
         uint256 amount
-    ) internal {
+    ) internal zeroAddress(from) zeroAddress(to) {
+        require(from != to, "Cannot transfer to self");
+        require(amount > 0, "Transfer amount must be greater than zero");
         TokenTransferDetail[] memory _tt = _removeTokenByIdList(from, amount);
         _addTokenByIdList(to, _tt);
     }
@@ -830,62 +905,42 @@ contract SAmMMF is
     }
 
     /*//////////////////////////////////////////////////////////////
-                        supportedTokenAddress
+                        set overwrite functions
     //////////////////////////////////////////////////////////////*/
 
-    /**
-     * @dev Returns the list of supported token addresses.
-     */
-    function getSupportedTokenAddresses()
-        external
-        view
-        returns (address[] memory)
-    {
-        return supportedTokenAddress;
+    function setTechnicalServiceFeeRate(
+        uint256 newRate
+    ) public override onlyRole(STOKEN_ADMIN) {
+        super.setTechnicalServiceFeeRate(newRate);
     }
 
-    /**
-     * @dev Adds a new supported token address.
-     * @param token The address to add.
-     */
+    function setAssetRecipient(
+        address newRecipient
+    ) public override onlyRole(STOKEN_ADMIN) {
+        super.setAssetRecipient(newRecipient);
+    }
+
+    function setAssetSender(
+        address newSender
+    ) public override onlyRole(STOKEN_ADMIN) {
+        super.setAssetSender(newSender);
+    }
+
+    function setServiceFeeRecipient(
+        address newRecipient
+    ) public override onlyRole(STOKEN_ADMIN) {
+        super.setServiceFeeRecipient(newRecipient);
+    }
+
     function addSupportedTokenAddress(
-        address token
-    ) external onlyRole(STOKEN_ADMIN) {
-        require(token != address(0), "Invalid address");
-        supportedTokenAddress.push(token);
+        address newAddress
+    ) public override onlyRole(STOKEN_ADMIN) {
+        super.addSupportedTokenAddress(newAddress);
     }
 
-    /**
-     * @dev Removes a supported token address.
-     * @param token The address to remove.
-     */
     function removeSupportedTokenAddress(
         address token
-    ) external onlyRole(STOKEN_ADMIN) {
-        require(token != address(0), "Invalid address");
-        for (uint256 i = 0; i < supportedTokenAddress.length; i++) {
-            if (supportedTokenAddress[i] == token) {
-                supportedTokenAddress[i] = supportedTokenAddress[
-                    supportedTokenAddress.length - 1
-                ];
-                supportedTokenAddress.pop();
-                return;
-            }
-        }
-        revert("Token address not found");
-    }
-
-    /**
-     * @dev Checks if an address is in the supported token addresses.
-     * @param addr The address to check.
-     * @return True if the address is supported, false otherwise.
-     */
-    function containsAddress(address addr) internal view returns (bool) {
-        for (uint i = 0; i < supportedTokenAddress.length; i++) {
-            if (supportedTokenAddress[i] == addr) {
-                return true;
-            }
-        }
-        return false;
+    ) public override onlyRole(STOKEN_ADMIN) {
+        super.removeSupportedTokenAddress(token);
     }
 }

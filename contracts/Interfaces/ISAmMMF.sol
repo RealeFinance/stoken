@@ -26,6 +26,8 @@ interface ISAmMMF {
         uint256 time; // Redemption time
         bytes32 udaTxHash; // Transaction hash for the Redemption
         uint16 source; // Source of the subscription
+        TokenTransferDetail[] tokenTransferDetails; // Details of token transfers during Redemption
+        uint256 technicalServiceFee; // Technical service fee for the Redemption
     }
 
     // TokenData structure to hold token ID and amount
@@ -56,6 +58,14 @@ interface ISAmMMF {
     );
 
     event technicalServiceFeeRateUpdatedEvent(uint256 oldRate, uint256 newRate);
+    event assetSenderUpdatedEvent(
+        address indexed oldSender,
+        address indexed newSender
+    );
+    event serviceFeeRecipientUpdatedEvent(
+        address indexed oldRecipient,
+        address indexed newRecipient
+    );
 
     event subscribeEvent(
         uint256 subscriptionId,
@@ -108,7 +118,8 @@ interface ISAmMMF {
         uint256 uAmount,
         uint256 price,
         uint256 time,
-        bytes32 udaTxHash
+        bytes32 udaTxHash,
+        uint256 technicalServiceFee
     );
 
     event RedemptionEvent(
@@ -122,6 +133,19 @@ interface ISAmMMF {
         bytes32 udaTxHash,
         uint16 source,
         string offChainId
+    );
+
+    event claimUSDEvent(
+        uint256 redemptionId,
+        uint256 uAmount,
+        address uAddress,
+        uint256 stokenAmount,
+        address user,
+        uint256 price,
+        uint256 time,
+        bytes32 udaTxHash,
+        uint16 source,
+        uint256 technicalServiceFee
     );
 
     event addNewTokenDataEvent(
@@ -164,7 +188,8 @@ interface ISAmMMF {
         uint256 price,
         uint256 time,
         bytes32 udaTxHash,
-        uint16 source
+        uint16 source,
+        uint256 technicalServiceFee
     );
 
     event technicalServiceFeeEvent(

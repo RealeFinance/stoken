@@ -58,6 +58,14 @@ interface ISAmMMF {
     );
 
     event technicalServiceFeeRateUpdatedEvent(uint256 oldRate, uint256 newRate);
+    event assetSenderUpdatedEvent(
+        address indexed oldSender,
+        address indexed newSender
+    );
+    event serviceFeeRecipientUpdatedEvent(
+        address indexed oldRecipient,
+        address indexed newRecipient
+    );
 
     event subscribeEvent(
         uint256 subscriptionId,

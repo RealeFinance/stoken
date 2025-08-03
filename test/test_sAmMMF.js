@@ -168,7 +168,7 @@ describe("SAmMMF", function () {
   });
 
   describe("Redemption", function () {
-    it("should allow onChainRedemption with supported token", async function () {
+    it("onChainRedemption", async function () {
       await usdc.mint(user.address, 1000000);
       await usdc.connect(user).approve(sAmMMF.getAddress(), 1000000);
 
@@ -284,6 +284,110 @@ describe("SAmMMF", function () {
       console.log(
         "USDC Balance after redemption:",
         ethers.formatUnits(balance3, 6)
+      );
+    });
+
+    it("offChainRedemption", async function () {
+      await usdc.mint(user.address, 1000000);
+      await usdc.connect(user).approve(sAmMMF.getAddress(), 1000000);
+
+      const tx = await sAmMMF.connect(admin).subscribe(
+        ethers.parseUnits("1000", 6),
+        await usdc.getAddress(),
+        ethers.parseUnits("100", 18),
+        user.address,
+        ethers.parseUnits("1000", 18), //price
+        1754209046,
+        ethers.ZeroHash,
+        "offchainid"
+      );
+      const receipt = await tx.wait();
+      const event = receipt.logs
+        .map((log) => {
+          try {
+            return sAmMMF.interface.parseLog(log);
+          } catch {
+            return null;
+          }
+        })
+        .find((e) => e && e.name === "subscribeEvent");
+      const subscriptionId = event.args.subscriptionId;
+      console.log("Subscription ID:", subscriptionId);
+
+      await sAmMMF.connect(admin).execute(subscriptionId);
+      const balance = await sAmMMF.connect(user).balanceOf(user.address);
+      console.log("Balance after subscribe:", ethers.formatUnits(balance, 18));
+
+      const tx3 = await sAmMMF.connect(admin).subscribe(
+        ethers.parseUnits("1000", 6),
+        await usdc.getAddress(),
+        ethers.parseUnits("100", 18),
+        user.address,
+        ethers.parseUnits("1000", 18), //price
+        1754209046,
+        ethers.ZeroHash,
+        "offchainid"
+      );
+      const receipt3 = await tx3.wait();
+      const event3 = receipt3.logs
+        .map((log) => {
+          try {
+            return sAmMMF.interface.parseLog(log);
+          } catch {
+            return null;
+          }
+        })
+        .find((e) => e && e.name === "subscribeEvent");
+      const subscriptionId1 = event3.args.subscriptionId;
+      console.log("Subscription ID:", subscriptionId);
+
+      await sAmMMF.connect(admin).execute(subscriptionId1);
+      const balance3 = await sAmMMF.connect(user).balanceOf(user.address);
+      console.log("Balance after subscribe:", ethers.formatUnits(balance3, 18));
+
+      const tx1 = await sAmMMF.connect(admin).redemption(
+        ethers.parseUnits("10", 6),
+        await usdc.getAddress(),
+        ethers.parseUnits("120", 18),
+        user.address,
+        ethers.parseUnits("1000", 18), //price
+        1754209046 + 84600,
+        ethers.ZeroHash,
+        "offchainid"
+      );
+      const receipt1 = await tx1.wait();
+      const event1 = receipt1.logs
+        .map((log) => {
+          try {
+            return sAmMMF.interface.parseLog(log);
+          } catch {
+            return null;
+          }
+        })
+        .find((e) => e && e.name === "RedemptionEvent");
+      const redemptionId = event1.args.redemptionId;
+      console.log("Redemption ID:", redemptionId);
+
+      const tx2 = await sAmMMF.connect(admin).burn(redemptionId);
+      const receipt2 = await tx2.wait();
+      const event2 = receipt2.logs
+        .map((log) => {
+          try {
+            return sAmMMF.interface.parseLog(log);
+          } catch {
+            return null;
+          }
+        })
+        .find((e) => e && e.name === "burnEvent");
+      const technicalServiceFee = event2.args.technicalServiceFee;
+      console.log(
+        "Technical Service Fee:",
+        ethers.formatUnits(technicalServiceFee, 18)
+      );
+      const balance2 = await sAmMMF.connect(user).balanceOf(user.address);
+      console.log(
+        "Balance after redemption:",
+        ethers.formatUnits(balance2, 18)
       );
     });
   });

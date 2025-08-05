@@ -105,7 +105,12 @@ async function deploySAmMMF() {
 
   const proxy2 = await upgrades.deployProxy(
     Contract,
-    ["SAmMMF", "SAmMMF", ethers.ZeroAddress, ethers.ZeroAddress],
+    [
+      "CashPlus",
+      "CASH+",
+      "0x703A0B94A49F765107e3e4abEB4FC3E5bac7248f",
+      ethers.ZeroAddress,
+    ],
     {
       initializer: "initialize",
     }

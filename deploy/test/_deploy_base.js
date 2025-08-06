@@ -109,7 +109,7 @@ async function deploySAmMMF() {
       "CashPlus",
       "CASH+",
       "0x703A0B94A49F765107e3e4abEB4FC3E5bac7248f",
-      ethers.ZeroAddress,
+      "0x94868b4a12B62Ee677Ea714075673828C7b5C00f",
     ],
     {
       initializer: "initialize",

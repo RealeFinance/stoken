@@ -108,8 +108,8 @@ async function deploySAmMMF() {
     [
       "CashPlus",
       "CASH+",
-      "0x703A0B94A49F765107e3e4abEB4FC3E5bac7248f",
-      "0x94868b4a12B62Ee677Ea714075673828C7b5C00f",
+      "0x703A0B94A49F765107e3e4abEB4FC3E5bac7248f", //mock USDC
+      "0x271063b75dBc8FEFaD9e90222D3ba5F6DeB15a51", //mock USDT
     ],
     {
       initializer: "initialize",

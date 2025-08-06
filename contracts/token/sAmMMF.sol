@@ -45,6 +45,8 @@ contract SAmMMF is
     // Address → Token ID → Token amount
     mapping(address => mapping(uint256 => uint256)) private _tokenMap;
 
+    uint256 private _totalSupply;
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -93,6 +95,10 @@ contract SAmMMF is
         uint256 value
     ) internal override(ERC20Upgradeable, ERC20PausableUpgradeable) {
         super._update(from, to, value);
+    }
+
+    function totalSupply() public view override returns (uint256) {
+        return _totalSupply;
     }
 
     /**
@@ -525,6 +531,8 @@ contract SAmMMF is
         uint256 tokenId = _addNewTokenData(sub);
         _tokenList[sub.user].push(tokenId);
         _tokenMap[sub.user][tokenId] += sub.stokenAmount;
+        
+        _totalSupply += sub.stokenAmount;
     }
 
     // Burn tokens for a specified redemption ID
@@ -571,6 +579,8 @@ contract SAmMMF is
         for (uint256 i = 0; i < _tt.length; i++) {
             wd.tokenTransferDetails.push(_tt[i]);
         }
+
+        _totalSupply -= wd.stokenAmount;
     }
 
     function _calculateTechnicalServiceFee(

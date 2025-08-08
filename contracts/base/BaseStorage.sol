@@ -110,6 +110,7 @@ contract BaseStorage is ISAmMMF {
         address token
     ) public virtual zeroAddress(token) {
         supportedTokenAddress.push(token);
+        emit supportedTokenAddressAddedEvent(token); // Emit event for adding supported token address
     }
 
     /**
@@ -128,6 +129,7 @@ contract BaseStorage is ISAmMMF {
                 return;
             }
         }
+        emit supportedTokenAddressRemovedEvent(token); // Emit event for removing supported token address
         revert("Token address not found");
     }
 

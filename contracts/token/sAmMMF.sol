@@ -47,6 +47,8 @@ contract SAmMMF is
 
     uint256 private _totalSupply;
 
+    uint256 public nextId;
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -118,13 +120,16 @@ contract SAmMMF is
 
         IERC20(uAddress).safeTransferFrom(msg.sender, assetRecipient, uAmount); // Transfer USDT from the user to this contract
 
+        nextId++; // Increment the nextId for subscription ID generation
         uint256 subscriptionId = uint256(
             keccak256(
                 abi.encodePacked(
                     uAddress,
                     uAmount,
+                    msg.sender,
                     block.timestamp,
-                    block.prevrandao
+                    block.prevrandao,
+                    nextId
                 )
             )
         );
@@ -216,7 +221,7 @@ contract SAmMMF is
         onlyRole(STOKEN_ADMIN)
         notBlacklisted(user)
         zeroAddress(user)
-        zeroAddress(user)
+        zeroAddress(uAddress)
         whenNotPaused
     {
         require(stokenAmount > 0, "Stoken amount must be greater than zero");
@@ -277,13 +282,16 @@ contract SAmMMF is
         require(stokenAmount > 0, "Amount must be greater than zero");
         require(containsAddress(uAddress), "Unsupported token address");
 
+        nextId++; // Increment the nextId for redemption ID generation
         uint256 redemptionId = uint256(
             keccak256(
                 abi.encodePacked(
                     uAddress,
                     stokenAmount,
+                    msg.sender,
                     block.timestamp,
-                    block.prevrandao
+                    block.prevrandao,
+                    nextId
                 )
             )
         );
@@ -531,7 +539,7 @@ contract SAmMMF is
         uint256 tokenId = _addNewTokenData(sub);
         _tokenList[sub.user].push(tokenId);
         _tokenMap[sub.user][tokenId] += sub.stokenAmount;
-        
+
         _totalSupply += sub.stokenAmount;
     }
 

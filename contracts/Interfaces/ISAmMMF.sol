@@ -66,6 +66,8 @@ interface ISAmMMF {
         address indexed oldRecipient,
         address indexed newRecipient
     );
+    event supportedTokenAddressAddedEvent(address indexed token);
+    event supportedTokenAddressRemovedEvent(address indexed token);
 
     event subscribeEvent(
         uint256 subscriptionId,

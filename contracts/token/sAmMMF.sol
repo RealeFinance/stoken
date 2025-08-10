@@ -45,6 +45,10 @@ contract SAmMMF is
     // Address → Token ID → Token amount
     mapping(address => mapping(uint256 => uint256)) private _tokenMap;
 
+    uint256 private _totalSupply;
+
+    uint256 public nextId;
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -95,6 +99,10 @@ contract SAmMMF is
         super._update(from, to, value);
     }
 
+    function totalSupply() public view override returns (uint256) {
+        return _totalSupply;
+    }
+
     /**
      * @dev Subscribe to the service with USDT/USDC on-chain.
      * @param uAddress The address of the USDT/USDC contract.
@@ -112,13 +120,16 @@ contract SAmMMF is
 
         IERC20(uAddress).safeTransferFrom(msg.sender, assetRecipient, uAmount); // Transfer USDT from the user to this contract
 
+        nextId++; // Increment the nextId for subscription ID generation
         uint256 subscriptionId = uint256(
             keccak256(
                 abi.encodePacked(
                     uAddress,
                     uAmount,
+                    msg.sender,
                     block.timestamp,
-                    block.prevrandao
+                    block.prevrandao,
+                    nextId
                 )
             )
         );
@@ -210,10 +221,11 @@ contract SAmMMF is
         onlyRole(STOKEN_ADMIN)
         notBlacklisted(user)
         zeroAddress(user)
-        zeroAddress(user)
+        zeroAddress(uAddress)
         whenNotPaused
     {
         require(stokenAmount > 0, "Stoken amount must be greater than zero");
+        require(containsAddress(uAddress), "Unsupported token address");
         uint256 subscriptionId = uint256(
             keccak256(
                 abi.encodePacked(
@@ -271,13 +283,16 @@ contract SAmMMF is
         require(stokenAmount > 0, "Amount must be greater than zero");
         require(containsAddress(uAddress), "Unsupported token address");
 
+        nextId++; // Increment the nextId for redemption ID generation
         uint256 redemptionId = uint256(
             keccak256(
                 abi.encodePacked(
                     uAddress,
                     stokenAmount,
+                    msg.sender,
                     block.timestamp,
-                    block.prevrandao
+                    block.prevrandao,
+                    nextId
                 )
             )
         );
@@ -386,6 +401,7 @@ contract SAmMMF is
         whenNotPaused
     {
         require(stokenAmount > 0, "Stoken amount must be greater than zero");
+        require(containsAddress(uAddress), "Unsupported token address");
         uint256 redemptionId = uint256(
             keccak256(
                 abi.encodePacked(
@@ -482,21 +498,52 @@ contract SAmMMF is
         );
         RedemptionData memory wd = _redemptionDataMap[redemptionId];
         require(wd.id != 0, "Redemption does not exist");
+        delete _redemptionDataMap[redemptionId];
 
-        // Convert wd.technicalServiceFee (18 decimals) to 6 decimals for subtraction
-        uint256 feeIn6Decimals = wd.technicalServiceFee / 1e12;
-        require(wd.uAmount >= feeIn6Decimals, "Fee exceeds amount");
-        IERC20(wd.uAddress).safeTransferFrom(
-            assetSender,
-            wd.user,
-            wd.uAmount - feeIn6Decimals
-        ); // Transfer USDT/USDC from the asset sender to the user
+        if (assetSender == serviceFeeRecipient) {
+            IERC20(wd.uAddress).safeTransferFrom(
+                assetSender,
+                wd.user,
+                wd.uAmount
+            );
+        } else {
+            // Convert wd.technicalServiceFee (18 decimals) to 6 decimals for subtraction
+            uint8 tokenDecimals = 18;
+            {
+                (bool ok, bytes memory data) = wd.uAddress.staticcall(
+                    abi.encodeWithSignature("decimals()")
+                );
+                if (ok && data.length >= 32) {
+                    tokenDecimals = abi.decode(data, (uint8));
+                }
+            }
 
-        IERC20(wd.uAddress).safeTransferFrom(
-            assetSender,
-            serviceFeeRecipient,
-            feeIn6Decimals
-        ); // Transfer technical service fee to the service fee recipient
+            uint256 feeuAddressDecimals;
+            if (tokenDecimals == 18) {
+                feeuAddressDecimals = wd.technicalServiceFee;
+            } else if (tokenDecimals < 18) {
+                feeuAddressDecimals =
+                    wd.technicalServiceFee /
+                    (10 ** (18 - tokenDecimals));
+            } else {
+                feeuAddressDecimals =
+                    wd.technicalServiceFee *
+                    (10 ** (tokenDecimals - 18));
+            }
+            require(wd.uAmount >= feeuAddressDecimals, "Fee exceeds amount");
+
+            IERC20(wd.uAddress).safeTransferFrom(
+                assetSender,
+                wd.user,
+                wd.uAmount - feeuAddressDecimals
+            ); // Transfer USDT/USDC from the asset sender to the user
+
+            IERC20(wd.uAddress).safeTransferFrom(
+                assetSender,
+                serviceFeeRecipient,
+                feeuAddressDecimals
+            ); // Transfer technical service fee to the service fee recipient
+        }
 
         emit claimUSDEvent(
             redemptionId,
@@ -510,7 +557,6 @@ contract SAmMMF is
             wd.source,
             wd.technicalServiceFee
         ); // Emit event for claim USD
-        delete _redemptionDataMap[redemptionId];
     }
 
     // Mint tokens for a specified subscription ID
@@ -521,10 +567,18 @@ contract SAmMMF is
         require(subscriptionId != 0, "Invalid subscription ID");
         SubscribeData storage sub = _subscribeDataMap[subscriptionId];
         require(sub.id != 0, "Subscription does not exist");
-
+        require(
+            sub.stokenAmount > 0,
+            "Stoken amount must be greater than zero"
+        );
+        require(sub.user != address(0), "Invalid user address");
+        require(sub.price > 0, "Invalid price");
+        require(sub.time > 0, "Invalid time");
         uint256 tokenId = _addNewTokenData(sub);
         _tokenList[sub.user].push(tokenId);
         _tokenMap[sub.user][tokenId] += sub.stokenAmount;
+
+        _totalSupply += sub.stokenAmount;
     }
 
     // Burn tokens for a specified redemption ID
@@ -571,6 +625,8 @@ contract SAmMMF is
         for (uint256 i = 0; i < _tt.length; i++) {
             wd.tokenTransferDetails.push(_tt[i]);
         }
+
+        _totalSupply -= wd.stokenAmount;
     }
 
     function _calculateTechnicalServiceFee(
@@ -911,6 +967,10 @@ contract SAmMMF is
     function setTechnicalServiceFeeRate(
         uint256 newRate
     ) public override onlyRole(STOKEN_ADMIN) {
+        require(
+            newRate >= 0 && newRate <= 10000,
+            "Rate must be between 0 and 10000"
+        );
         super.setTechnicalServiceFeeRate(newRate);
     }
 

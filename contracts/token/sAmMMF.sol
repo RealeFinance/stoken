@@ -508,19 +508,40 @@ contract SAmMMF is
             );
         } else {
             // Convert wd.technicalServiceFee (18 decimals) to 6 decimals for subtraction
-            uint256 feeIn6Decimals = wd.technicalServiceFee / 1e12;
-            require(wd.uAmount >= feeIn6Decimals, "Fee exceeds amount");
+            uint8 tokenDecimals = 18;
+            {
+                (bool ok, bytes memory data) = wd.uAddress.staticcall(
+                    abi.encodeWithSignature("decimals()")
+                );
+                if (ok && data.length >= 32) {
+                    tokenDecimals = abi.decode(data, (uint8));
+                }
+            }
+
+            uint256 feeuAddressDecimals;
+            if (tokenDecimals == 18) {
+                feeuAddressDecimals = wd.technicalServiceFee;
+            } else if (tokenDecimals < 18) {
+                feeuAddressDecimals =
+                    wd.technicalServiceFee /
+                    (10 ** (18 - tokenDecimals));
+            } else {
+                feeuAddressDecimals =
+                    wd.technicalServiceFee *
+                    (10 ** (tokenDecimals - 18));
+            }
+            require(wd.uAmount >= feeuAddressDecimals, "Fee exceeds amount");
 
             IERC20(wd.uAddress).safeTransferFrom(
                 assetSender,
                 wd.user,
-                wd.uAmount - feeIn6Decimals
+                wd.uAmount - feeuAddressDecimals
             ); // Transfer USDT/USDC from the asset sender to the user
 
             IERC20(wd.uAddress).safeTransferFrom(
                 assetSender,
                 serviceFeeRecipient,
-                feeIn6Decimals
+                feeuAddressDecimals
             ); // Transfer technical service fee to the service fee recipient
         }
 

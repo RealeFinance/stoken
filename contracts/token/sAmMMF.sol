@@ -118,7 +118,10 @@ contract SAmMMF is
         require(uAmount > 0, "Amount must be greater than zero");
         require(containsAddress(uAddress), "Unsupported token address");
 
+        uint256 balanceBefore = IERC20(uAddress).balanceOf(assetRecipient);
         IERC20(uAddress).safeTransferFrom(msg.sender, assetRecipient, uAmount); // Transfer USDT from the user to this contract
+        uint256 balanceAfter = IERC20(uAddress).balanceOf(assetRecipient);
+        uAmount = balanceAfter - balanceBefore;
 
         nextId++; // Increment the nextId for subscription ID generation
         uint256 subscriptionId = uint256(

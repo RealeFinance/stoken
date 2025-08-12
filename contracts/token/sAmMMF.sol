@@ -525,6 +525,7 @@ contract SAmMMF is
             wd.uAmount > 0,
             "USDT amount must be greater than zero for redemption"
         ); // Ensure USDT amount is greater than zero
+        require(wd.source == 1, "Only on-chain redemption can claim USD");
         delete _redemptionDataMap[redemptionId];
 
         if (assetSender == serviceFeeRecipient) {

@@ -514,6 +514,17 @@ contract SAmMMF is
         );
         RedemptionData memory wd = _redemptionDataMap[redemptionId];
         require(wd.id != 0, "Redemption does not exist");
+        require(
+            wd.stokenAmount >= MIN_AMOUNT,
+            "Stoken amount must be greater than 0.01"
+        ); // Ensure stoken amount is greater than 0.01
+        require(wd.user != address(0), "Invalid user address");
+        require(wd.price > 0, "Invalid price");
+        require(wd.time > 0, "Invalid time");
+        require(
+            wd.uAmount > 0,
+            "USDT amount must be greater than zero for redemption"
+        ); // Ensure USDT amount is greater than zero
         delete _redemptionDataMap[redemptionId];
 
         if (assetSender == serviceFeeRecipient) {
@@ -608,10 +619,22 @@ contract SAmMMF is
         whenNotPaused
     {
         require(redemptionId != 0, "Invalid redemption ID");
-
+        RedemptionData memory wd = _redemptionDataMap[redemptionId];
+        require(wd.id != 0, "Redemption does not exist");
+        require(
+            wd.stokenAmount >= MIN_AMOUNT,
+            "Stoken amount must be greater than 0.01"
+        ); // Ensure stoken amount is greater than 0.01
+        require(wd.user != address(0), "Invalid user address");
+        require(wd.price > 0, "Invalid price");
+        require(wd.time > 0, "Invalid time");
+        require(
+            wd.uAmount > 0,
+            "USDT amount must be greater than zero for redemption"
+        ); // Ensure USDT amount is greater than zero
         _burn(redemptionId); // Burn the stoken amount for the user
         _calculateTechnicalServiceFee(redemptionId); // Calculate the technical service fee
-        RedemptionData storage wd = _redemptionDataMap[redemptionId];
+
         emit burnEvent(
             redemptionId,
             wd.uAmount,
@@ -784,9 +807,15 @@ contract SAmMMF is
     function _addNewTokenData(
         SubscribeData memory sub
     ) internal returns (uint256) {
+        nextId++;
         uint256 tokenId = uint256(
             keccak256(
-                abi.encodePacked(sub.user, block.timestamp, block.prevrandao)
+                abi.encodePacked(
+                    sub.user,
+                    block.timestamp,
+                    block.prevrandao,
+                    nextId
+                )
             )
         );
         TokenData memory newTokenData = TokenData({

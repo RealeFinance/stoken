@@ -25,7 +25,7 @@ interface ICashPlus {
         uint256 price; // Price of the Redemption
         uint256 time; // Redemption time
         bytes32 udaTxHash; // Transaction hash for the Redemption
-        uint16 source; // Source of the subscription
+        uint16 source; // Source of the Redemption
         TokenTransferDetail[] tokenTransferDetails; // Details of token transfers during Redemption
         uint256 technicalServiceFee; // Technical service fee for the Redemption
     }

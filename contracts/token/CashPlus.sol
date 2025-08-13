@@ -29,6 +29,7 @@ contract CashPlus is
     bytes32 public constant VERSION = keccak256("VERSION_2");
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
     bytes32 public constant STOKEN_ADMIN = keccak256("STOKEN_ADMIN");
+    uint256 public constant MIN_AMOUNT = 1e16; // 0.01 in 18 decimals
 
     // subscriptionId => SubscribeData
     mapping(uint256 => SubscribeData) private _subscribeDataMap;
@@ -176,7 +177,10 @@ contract CashPlus is
         whenNotPaused
     {
         require(subscriptionId != 0, "Invalid subscription ID");
-        require(stokenAmount > 0, "Stoken amount must be greater than zero");
+        require(
+            stokenAmount >= MIN_AMOUNT,
+            "Stoken amount must be greater than 0.01"
+        );
         require(
             _subscribeDataMap[subscriptionId].id != 0,
             "Subscription does not exist"
@@ -227,7 +231,10 @@ contract CashPlus is
         zeroAddress(uAddress)
         whenNotPaused
     {
-        require(stokenAmount > 0, "Stoken amount must be greater than zero");
+        require(
+            stokenAmount >= MIN_AMOUNT,
+            "Stoken amount must be greater than 0.01"
+        );
         require(containsAddress(uAddress), "Unsupported token address");
         uint256 subscriptionId = uint256(
             keccak256(
@@ -283,7 +290,10 @@ contract CashPlus is
         uint256 stokenAmount,
         uint16 source
     ) external notBlacklisted(msg.sender) zeroAddress(uAddress) whenNotPaused {
-        require(stokenAmount > 0, "Amount must be greater than zero");
+        require(
+            stokenAmount >= MIN_AMOUNT,
+            "Stoken amount must be greater than 0.01"
+        );
         require(containsAddress(uAddress), "Unsupported token address");
 
         nextId++; // Increment the nextId for redemption ID generation
@@ -403,7 +413,10 @@ contract CashPlus is
         zeroAddress(user)
         whenNotPaused
     {
-        require(stokenAmount > 0, "Stoken amount must be greater than zero");
+        require(
+            stokenAmount >= MIN_AMOUNT,
+            "Stoken amount must be greater than 0.01"
+        );
         require(containsAddress(uAddress), "Unsupported token address");
         uint256 redemptionId = uint256(
             keccak256(
@@ -501,6 +514,18 @@ contract CashPlus is
         );
         RedemptionData memory wd = _redemptionDataMap[redemptionId];
         require(wd.id != 0, "Redemption does not exist");
+        require(
+            wd.stokenAmount >= MIN_AMOUNT,
+            "Stoken amount must be greater than 0.01"
+        ); // Ensure stoken amount is greater than 0.01
+        require(wd.user != address(0), "Invalid user address");
+        require(wd.price > 0, "Invalid price");
+        require(wd.time > 0, "Invalid time");
+        require(
+            wd.uAmount > 0,
+            "USDT amount must be greater than zero for redemption"
+        ); // Ensure USDT amount is greater than zero
+        require(wd.source == 1, "Only on-chain redemption can claim USD");
         delete _redemptionDataMap[redemptionId];
 
         if (assetSender == serviceFeeRecipient) {
@@ -571,9 +596,9 @@ contract CashPlus is
         SubscribeData storage sub = _subscribeDataMap[subscriptionId];
         require(sub.id != 0, "Subscription does not exist");
         require(
-            sub.stokenAmount > 0,
-            "Stoken amount must be greater than zero"
-        );
+            sub.stokenAmount >= MIN_AMOUNT,
+            "Stoken amount must be greater than 0.01"
+        ); // Ensure stoken amount is greater than 0.01
         require(sub.user != address(0), "Invalid user address");
         require(sub.price > 0, "Invalid price");
         require(sub.time > 0, "Invalid time");
@@ -595,10 +620,22 @@ contract CashPlus is
         whenNotPaused
     {
         require(redemptionId != 0, "Invalid redemption ID");
-
+        RedemptionData memory wd = _redemptionDataMap[redemptionId];
+        require(wd.id != 0, "Redemption does not exist");
+        require(
+            wd.stokenAmount >= MIN_AMOUNT,
+            "Stoken amount must be greater than 0.01"
+        ); // Ensure stoken amount is greater than 0.01
+        require(wd.user != address(0), "Invalid user address");
+        require(wd.price > 0, "Invalid price");
+        require(wd.time > 0, "Invalid time");
+        require(
+            wd.uAmount > 0,
+            "USDT amount must be greater than zero for redemption"
+        ); // Ensure USDT amount is greater than zero
         _burn(redemptionId); // Burn the stoken amount for the user
         _calculateTechnicalServiceFee(redemptionId); // Calculate the technical service fee
-        RedemptionData storage wd = _redemptionDataMap[redemptionId];
+
         emit burnEvent(
             redemptionId,
             wd.uAmount,
@@ -725,6 +762,10 @@ contract CashPlus is
         whenNotPaused
         returns (bool)
     {
+        require(
+            amount >= MIN_AMOUNT,
+            "Transfer amount must be greater than 0.01"
+        );
         _transferWithTokenId(msg.sender, recipient, amount);
         return true;
     }
@@ -742,6 +783,10 @@ contract CashPlus is
         whenNotPaused
         returns (bool)
     {
+        require(
+            amount >= MIN_AMOUNT,
+            "Transfer amount must be greater than 0.01"
+        );
         _transferWithTokenId(sender, recipient, amount);
         _approve(sender, msg.sender, allowance(sender, msg.sender) - amount);
         return true;
@@ -763,9 +808,15 @@ contract CashPlus is
     function _addNewTokenData(
         SubscribeData memory sub
     ) internal returns (uint256) {
+        nextId++;
         uint256 tokenId = uint256(
             keccak256(
-                abi.encodePacked(sub.user, block.timestamp, block.prevrandao)
+                abi.encodePacked(
+                    sub.user,
+                    block.timestamp,
+                    block.prevrandao,
+                    nextId
+                )
             )
         );
         TokenData memory newTokenData = TokenData({

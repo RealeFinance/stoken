@@ -163,14 +163,14 @@ async function generateStandardInput() {
     settings: {
       optimizer: compiler.optimizer || { enabled: true, runs: 200 },
       viaIR: true,
-      // evmVersion: compiler.evmVersion || "london",
-      // outputSelection: {
-      //   "*": {
-      //     "*": ["abi", "evm.bytecode", "evm.deployedBytecode", "metadata"],
-      //     "": ["ast"],
-      //   },
-      // },
-      // remappings: config.solidity.remappings || [],
+      evmVersion: compiler.evmVersion || "london",
+      outputSelection: {
+        "*": {
+          "*": ["abi", "evm.bytecode", "evm.deployedBytecode", "metadata"],
+          "": ["ast"],
+        },
+      },
+      remappings: config.solidity.remappings || [],
     },
   };
 

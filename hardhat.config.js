@@ -63,7 +63,7 @@ module.exports = {
       gasPrice: "auto",
       timeout: 2000000,
     },
-    BNBtestnet: {
+    bscTestnet: {
       url: "https://bsc-testnet.drpc.org/",
       accounts: [process.env.PRIVATE_KEY_2],
       chainId: 97,
@@ -83,9 +83,9 @@ module.exports = {
     apiKey: {
       testnet: "empty",
       "hashkey-chain-testnet": "empty",
-      // BNBtestnet: "NTY643JIUYT5WTX1DBGXEDJKRWMFNJ8Q42",
+      // BNBtestnet: "NTY643JIUYT5WTX1DBGXEDJKRWMFNJ8Q42", //TJKUQ1AFRIVXV4ZCMBEQ1G95BW9A6SMEEA
       bscTestnet: "TJKUQ1AFRIVXV4ZCMBEQ1G95BW9A6SMEEA",
-      // bscTestnet: "1",
+      // bscTestnet: "empty",
       // 自定义网络配置
       customChains: [
         {
@@ -106,11 +106,11 @@ module.exports = {
           },
         },
         {
-          network: "BNBtestnet",
+          network: "bscTestnet",
           chainId: 97,
           urls: {
-            apiUrl: "https://api.etherscan.io/v2/api?chainid=97",
-            browserUrl: "https://testnet.bscscan.com",
+            apiURL: "https://api.etherscan.io/v2/api?chainid=97", // BSC测试网专用API
+            browserURL: "https://testnet.bscscan.com",
           },
         },
       ],

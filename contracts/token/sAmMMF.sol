@@ -57,9 +57,7 @@ contract SAmMMF is
 
     function initialize(
         string memory name,
-        string memory symbol,
-        address supportedTokenAddress1,
-        address supportedTokenAddress2
+        string memory symbol
     ) public initializer {
         __ERC20_init(name, symbol);
         __ERC20Pausable_init();
@@ -76,8 +74,6 @@ contract SAmMMF is
         serviceFeeRecipient = address(this); // Set the service fee recipient to this contract address
 
         technicalServiceFeeRate = 10; // Default technical service fee rate set to 0.1%
-        supportedTokenAddress.push(supportedTokenAddress1); // USDC address on Ethereum mainnet
-        supportedTokenAddress.push(supportedTokenAddress2); // USDT address on Ethereum mainnet
     }
 
     function _authorizeUpgrade(

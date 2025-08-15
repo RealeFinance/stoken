@@ -100,17 +100,14 @@ async function deployERC20(hre, _name, _symbol) {
 
 async function deploySAmMMF() {
   const Contract = await ethers.getContractFactory("SAmMMF");
-  const impl2 = await Contract.deploy();
+  const impl2 = await Contract.deploy({
+    gasLimit: 15000000,
+  });
   await impl2.waitForDeployment();
 
   const proxy2 = await upgrades.deployProxy(
     Contract,
-    [
-      "CashPlus",
-      "CASH+",
-      "0x703A0B94A49F765107e3e4abEB4FC3E5bac7248f", //mock USDC
-      "0x271063b75dBc8FEFaD9e90222D3ba5F6DeB15a51", //mock USDT
-    ],
+    ["CashPlus", "CASH+"],
     {
       initializer: "initialize",
     }

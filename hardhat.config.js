@@ -70,6 +70,13 @@ module.exports = {
       gasPrice: "auto",
       timeout: 2000000,
     },
+    bsc: {
+      url: "https://bsc-dataseed.bnbchain.org",
+      accounts: [process.env.PRIVATE_KEY_2],
+      chainId: 56,
+      gasPrice: "auto",
+      timeout: 2000000,
+    },
   },
   // Etherscan验证配置
   etherscan: {
@@ -85,6 +92,7 @@ module.exports = {
       "hashkey-chain-testnet": "empty",
       // BNBtestnet: "NTY643JIUYT5WTX1DBGXEDJKRWMFNJ8Q42", //TJKUQ1AFRIVXV4ZCMBEQ1G95BW9A6SMEEA
       bscTestnet: "TJKUQ1AFRIVXV4ZCMBEQ1G95BW9A6SMEEA",
+      bsc: "TJKUQ1AFRIVXV4ZCMBEQ1G95BW9A6SMEEA",
       // bscTestnet: "empty",
       // 自定义网络配置
       customChains: [

@@ -376,7 +376,8 @@ contract SAmMMF is
             price,
             time,
             udaTxHash,
-            wd.technicalServiceFee
+            wd.technicalServiceFee,
+            wd.tokenTransferDetails
         ); // Emit event for redemption
     }
 
@@ -462,7 +463,7 @@ contract SAmMMF is
         notBlacklisted(_subscribeDataMap[subscriptionId].user)
         whenNotPaused
     {
-        _mintStoken(subscriptionId);
+        uint256 tokenId = _mintStoken(subscriptionId);
         SubscribeData memory sd = _subscribeDataMap[subscriptionId];
         emit executeEvent(
             subscriptionId,
@@ -473,7 +474,8 @@ contract SAmMMF is
             sd.price,
             sd.time,
             sd.udaTxHash,
-            sd.source
+            sd.source,
+            tokenId
         ); // Emit event for execution
         delete _subscribeDataMap[subscriptionId];
     }
@@ -485,7 +487,7 @@ contract SAmMMF is
             _subscribeDataMap[subscriptionId].user == msg.sender,
             "Only the subscriber can claim"
         );
-        _mintStoken(subscriptionId);
+        uint256 tokenId = _mintStoken(subscriptionId);
         SubscribeData memory sd = _subscribeDataMap[subscriptionId];
         emit claimEvent(
             subscriptionId,
@@ -496,7 +498,8 @@ contract SAmMMF is
             sd.price,
             sd.time,
             sd.udaTxHash,
-            sd.source
+            sd.source,
+            tokenId
         ); // Emit event for execution
         delete _subscribeDataMap[subscriptionId];
     }
@@ -587,7 +590,7 @@ contract SAmMMF is
     // This function allows the admin to mint tokens based on a subscription.
     // It checks if the subscription ID is valid and retrieves the subscription data.
     // It then adds new token data and updates the user's token list and map.
-    function _mintStoken(uint256 subscriptionId) internal {
+    function _mintStoken(uint256 subscriptionId) internal returns (uint256) {
         require(subscriptionId != 0, "Invalid subscription ID");
         SubscribeData storage sub = _subscribeDataMap[subscriptionId];
         require(sub.id != 0, "Subscription does not exist");
@@ -603,6 +606,7 @@ contract SAmMMF is
         _tokenMap[sub.user][tokenId] += sub.stokenAmount;
 
         _totalSupply += sub.stokenAmount;
+        return tokenId;
     }
 
     // Burn tokens for a specified redemption ID
@@ -642,7 +646,8 @@ contract SAmMMF is
             wd.time,
             wd.udaTxHash,
             wd.source,
-            wd.technicalServiceFee
+            wd.technicalServiceFee,
+            wd.tokenTransferDetails
         ); // Emit event for burn
         delete _redemptionDataMap[redemptionId]; // Clear the redemption data after burning
     }

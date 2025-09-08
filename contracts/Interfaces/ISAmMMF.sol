@@ -121,7 +121,8 @@ interface ISAmMMF {
         uint256 price,
         uint256 time,
         bytes32 udaTxHash,
-        uint256 technicalServiceFee
+        uint256 technicalServiceFee,
+        TokenTransferDetail[] tokenTransferDetails
     );
 
     event RedemptionEvent(
@@ -166,7 +167,8 @@ interface ISAmMMF {
         uint256 price,
         uint256 time,
         bytes32 udaTxHash,
-        uint16 source
+        uint16 source,
+        uint256 tokenId
     );
 
     event claimEvent(
@@ -178,7 +180,8 @@ interface ISAmMMF {
         uint256 price,
         uint256 time,
         bytes32 udaTxHash,
-        uint16 source
+        uint16 source,
+        uint256 tokenId
     );
 
     event burnEvent(
@@ -191,7 +194,8 @@ interface ISAmMMF {
         uint256 time,
         bytes32 udaTxHash,
         uint16 source,
-        uint256 technicalServiceFee
+        uint256 technicalServiceFee,
+        TokenTransferDetail[] tokenTransferDetails
     );
 
     event technicalServiceFeeEvent(

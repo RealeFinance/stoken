@@ -121,6 +121,15 @@ interface ISAmMMF {
         uint256 price,
         uint256 time,
         bytes32 udaTxHash,
+        uint256 technicalServiceFee
+    );
+
+    event overwriteOnChainRedemptionEvent(
+        uint256 redemptionId,
+        uint256 uAmount,
+        uint256 price,
+        uint256 time,
+        bytes32 udaTxHash,
         uint256 technicalServiceFee,
         TokenTransferDetail[] tokenTransferDetails
     );
@@ -167,6 +176,18 @@ interface ISAmMMF {
         uint256 price,
         uint256 time,
         bytes32 udaTxHash,
+        uint16 source
+    );
+
+    event executeEvent(
+        uint256 subscriptionId,
+        uint256 uAmount,
+        address uAddress,
+        uint256 stokenAmount,
+        address user,
+        uint256 price,
+        uint256 time,
+        bytes32 udaTxHash,
         uint16 source,
         uint256 tokenId
     );
@@ -180,8 +201,33 @@ interface ISAmMMF {
         uint256 price,
         uint256 time,
         bytes32 udaTxHash,
+        uint16 source
+    );
+
+    event claimEvent(
+        uint256 subscriptionId,
+        uint256 uAmount,
+        address uAddress,
+        uint256 stokenAmount,
+        address user,
+        uint256 price,
+        uint256 time,
+        bytes32 udaTxHash,
         uint16 source,
         uint256 tokenId
+    );
+
+    event burnEvent(
+        uint256 redemptionId,
+        uint256 uAmount,
+        address uAddress,
+        uint256 stokenAmount,
+        address user,
+        uint256 price,
+        uint256 time,
+        bytes32 udaTxHash,
+        uint16 source,
+        uint256 technicalServiceFee
     );
 
     event burnEvent(

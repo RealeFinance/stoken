@@ -100,18 +100,15 @@ async function deployERC20(hre, _name, _symbol) {
 
 async function deploySAmMMF() {
   const Contract = await ethers.getContractFactory("SAmMMF");
-  const impl2 = await Contract.deploy({
+  // const impl2 = await Contract.deploy({
+  //   gasLimit: 15000000,
+  // });
+  // await impl2.waitForDeployment();
+
+  const proxy2 = await upgrades.deployProxy(Contract, ["CashPlus", "CASH+"], {
+    initializer: "initialize",
     gasLimit: 15000000,
   });
-  await impl2.waitForDeployment();
-
-  const proxy2 = await upgrades.deployProxy(
-    Contract,
-    ["CashPlus", "CASH+"],
-    {
-      initializer: "initialize",
-    }
-  );
   await proxy2.waitForDeployment();
   return proxy2;
 }

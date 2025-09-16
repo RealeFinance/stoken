@@ -46,11 +46,12 @@ module.exports = {
       // },
     },
     mainnet: {
-      url: `https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY}`,
-      accounts: [process.env.PRIVATE_KEY_1],
+      url: `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`,
+      accounts: [process.env.PRIVATE_KEY_2],
       chainId: 1,
-      gasPrice: "auto",
-      gasMultiplier: 1.2,
+      // gasPrice: 30000000000, // 手动设置GasPrice（30 Gwei，可根据实时网络调整）
+      // gasLimit: 3000000, // 代理合约部署通常需要100-300万Gas，设置冗余值
+      timeout: 120000, // 主网交易确认慢，延长超时时间（2分钟）
     },
     "hashkey-chain-testnet": {
       url: "https://hashkeychain-testnet.alt.technology",
@@ -74,6 +75,13 @@ module.exports = {
       url: "https://bsc-dataseed.bnbchain.org",
       accounts: [process.env.PRIVATE_KEY_2],
       chainId: 56,
+      gasPrice: "auto",
+      timeout: 2000000,
+    },
+    sepolia: {
+      url: "https://eth-sepolia.g.alchemy.com/v2/N3C7u3FWjnZvKyop_yRKc",
+      accounts: [process.env.PRIVATE_KEY_2],
+      chainId: 11155111,
       gasPrice: "auto",
       timeout: 2000000,
     },

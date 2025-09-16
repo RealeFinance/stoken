@@ -35,7 +35,11 @@ async function deployRAmMMF(
   const contract = await hre.upgrades.deployProxy(
     ContractFactory,
     constructorArgs,
-    { initializer: "initialize" }
+    { 
+      initializer: "initialize",
+      gasLimit: 3000000,
+      gasPrice: ethers.parseUnits('30', 'gwei')
+    }
   );
   await contract.waitForDeployment();
 
@@ -58,7 +62,11 @@ async function deployReUSD(hre, tokenConfigAddress) {
   reUSD = await hre.upgrades.deployProxy(
     ReUSDFactory,
     [tokenConfigAddress, "ReUSD", "ReUSD"],
-    { initializer: "initialize" }
+    { 
+      initializer: "initialize",
+      gasLimit: 3000000,
+      gasPrice: ethers.parseUnits('30', 'gwei')
+    }
   );
   await reUSD.waitForDeployment();
   return reUSD;
@@ -108,6 +116,7 @@ async function deploySAmMMF() {
   const proxy2 = await upgrades.deployProxy(Contract, ["CashPlus", "CASH+"], {
     initializer: "initialize",
     gasLimit: 15000000,
+    gasPrice: ethers.parseUnits('30', 'gwei')
   });
   await proxy2.waitForDeployment();
   return proxy2;
@@ -130,7 +139,11 @@ async function deployCollateralConfig(hre, _name, _symbol) {
   const collateralConfig = await hre.upgrades.deployProxy(
     CollateralConfig,
     [_name, _symbol, MockERC20.target],
-    { initializer: "initialize" }
+    { 
+      initializer: "initialize",
+      gasLimit: 3000000,
+      gasPrice: ethers.parseUnits('30', 'gwei')
+    }
   );
   await collateralConfig.waitForDeployment();
   return collateralConfig;

@@ -49,8 +49,8 @@ module.exports = {
       url: `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`,
       accounts: [process.env.PRIVATE_KEY_2],
       chainId: 1,
-      // gasPrice: 30000000000, // 手动设置GasPrice（30 Gwei，可根据实时网络调整）
-      // gasLimit: 3000000, // 代理合约部署通常需要100-300万Gas，设置冗余值
+      gasPrice: 30000000000, // 手动设置GasPrice（30 Gwei，可根据实时网络调整）
+      gasLimit: 3000000, // 代理合约部署通常需要100-300万Gas，设置冗余值
       timeout: 120000, // 主网交易确认慢，延长超时时间（2分钟）
     },
     "hashkey-chain-testnet": {

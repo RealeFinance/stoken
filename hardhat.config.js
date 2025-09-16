@@ -46,7 +46,8 @@ module.exports = {
       // },
     },
     mainnet: {
-      url: `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`,
+      // url: `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`,
+      url: "https://ethereum-rpc.publicnode.com",
       accounts: [process.env.PRIVATE_KEY_2],
       chainId: 1,
       gasPrice: 30000000000, // 手动设置GasPrice（30 Gwei，可根据实时网络调整）

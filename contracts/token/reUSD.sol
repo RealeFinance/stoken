@@ -10,7 +10,7 @@ import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/toke
 import {AccessControlEnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlEnumerableUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {AggregatorV2V3Interface} from "@chainlink/contracts/src/v0.8/interfaces/FeedRegistryInterface.sol";
+// import {AggregatorV2V3Interface} from "@chainlink/contracts/src/v0.8/interfaces/FeedRegistryInterface.sol";
 import {IMAmMMF} from "contracts/Interfaces/mAmMMF/ImAmMMF.sol";
 import {Collateral, CollateralType, ICollateralConfig} from "contracts/Interfaces/ICollateralConfig.sol";
 import {IReUSD} from "contracts/Interfaces/IReUSD.sol";
@@ -30,7 +30,7 @@ contract ReUSD is
     // Address of the token config contract
     ICollateralConfig public collateralConfig;
 
-    AggregatorV2V3Interface internal priceFeed;
+    // AggregatorV2V3Interface internal priceFeed;
 
     // Total interest accrued in the system
     uint256 public totalInterest;

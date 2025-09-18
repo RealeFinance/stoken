@@ -50,7 +50,7 @@ module.exports = {
       url: "https://ethereum-rpc.publicnode.com",
       accounts: [process.env.PRIVATE_KEY_2],
       chainId: 1,
-      gasPrice: 1_000_000_000, // 1 gwei 
+      gasPrice: 1_000_000_000, // 1 gwei
       gasLimit: 3000000, // 代理合约部署通常需要100-300万Gas，设置冗余值
       timeout: 120000, // 主网交易确认慢，延长超时时间（2分钟）
     },
@@ -86,6 +86,13 @@ module.exports = {
       gasPrice: "auto",
       timeout: 2000000,
     },
+    Avalanche_Fuji_Testnet: {
+      url: "https://api.avax-test.network/ext/bc/C/rpc",
+      accounts: [process.env.PRIVATE_KEY_2],
+      chainId: 43113,
+      gasPrice: "auto",
+      timeout: 2000000,
+    },
   },
   // Etherscan验证配置
   etherscan: {
@@ -102,6 +109,7 @@ module.exports = {
       // BNBtestnet: "NTY643JIUYT5WTX1DBGXEDJKRWMFNJ8Q42", //TJKUQ1AFRIVXV4ZCMBEQ1G95BW9A6SMEEA
       bscTestnet: "TJKUQ1AFRIVXV4ZCMBEQ1G95BW9A6SMEEA",
       bsc: "TJKUQ1AFRIVXV4ZCMBEQ1G95BW9A6SMEEA",
+      avalancheFujiTestnet: "snowtrace",
       // bscTestnet: "empty",
       // 自定义网络配置
       customChains: [
@@ -128,6 +136,15 @@ module.exports = {
           urls: {
             apiURL: "https://api.etherscan.io/v2/api?chainid=97", // BSC测试网专用API
             browserURL: "https://testnet.bscscan.com",
+          },
+        },
+        {
+          network: "Avalanche_Fuji_Testnet",
+          chainId: 43113,
+          urls: {
+            apiURL:
+              "https://api.routescan.io/v2/network/testnet/evm/43113/etherscan",
+            browserURL: "https://avalanche.testnet.localhost:8080",
           },
         },
       ],

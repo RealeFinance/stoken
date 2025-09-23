@@ -66,7 +66,7 @@ module.exports = {
       timeout: 2000000,
     },
     bscTestnet: {
-      url: "https://bsc-testnet.therpc.io",
+      url: "https://bsc-testnet.public.blastapi.io",
       accounts: [process.env.PRIVATE_KEY_2],
       chainId: 97,
       gasPrice: "auto",
@@ -107,7 +107,7 @@ module.exports = {
       testnet: "empty",
       "hashkey-chain-testnet": "empty",
       // BNBtestnet: "NTY643JIUYT5WTX1DBGXEDJKRWMFNJ8Q42", //TJKUQ1AFRIVXV4ZCMBEQ1G95BW9A6SMEEA
-      bscTestnet: "TJKUQ1AFRIVXV4ZCMBEQ1G95BW9A6SMEEA",
+      bscTestnet: "NTY643JIUYT5WTX1DBGXEDJKRWMFNJ8Q42",
       bsc: "TJKUQ1AFRIVXV4ZCMBEQ1G95BW9A6SMEEA",
       avalancheFujiTestnet: "snowtrace",
       // bscTestnet: "empty",

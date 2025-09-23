@@ -97,7 +97,7 @@ async function deployCollateralConfigUpgrade(hre, _proxyAddress) {
   return proxy;
 }
 
-async function deployERC20(hre, _name, _symbol) {
+async function deployERC20(_name, _symbol) {
   console.log(`${_name} 正在部署合约...`);
   const MockERC20 = await ethers.getContractFactory("Oracle");
   mammmf = await MockERC20.deploy();

@@ -3,7 +3,7 @@
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
     "@nomicfoundation/hardhat-toolbox": "^6.1.0",
-    "@nomicfoundation/hardhat-verify": "^2.1.1",
+    "@nomicfoundation/hardhat-verify": "^3.0.2",
     "@openzeppelin/hardhat-upgrades": "^2.5.1",
     "hardhat": "^2.26.3"
   },
@@ -18,6 +18,7 @@
     "test": "npx hardhat test",
     "test:r": "npx hardhat test ./test/test_rAmMMF.js",
     "deploy": "npx hardhat run ./deploy/test/_deploy.js --network hardhat",
+    "deploy:usd": "npx hardhat run ./deploy/test/_deploy_USD.js --network hardhat",
     "deploy:test": "npx hardhat run --network testnet ./deploy/test/_deploy_test.js",
     "deploy:test:up": "npx hardhat run --network testnet ./deploy/test/_deploy_upgrade.js",
     "verify": "npx hardhat verify --network testnet ***"

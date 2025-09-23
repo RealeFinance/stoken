@@ -4,7 +4,7 @@
 pragma solidity ^0.8.22;
 
 import {AccessControlEnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlEnumerableUpgradeable.sol";
-import {IERC20, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {IERC20, ERC20Upgradeable, IERC20Metadata} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -50,6 +50,10 @@ contract SAmMMF is
 
     uint256 public nextId;
 
+    uint256 public MIN_SUBSCRIPTION_USD_AMOUNT; // Minimum subscription amount (100 USDT/USDC with 6 decimals)
+
+    uint256 public MIN_REDEMPTION_CASH_AMOUNT; // Minimum redemption amount (0.948 Cash+ with 18 decimals)
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -74,6 +78,9 @@ contract SAmMMF is
         serviceFeeRecipient = address(this); // Set the service fee recipient to this contract address
 
         technicalServiceFeeRate = 10; // Default technical service fee rate set to 0.1%
+
+        MIN_SUBSCRIPTION_USD_AMOUNT = 100; // Minimum subscription amount (100 USDT/USDC with 6 decimals)
+        MIN_REDEMPTION_CASH_AMOUNT = 0.948 * 10 ** 18; // Minimum redemption amount (0.948 Cash+ with 18 decimals)
     }
 
     function _authorizeUpgrade(
@@ -111,10 +118,15 @@ contract SAmMMF is
         address uAddress,
         uint256 uAmount,
         uint16 source
-    ) external notBlacklisted(msg.sender) whenNotPaused {
-        require(uAmount > 0, "Amount must be greater than zero");
-        require(containsAddress(uAddress), "Unsupported token address");
-
+    )
+        external
+        notBlacklisted(msg.sender)
+        checkUSDAmount(uAmount, IERC20Metadata(uAddress).decimals())
+        whenNotPaused
+    {
+        if (!containsAddress(uAddress)) {
+            revert UnSupportedTokenAddress();
+        }
         uint256 balanceBefore = IERC20(uAddress).balanceOf(assetRecipient);
         IERC20(uAddress).safeTransferFrom(msg.sender, assetRecipient, uAmount); // Transfer USDT from the user to this contract
         uint256 balanceAfter = IERC20(uAddress).balanceOf(assetRecipient);
@@ -225,13 +237,12 @@ contract SAmMMF is
         notBlacklisted(user)
         zeroAddress(user)
         zeroAddress(uAddress)
+        checkUSDAmount(uAmount, IERC20Metadata(uAddress).decimals())
         whenNotPaused
     {
-        require(
-            stokenAmount >= MIN_AMOUNT,
-            "Stoken amount must be greater than 0.01"
-        );
-        require(containsAddress(uAddress), "Unsupported token address");
+        if (!containsAddress(uAddress)) {
+            revert UnSupportedTokenAddress();
+        }
         uint256 subscriptionId = uint256(
             keccak256(
                 abi.encodePacked(
@@ -285,12 +296,16 @@ contract SAmMMF is
         address uAddress,
         uint256 stokenAmount,
         uint16 source
-    ) external notBlacklisted(msg.sender) zeroAddress(uAddress) whenNotPaused {
-        require(
-            stokenAmount >= MIN_AMOUNT,
-            "Stoken amount must be greater than 0.01"
-        );
-        require(containsAddress(uAddress), "Unsupported token address");
+    )
+        external
+        notBlacklisted(msg.sender)
+        zeroAddress(uAddress)
+        checkCashAmount(stokenAmount)
+        whenNotPaused
+    {
+        if (!containsAddress(uAddress)) {
+            revert UnSupportedTokenAddress();
+        }
 
         nextId++; // Increment the nextId for redemption ID generation
         uint256 redemptionId = uint256(
@@ -356,7 +371,7 @@ contract SAmMMF is
         whenNotPaused
     {
         require(redemptionId != 0, "Invalid redemption ID");
-        require(uAmount > 0, "USDT amount must be greater than zero");
+        require(uAmount > 0, "Invalid amount");
         require(
             _redemptionDataMap[redemptionId].id != 0,
             "Redemption does not exist"
@@ -408,13 +423,12 @@ contract SAmMMF is
         notBlacklisted(user)
         zeroAddress(uAddress)
         zeroAddress(user)
+        checkCashAmount(stokenAmount)
         whenNotPaused
     {
-        require(
-            stokenAmount >= MIN_AMOUNT,
-            "Stoken amount must be greater than 0.01"
-        );
-        require(containsAddress(uAddress), "Unsupported token address");
+        if (!containsAddress(uAddress)) {
+            revert UnSupportedTokenAddress();
+        }
         uint256 redemptionId = uint256(
             keccak256(
                 abi.encodePacked(
@@ -516,15 +530,12 @@ contract SAmMMF is
         require(
             wd.stokenAmount >= MIN_AMOUNT,
             "Stoken amount must be greater than 0.01"
-        ); // Ensure stoken amount is greater than 0.01
+        );
         require(wd.user != address(0), "Invalid user address");
         require(wd.price > 0, "Invalid price");
         require(wd.time > 0, "Invalid time");
-        require(
-            wd.uAmount > 0,
-            "USDT amount must be greater than zero for redemption"
-        ); // Ensure USDT amount is greater than zero
-        require(wd.source == 1, "Only on-chain redemption can claim USD");
+        require(wd.uAmount > 0, "Invalid USDT amount");
+        require(wd.source == 1, "Only on-chain redemption");
         delete _redemptionDataMap[redemptionId];
 
         if (assetSender == serviceFeeRecipient) {
@@ -597,7 +608,7 @@ contract SAmMMF is
         require(
             sub.stokenAmount >= MIN_AMOUNT,
             "Stoken amount must be greater than 0.01"
-        ); // Ensure stoken amount is greater than 0.01
+        );
         require(sub.user != address(0), "Invalid user address");
         require(sub.price > 0, "Invalid price");
         require(sub.time > 0, "Invalid time");
@@ -629,10 +640,7 @@ contract SAmMMF is
         require(wd.user != address(0), "Invalid user address");
         require(wd.price > 0, "Invalid price");
         require(wd.time > 0, "Invalid time");
-        require(
-            wd.uAmount > 0,
-            "USDT amount must be greater than zero for redemption"
-        ); // Ensure USDT amount is greater than zero
+        require(wd.uAmount > 0, "Invalid USDT amount");
         _burn(redemptionId); // Burn the stoken amount for the user
         _calculateTechnicalServiceFee(redemptionId); // Calculate the technical service fee
 
@@ -708,10 +716,7 @@ contract SAmMMF is
         uint256 mintTime,
         uint256 redemptionTime
     ) internal pure returns (uint256) {
-        require(
-            redemptionTime >= mintTime,
-            "Redemption time must be greater than or equal to mint time"
-        );
+        require(redemptionTime >= mintTime, "Redemption time < mint time");
         uint256 deltaSeconds = redemptionTime - mintTime;
         if (deltaSeconds == 0) {
             return 1; // If no time has passed, count as one day
@@ -799,7 +804,7 @@ contract SAmMMF is
         uint256 amount
     ) internal zeroAddress(from) zeroAddress(to) {
         require(from != to, "Cannot transfer to self");
-        require(amount > 0, "Transfer amount must be greater than zero");
+        require(amount > 0, "Amount must be > 0");
         TokenTransferDetail[] memory _tt = _removeTokenByIdList(from, amount);
         _addTokenByIdList(to, _tt);
     }
@@ -1058,4 +1063,60 @@ contract SAmMMF is
     ) public override onlyRole(STOKEN_ADMIN) {
         super.removeSupportedTokenAddress(token);
     }
+
+    error UnSupportedTokenAddress();
+
+    modifier checkUSDAmount(uint256 uAmount, uint8 dec) {
+        if (MIN_SUBSCRIPTION_USD_AMOUNT > 0) {
+            if (uAmount < MIN_SUBSCRIPTION_USD_AMOUNT * 10 ** dec) {
+                revert BelowMinAmount();
+            }
+        }
+        // if (MAX_SUBSCRIPTION_USD_AMOUNT > 0) {
+        //     require(
+        //         uAmount <= MAX_SUBSCRIPTION_USD_AMOUNT * 10 ** dec,
+        //         "Exceeds max subscription"
+        //     );
+        // }
+        _;
+    }
+
+    modifier checkCashAmount(uint256 cAmount) {
+        if (MIN_REDEMPTION_CASH_AMOUNT > 0) {
+            if (cAmount < MIN_REDEMPTION_CASH_AMOUNT) {
+                revert BelowMinAmount();
+            }
+        }
+        // if (MAX_REDEMPTION_CASH_AMOUNT > 0) {
+        //     require(
+        //         cAmount <= MAX_REDEMPTION_CASH_AMOUNT,
+        //         "Exceeds max redemption"
+        //     );
+        // }
+        _;
+    }
+
+    function setMinSubscriptionAmount(uint256 amount) public virtual {
+        uint256 oldAmount = MIN_SUBSCRIPTION_USD_AMOUNT;
+        MIN_SUBSCRIPTION_USD_AMOUNT = amount;
+        emit minSubscriptionAmountUpdatedEvent(oldAmount, amount);
+    }
+
+    // function setMaxSubscriptionAmount(uint256 amount) public virtual {
+    //     uint256 oldAmount = MAX_SUBSCRIPTION_USD_AMOUNT;
+    //     MAX_SUBSCRIPTION_USD_AMOUNT = amount;
+    //     emit maxSubscriptionAmountUpdatedEvent(oldAmount, amount);
+    // }
+
+    function setMinRedemptionAmount(uint256 amount) public virtual {
+        uint256 oldAmount = MIN_REDEMPTION_CASH_AMOUNT;
+        MIN_REDEMPTION_CASH_AMOUNT = amount;
+        emit minRedemptionAmountUpdatedEvent(oldAmount, amount);
+    }
+
+    // function setMaxRedemptionAmount(uint256 amount) public virtual {
+    //     uint256 oldAmount = MAX_REDEMPTION_CASH_AMOUNT;
+    //     MAX_REDEMPTION_CASH_AMOUNT = amount;
+    //     emit maxRedemptionAmountUpdatedEvent(oldAmount, amount);
+    // }
 }

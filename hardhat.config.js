@@ -29,7 +29,7 @@ module.exports = {
     settings: {
       optimizer: {
         enabled: true,
-        runs: 200,
+        runs: 150,
       },
       viaIR: true,
     },
@@ -66,7 +66,7 @@ module.exports = {
       timeout: 2000000,
     },
     bscTestnet: {
-      url: "https://bsc-testnet.drpc.org/",
+      url: "https://bsc-testnet.therpc.io",
       accounts: [process.env.PRIVATE_KEY_2],
       chainId: 97,
       gasPrice: "auto",

@@ -161,7 +161,7 @@ async function generateStandardInput() {
     language: "Solidity",
     sources: sources,
     settings: {
-      optimizer: compiler.optimizer || { enabled: true, runs: 200 },
+      optimizer: compiler.optimizer || { enabled: true, runs: 150 },
       viaIR: true,
       evmVersion: compiler.evmVersion || "london",
       outputSelection: {

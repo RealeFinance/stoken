@@ -249,4 +249,12 @@ interface ISAmMMF {
         uint256[] tokenIds,
         uint256[] amounts
     );
+
+    event minSubscriptionAmountUpdatedEvent(uint256 oldAmount, uint256 newAmount);
+
+    event maxSubscriptionAmountUpdatedEvent(uint256 oldAmount, uint256 newAmount);
+
+    event minRedemptionAmountUpdatedEvent(uint256 oldAmount, uint256 newAmount);
+
+    event maxRedemptionAmountUpdatedEvent(uint256 oldAmount, uint256 newAmount);
 }

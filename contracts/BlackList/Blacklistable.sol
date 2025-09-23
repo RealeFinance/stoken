@@ -46,7 +46,7 @@ abstract contract Blacklistable is
     modifier notBlacklisted(address _account) {
         require(
             !_isBlacklisted(_account),
-            "Blacklistable: account is blacklisted"
+            "Blacklisted"
         );
         _;
     }
@@ -69,7 +69,7 @@ abstract contract Blacklistable is
     ) external onlyRole(STOKEN_BLACKLIST_ADMIN_ROLE) {
         require(
             _newBlacklister != address(0),
-            "Blacklistable: new blacklister is the zero address"
+            "Blacklister is zero address"
         );
         _grantRole(STOKEN_BLACKLIST_ADMIN_ROLE, _newBlacklister);
         emit BlacklisterAdminAdd(_newBlacklister);
@@ -84,7 +84,7 @@ abstract contract Blacklistable is
     ) external onlyRole(STOKEN_BLACKLIST_ADMIN_ROLE) {
         require(
             hasRole(STOKEN_BLACKLIST_ADMIN_ROLE, _blacklister),
-            "Blacklistable: account is not a blacklister"
+            "Not a blacklister"
         );
         _revokeRole(STOKEN_BLACKLIST_ADMIN_ROLE, _blacklister);
         emit BlacklisterAdminRemove(_blacklister);

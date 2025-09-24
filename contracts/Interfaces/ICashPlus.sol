@@ -124,6 +124,16 @@ interface ICashPlus {
         uint256 technicalServiceFee
     );
 
+    event overwriteOnChainRedemptionEvent(
+        uint256 redemptionId,
+        uint256 uAmount,
+        uint256 price,
+        uint256 time,
+        bytes32 udaTxHash,
+        uint256 technicalServiceFee,
+        TokenTransferDetail[] tokenTransferDetails
+    );
+
     event RedemptionEvent(
         uint256 redemptionId,
         uint256 uAmount,
@@ -169,6 +179,19 @@ interface ICashPlus {
         uint16 source
     );
 
+    event executeEvent(
+        uint256 subscriptionId,
+        uint256 uAmount,
+        address uAddress,
+        uint256 stokenAmount,
+        address user,
+        uint256 price,
+        uint256 time,
+        bytes32 udaTxHash,
+        uint16 source,
+        uint256 tokenId
+    );
+
     event claimEvent(
         uint256 subscriptionId,
         uint256 uAmount,
@@ -179,6 +202,19 @@ interface ICashPlus {
         uint256 time,
         bytes32 udaTxHash,
         uint16 source
+    );
+
+    event claimEvent(
+        uint256 subscriptionId,
+        uint256 uAmount,
+        address uAddress,
+        uint256 stokenAmount,
+        address user,
+        uint256 price,
+        uint256 time,
+        bytes32 udaTxHash,
+        uint16 source,
+        uint256 tokenId
     );
 
     event burnEvent(
@@ -194,9 +230,31 @@ interface ICashPlus {
         uint256 technicalServiceFee
     );
 
+    event burnEvent(
+        uint256 redemptionId,
+        uint256 uAmount,
+        address uAddress,
+        uint256 stokenAmount,
+        address user,
+        uint256 price,
+        uint256 time,
+        bytes32 udaTxHash,
+        uint16 source,
+        uint256 technicalServiceFee,
+        TokenTransferDetail[] tokenTransferDetails
+    );
+
     event technicalServiceFeeEvent(
         uint256 redemptionId,
         uint256[] tokenIds,
         uint256[] amounts
     );
+
+    event minSubscriptionAmountUpdatedEvent(uint256 oldAmount, uint256 newAmount);
+
+    event maxSubscriptionAmountUpdatedEvent(uint256 oldAmount, uint256 newAmount);
+
+    event minRedemptionAmountUpdatedEvent(uint256 oldAmount, uint256 newAmount);
+
+    event maxRedemptionAmountUpdatedEvent(uint256 oldAmount, uint256 newAmount);
 }

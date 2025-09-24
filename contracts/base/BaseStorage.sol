@@ -21,7 +21,7 @@ contract BaseStorage is ICashPlus {
     address[] public supportedTokenAddress;
 
     modifier zeroAddress(address addr) {
-        require(addr != address(0), "Address cannot be zero");
+        require(addr != address(0), "Zero address");
         _;
     }
 
@@ -118,19 +118,18 @@ contract BaseStorage is ICashPlus {
      * @param token The address to remove.
      */
     function removeSupportedTokenAddress(
-        address token
+      address token
     ) public virtual zeroAddress(token) {
-        for (uint256 i = 0; i < supportedTokenAddress.length; i++) {
-            if (supportedTokenAddress[i] == token) {
-                supportedTokenAddress[i] = supportedTokenAddress[
-                    supportedTokenAddress.length - 1
-                ];
-                supportedTokenAddress.pop();
-                return;
-            }
+      for (uint256 i = 0; i < supportedTokenAddress.length; i++) {
+        if (supportedTokenAddress[i] == token) {
+          // Swap and pop for efficient removal
+          supportedTokenAddress[i] = supportedTokenAddress[supportedTokenAddress.length - 1];
+          supportedTokenAddress.pop();
+          emit supportedTokenAddressRemovedEvent(token); // Emit event after successful removal
+          return;
         }
-        emit supportedTokenAddressRemovedEvent(token); // Emit event for removing supported token address
-        revert("Token address not found");
+      }
+      revert("Address not found");
     }
 
     /**
@@ -146,4 +145,6 @@ contract BaseStorage is ICashPlus {
         }
         return false;
     }
+    
+    error BelowMinAmount();
 }

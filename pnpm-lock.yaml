@@ -1124,8 +1124,8 @@ packages:
     resolution: {integrity: sha512-+h1lkLKhZMTYjog1VEpJNG7NZJWcuc2DDk/qsqSTRRCOXiLjeQ1d1/udrUGhqMxUgAlwKNZ0cf2uqan5GLuS2A==}
     engines: {node: '>=6'}
 
-  era-contracts@https://codeload.github.com/matter-labs/era-contracts/tar.gz/446d391d34bdb48255d5f8fef8a8248925fc98b9:
-    resolution: {tarball: https://codeload.github.com/matter-labs/era-contracts/tar.gz/446d391d34bdb48255d5f8fef8a8248925fc98b9}
+  era-contracts@git+https://git@github.com:matter-labs/era-contracts.git#446d391d34bdb48255d5f8fef8a8248925fc98b9:
+    resolution: {commit: 446d391d34bdb48255d5f8fef8a8248925fc98b9, repo: git@github.com:matter-labs/era-contracts.git, type: git}
     version: 0.1.0
 
   es-define-property@1.0.1:
@@ -2616,7 +2616,7 @@ snapshots:
       '@openzeppelin/contracts': 4.9.6
       '@openzeppelin/contracts-upgradeable': 4.9.6
       '@scroll-tech/contracts': 0.1.0
-      '@zksync/contracts': era-contracts@https://codeload.github.com/matter-labs/era-contracts/tar.gz/446d391d34bdb48255d5f8fef8a8248925fc98b9
+      '@zksync/contracts': era-contracts@git+https://git@github.com:matter-labs/era-contracts.git#446d391d34bdb48255d5f8fef8a8248925fc98b9
       semver: 7.7.2
     transitivePeerDependencies:
       - bufferutil
@@ -4073,7 +4073,7 @@ snapshots:
 
   env-paths@2.2.1: {}
 
-  era-contracts@https://codeload.github.com/matter-labs/era-contracts/tar.gz/446d391d34bdb48255d5f8fef8a8248925fc98b9: {}
+  era-contracts@git+https://git@github.com:matter-labs/era-contracts.git#446d391d34bdb48255d5f8fef8a8248925fc98b9: {}
 
   es-define-property@1.0.1: {}
 

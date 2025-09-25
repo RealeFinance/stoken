@@ -631,7 +631,7 @@ contract SAmMMF is
         whenNotPaused
     {
         require(redemptionId != 0, "Invalid redemption ID");
-        RedemptionData memory wd = _redemptionDataMap[redemptionId];
+        RedemptionData storage wd = _redemptionDataMap[redemptionId];
         require(wd.id != 0, "Redemption does not exist");
         require(
             wd.stokenAmount >= MIN_AMOUNT,
@@ -1096,7 +1096,9 @@ contract SAmMMF is
         _;
     }
 
-    function setMinSubscriptionAmount(uint256 amount) public onlyRole(STOKEN_ADMIN) {
+    function setMinSubscriptionAmount(
+        uint256 amount
+    ) public onlyRole(STOKEN_ADMIN) {
         uint256 oldAmount = MIN_SUBSCRIPTION_USD_AMOUNT;
         MIN_SUBSCRIPTION_USD_AMOUNT = amount;
         emit minSubscriptionAmountUpdatedEvent(oldAmount, amount);
@@ -1108,7 +1110,9 @@ contract SAmMMF is
     //     emit maxSubscriptionAmountUpdatedEvent(oldAmount, amount);
     // }
 
-    function setMinRedemptionAmount(uint256 amount) public onlyRole(STOKEN_ADMIN) {
+    function setMinRedemptionAmount(
+        uint256 amount
+    ) public onlyRole(STOKEN_ADMIN) {
         uint256 oldAmount = MIN_REDEMPTION_CASH_AMOUNT;
         MIN_REDEMPTION_CASH_AMOUNT = amount;
         emit minRedemptionAmountUpdatedEvent(oldAmount, amount);

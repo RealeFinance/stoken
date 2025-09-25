@@ -1096,25 +1096,25 @@ contract SAmMMF is
         _;
     }
 
-    function setMinSubscriptionAmount(uint256 amount) public virtual {
+    function setMinSubscriptionAmount(uint256 amount) public onlyRole(STOKEN_ADMIN) {
         uint256 oldAmount = MIN_SUBSCRIPTION_USD_AMOUNT;
         MIN_SUBSCRIPTION_USD_AMOUNT = amount;
         emit minSubscriptionAmountUpdatedEvent(oldAmount, amount);
     }
 
-    // function setMaxSubscriptionAmount(uint256 amount) public virtual {
+    // function setMaxSubscriptionAmount(uint256 amount) public onlyRole(STOKEN_ADMIN) {
     //     uint256 oldAmount = MAX_SUBSCRIPTION_USD_AMOUNT;
     //     MAX_SUBSCRIPTION_USD_AMOUNT = amount;
     //     emit maxSubscriptionAmountUpdatedEvent(oldAmount, amount);
     // }
 
-    function setMinRedemptionAmount(uint256 amount) public virtual {
+    function setMinRedemptionAmount(uint256 amount) public onlyRole(STOKEN_ADMIN) {
         uint256 oldAmount = MIN_REDEMPTION_CASH_AMOUNT;
         MIN_REDEMPTION_CASH_AMOUNT = amount;
         emit minRedemptionAmountUpdatedEvent(oldAmount, amount);
     }
 
-    // function setMaxRedemptionAmount(uint256 amount) public virtual {
+    // function setMaxRedemptionAmount(uint256 amount) public onlyRole(STOKEN_ADMIN) {
     //     uint256 oldAmount = MAX_REDEMPTION_CASH_AMOUNT;
     //     MAX_REDEMPTION_CASH_AMOUNT = amount;
     //     emit maxRedemptionAmountUpdatedEvent(oldAmount, amount);

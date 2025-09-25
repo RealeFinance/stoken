@@ -631,7 +631,7 @@ contract CashPlus is
         whenNotPaused
     {
         require(redemptionId != 0, "Invalid redemption ID");
-        RedemptionData memory wd = _redemptionDataMap[redemptionId];
+        RedemptionData storage wd = _redemptionDataMap[redemptionId];
         require(wd.id != 0, "Redemption does not exist");
         require(
             wd.stokenAmount >= MIN_AMOUNT,

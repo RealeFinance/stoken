@@ -535,7 +535,7 @@ contract CashPlus is
         require(wd.price > 0, "Invalid price");
         require(wd.time > 0, "Invalid time");
         require(wd.uAmount > 0, "Invalid USDT amount");
-        require(wd.source == 1, "Only on-chain redemption");
+        require(wd.source != 0, "Only on-chain redemption");
         delete _redemptionDataMap[redemptionId];
 
         if (assetSender == serviceFeeRecipient) {

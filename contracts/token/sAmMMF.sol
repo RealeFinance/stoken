@@ -1096,6 +1096,7 @@ contract SAmMMF is
         _;
     }
 
+    // defult 100 USDT/USDC
     function setMinSubscriptionAmount(
         uint256 amount
     ) public onlyRole(STOKEN_ADMIN) {
@@ -1110,6 +1111,7 @@ contract SAmMMF is
     //     emit maxSubscriptionAmountUpdatedEvent(oldAmount, amount);
     // }
 
+    // defult 0.948 * 10 ** 18 Cash+
     function setMinRedemptionAmount(
         uint256 amount
     ) public onlyRole(STOKEN_ADMIN) {

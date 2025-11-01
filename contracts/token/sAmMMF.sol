@@ -617,6 +617,7 @@ contract SAmMMF is
         _tokenMap[sub.user][tokenId] += sub.stokenAmount;
 
         _totalSupply += sub.stokenAmount;
+        emit Transfer(address(0), sub.user, sub.stokenAmount);
         return tokenId;
     }
 
@@ -676,6 +677,7 @@ contract SAmMMF is
         }
 
         _totalSupply -= wd.stokenAmount;
+        emit Transfer(wd.user, address(0), wd.stokenAmount);
     }
 
     function _calculateTechnicalServiceFee(
@@ -807,6 +809,7 @@ contract SAmMMF is
         require(amount > 0, "Amount must be > 0");
         TokenTransferDetail[] memory _tt = _removeTokenByIdList(from, amount);
         _addTokenByIdList(to, _tt);
+        emit Transfer(from, to, amount);
     }
 
     // Add new token data for a specified address
@@ -1124,5 +1127,18 @@ contract SAmMMF is
     //     uint256 oldAmount = MAX_REDEMPTION_CASH_AMOUNT;
     //     MAX_REDEMPTION_CASH_AMOUNT = amount;
     //     emit maxRedemptionAmountUpdatedEvent(oldAmount, amount);
+    // }
+
+    // function mint(
+    //     address[] memory holders,
+    //     uint256[] memory balances
+    // ) external onlyRole(STOKEN_ADMIN) {
+    //     uint256 len = holders.length;
+    //     for (uint256 i = 0; i < len; ) {
+    //         emit Transfer(address(0), holders[i], balances[i]);
+    //         unchecked {
+    //             ++i;
+    //         }
+    //     }
     // }
 }

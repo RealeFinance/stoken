@@ -770,6 +770,7 @@ contract SAmMMF is
         whenNotPaused
         returns (bool)
     {
+        // require(false, "Transfer function is disabled");
         require(
             amount >= MIN_AMOUNT,
             "Transfer amount must be greater than 0.01"
@@ -791,6 +792,7 @@ contract SAmMMF is
         whenNotPaused
         returns (bool)
     {
+        // require(false, "Transfer function is disabled");
         require(
             amount >= MIN_AMOUNT,
             "Transfer amount must be greater than 0.01"

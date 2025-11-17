@@ -77,7 +77,7 @@ contract SAmMMF is
         assetSender = address(this); // Set the asset sender to this contract address
         serviceFeeRecipient = address(this); // Set the service fee recipient to this contract address
 
-        technicalServiceFeeRate = 10; // Default technical service fee rate set to 0.1%
+        technicalServiceFeeRate = 0; // Default technical service fee rate set to 0.1%
 
         MIN_SUBSCRIPTION_USD_AMOUNT = 100; // Minimum subscription amount (100 USDT/USDC with 6 decimals)
         MIN_REDEMPTION_CASH_AMOUNT = 0.948 * 10 ** 18; // Minimum redemption amount (0.948 Cash+ with 18 decimals)

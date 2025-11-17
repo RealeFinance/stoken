@@ -65,6 +65,13 @@ module.exports = {
       gasPrice: "auto",
       timeout: 2000000,
     },
+    hashkeyMainnet: {
+      url: "https://mainnet.hsk.xyz",
+      chainId: 177,
+      accounts: [process.env.PRIVATE_KEY_2],
+      gasPrice: "auto",
+      timeout: 2000000,
+    },
     bscTestnet: {
       url: "https://bsc-testnet.public.blastapi.io",
       accounts: [process.env.PRIVATE_KEY_2],
@@ -93,6 +100,13 @@ module.exports = {
       gasPrice: "auto",
       timeout: 2000000,
     },
+    Avalanche: {
+      url: "https://api.avax.network/ext/bc/C/rpc",
+      accounts: [process.env.PRIVATE_KEY_2],
+      chainId: 43114,
+      gasPrice: "auto",
+      timeout: 2000000,
+    },
   },
   // Etherscan验证配置
   etherscan: {
@@ -110,6 +124,7 @@ module.exports = {
       bscTestnet: "NTY643JIUYT5WTX1DBGXEDJKRWMFNJ8Q42",
       bsc: "TJKUQ1AFRIVXV4ZCMBEQ1G95BW9A6SMEEA",
       avalancheFujiTestnet: "snowtrace",
+      avalanche: "Avalanche",
       // bscTestnet: "empty",
       // 自定义网络配置
       customChains: [
@@ -145,6 +160,23 @@ module.exports = {
             apiURL:
               "https://api.routescan.io/v2/network/testnet/evm/43113/etherscan",
             browserURL: "https://avalanche.testnet.localhost:8080",
+          },
+        },
+        // {
+        //   network: "Avalanche",
+        //   chainId: 43114,
+        //   urls: {
+        //     apiURL: "https://api.snowtrace.io/api",
+        //     browserURL: "https://snowtrace.io",
+        //   },
+        // },
+        {
+          network: "Avalanche",
+          chainId: 43114,
+          urls: {
+            apiURL:
+              "https://api.routescan.io/v2/network/mainnet/evm/43114/etherscan",
+            browserURL: "https://avalanche.routescan.io",
           },
         },
       ],

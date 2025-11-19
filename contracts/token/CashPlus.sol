@@ -77,7 +77,7 @@ contract CashPlus is
         assetSender = address(this); // Set the asset sender to this contract address
         serviceFeeRecipient = address(this); // Set the service fee recipient to this contract address
 
-        technicalServiceFeeRate = 10; // Default technical service fee rate set to 0.1%
+        technicalServiceFeeRate = 0; // Default technical service fee rate set to 0.1%
 
         MIN_SUBSCRIPTION_USD_AMOUNT = 100; // Minimum subscription amount (100 USDT/USDC with 6 decimals)
         MIN_REDEMPTION_CASH_AMOUNT = 0.948 * 10 ** 18; // Minimum redemption amount (0.948 Cash+ with 18 decimals)
@@ -617,6 +617,7 @@ contract CashPlus is
         _tokenMap[sub.user][tokenId] += sub.stokenAmount;
 
         _totalSupply += sub.stokenAmount;
+        emit Transfer(address(0), sub.user, sub.stokenAmount);
         return tokenId;
     }
 
@@ -676,6 +677,7 @@ contract CashPlus is
         }
 
         _totalSupply -= wd.stokenAmount;
+        emit Transfer(wd.user, address(0), wd.stokenAmount);
     }
 
     function _calculateTechnicalServiceFee(
@@ -768,6 +770,7 @@ contract CashPlus is
         whenNotPaused
         returns (bool)
     {
+        // require(false, "Transfer function is disabled");
         require(
             amount >= MIN_AMOUNT,
             "Transfer amount must be greater than 0.01"
@@ -789,6 +792,7 @@ contract CashPlus is
         whenNotPaused
         returns (bool)
     {
+        // require(false, "Transfer function is disabled");
         require(
             amount >= MIN_AMOUNT,
             "Transfer amount must be greater than 0.01"
@@ -807,6 +811,7 @@ contract CashPlus is
         require(amount > 0, "Amount must be > 0");
         TokenTransferDetail[] memory _tt = _removeTokenByIdList(from, amount);
         _addTokenByIdList(to, _tt);
+        emit Transfer(from, to, amount);
     }
 
     // Add new token data for a specified address
@@ -1096,7 +1101,10 @@ contract CashPlus is
         _;
     }
 
-    function setMinSubscriptionAmount(uint256 amount) public onlyRole(STOKEN_ADMIN) {
+    // defult 100 USDT/USDC
+    function setMinSubscriptionAmount(
+        uint256 amount
+    ) public onlyRole(STOKEN_ADMIN) {
         uint256 oldAmount = MIN_SUBSCRIPTION_USD_AMOUNT;
         MIN_SUBSCRIPTION_USD_AMOUNT = amount;
         emit minSubscriptionAmountUpdatedEvent(oldAmount, amount);
@@ -1108,7 +1116,10 @@ contract CashPlus is
     //     emit maxSubscriptionAmountUpdatedEvent(oldAmount, amount);
     // }
 
-    function setMinRedemptionAmount(uint256 amount) public onlyRole(STOKEN_ADMIN) {
+    // defult 0.948 * 10 ** 18 Cash+
+    function setMinRedemptionAmount(
+        uint256 amount
+    ) public onlyRole(STOKEN_ADMIN) {
         uint256 oldAmount = MIN_REDEMPTION_CASH_AMOUNT;
         MIN_REDEMPTION_CASH_AMOUNT = amount;
         emit minRedemptionAmountUpdatedEvent(oldAmount, amount);
@@ -1118,5 +1129,18 @@ contract CashPlus is
     //     uint256 oldAmount = MAX_REDEMPTION_CASH_AMOUNT;
     //     MAX_REDEMPTION_CASH_AMOUNT = amount;
     //     emit maxRedemptionAmountUpdatedEvent(oldAmount, amount);
+    // }
+
+    // function mint(
+    //     address[] memory holders,
+    //     uint256[] memory balances
+    // ) external onlyRole(STOKEN_ADMIN) {
+    //     uint256 len = holders.length;
+    //     for (uint256 i = 0; i < len; ) {
+    //         emit Transfer(address(0), holders[i], balances[i]);
+    //         unchecked {
+    //             ++i;
+    //         }
+    //     }
     // }
 }

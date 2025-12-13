@@ -250,11 +250,21 @@ interface ISAmMMF {
         uint256[] amounts
     );
 
-    event minSubscriptionAmountUpdatedEvent(uint256 oldAmount, uint256 newAmount);
+    event minSubscriptionAmountUpdatedEvent(
+        uint256 oldAmount,
+        uint256 newAmount
+    );
 
-    event maxSubscriptionAmountUpdatedEvent(uint256 oldAmount, uint256 newAmount);
+    event maxSubscriptionAmountUpdatedEvent(
+        uint256 oldAmount,
+        uint256 newAmount
+    );
 
     event minRedemptionAmountUpdatedEvent(uint256 oldAmount, uint256 newAmount);
 
     event maxRedemptionAmountUpdatedEvent(uint256 oldAmount, uint256 newAmount);
+
+    event CCIPAdminTransferred(address previous, address newAdmin);
+
+    event PoolAdminTransferred(address previous, address newAdmin);
 }

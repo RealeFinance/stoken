@@ -3,13 +3,29 @@
 // # Copyright (c) 2025 Asseto Fintech Limited. All rights reserved.
 pragma solidity ^0.8.22;
 
-import {AccessControlEnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlEnumerableUpgradeable.sol";
-import {IERC20, ERC20Upgradeable, IERC20Metadata} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
-import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {
+    AccessControlEnumerableUpgradeable
+} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlEnumerableUpgradeable.sol";
+import {
+    IERC20,
+    ERC20Upgradeable,
+    IERC20Metadata
+} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {
+    ERC20PermitUpgradeable
+} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
+import {
+    ERC20PausableUpgradeable
+} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
+import {
+    Initializable
+} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {
+    UUPSUpgradeable
+} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {
+    SafeERC20
+} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {BaseStorage} from "../base/BaseStorage.sol";
 import "../Interfaces/ICashPlus.sol";
 import {Blacklistable} from "../BlackList/Blacklistable.sol";
@@ -53,6 +69,11 @@ contract CashPlus is
     uint256 public MIN_SUBSCRIPTION_USD_AMOUNT; // Minimum subscription amount (100 USDT/USDC with 6 decimals)
 
     uint256 public MIN_REDEMPTION_CASH_AMOUNT; // Minimum redemption amount (0.948 Cash+ with 18 decimals)
+
+    address private _ccipAdmin;
+
+    address private _poolAdmin;
+    bytes32 public constant POOL_ADMIN_ROLE = keccak256("POOL_ADMIN_ROLE");
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -602,7 +623,6 @@ contract CashPlus is
     // It checks if the subscription ID is valid and retrieves the subscription data.
     // It then adds new token data and updates the user's token list and map.
     function _mintStoken(uint256 subscriptionId) internal returns (uint256) {
-        require(subscriptionId != 0, "Invalid subscription ID");
         SubscribeData storage sub = _subscribeDataMap[subscriptionId];
         require(sub.id != 0, "Subscription does not exist");
         require(
@@ -612,12 +632,12 @@ contract CashPlus is
         require(sub.user != address(0), "Invalid user address");
         require(sub.price > 0, "Invalid price");
         require(sub.time > 0, "Invalid time");
-        uint256 tokenId = _addNewTokenData(sub);
-        _tokenList[sub.user].push(tokenId);
-        _tokenMap[sub.user][tokenId] += sub.stokenAmount;
-
-        _totalSupply += sub.stokenAmount;
-        emit Transfer(address(0), sub.user, sub.stokenAmount);
+        uint256 tokenId = _addNewTokenData(
+            sub.user,
+            sub.stokenAmount,
+            sub.price,
+            sub.time
+        );
         return tokenId;
     }
 
@@ -807,8 +827,8 @@ contract CashPlus is
         address to,
         uint256 amount
     ) internal zeroAddress(from) zeroAddress(to) {
-        require(from != to, "Cannot transfer to self");
-        require(amount > 0, "Amount must be > 0");
+        // require(from != to, "Cannot transfer to self");
+        // require(amount > 0, "Amount must be > 0");
         TokenTransferDetail[] memory _tt = _removeTokenByIdList(from, amount);
         _addTokenByIdList(to, _tt);
         emit Transfer(from, to, amount);
@@ -817,13 +837,16 @@ contract CashPlus is
     // Add new token data for a specified address
     // This function generates a new token ID based on the address and current block parameters.
     function _addNewTokenData(
-        SubscribeData memory sub
+        address user,
+        uint256 stokenAmount,
+        uint256 price,
+        uint256 time
     ) internal returns (uint256) {
         nextId++;
         uint256 tokenId = uint256(
             keccak256(
                 abi.encodePacked(
-                    sub.user,
+                    user,
                     block.timestamp,
                     block.prevrandao,
                     nextId
@@ -832,11 +855,17 @@ contract CashPlus is
         );
         TokenData memory newTokenData = TokenData({
             id: tokenId,
-            mintTime: sub.time,
-            mintPrice: sub.price,
-            tokenOwner: sub.user
+            mintTime: time,
+            mintPrice: price,
+            tokenOwner: user
         });
+
         _tokenDataMap[tokenId] = newTokenData;
+        _tokenList[user].push(tokenId);
+        _tokenMap[user][tokenId] += stokenAmount;
+        _totalSupply += stokenAmount;
+
+        emit Transfer(address(0), user, stokenAmount);
         return tokenId;
     }
 
@@ -1143,4 +1172,41 @@ contract CashPlus is
     //         }
     //     }
     // }
+
+    // ---- CCT 自助注册需要的接口 ----
+    function getCCIPAdmin() external view returns (address) {
+        return _ccipAdmin;
+    }
+
+    function setCCIPAdmin(
+        address newAdmin
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setCCIPAdmin(newAdmin);
+    }
+
+    function _setCCIPAdmin(address newAdmin) internal {
+        address previous = _ccipAdmin;
+        _ccipAdmin = newAdmin;
+        emit CCIPAdminTransferred(previous, newAdmin);
+    }
+
+    function setPoolAdmin(
+        address newAdmin
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        address previous = _poolAdmin;
+        _poolAdmin = newAdmin;
+        emit PoolAdminTransferred(previous, newAdmin);
+    }
+
+    function mint(address to, uint256 amount) external {
+        require(msg.sender == _poolAdmin, "poolAdmin");
+        _addNewTokenData(to, amount, 0, block.timestamp);
+    }
+
+    function burn(address from, uint256 amount) external {
+        require(msg.sender == _poolAdmin, "poolAdmin");
+        _removeTokenByIdList(from, amount);
+        _totalSupply -= amount;
+        emit Transfer(from, address(0), amount);
+    }
 }

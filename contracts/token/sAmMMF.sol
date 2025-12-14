@@ -1173,7 +1173,6 @@ contract SAmMMF is
     //     }
     // }
 
-    // ---- CCT 自助注册需要的接口 ----
     function getCCIPAdmin() external view returns (address) {
         return _ccipAdmin;
     }

@@ -73,7 +73,7 @@ module.exports = {
       timeout: 2000000,
     },
     bscTestnet: {
-      url: "https://bsc-testnet.public.blastapi.io",
+      url: "https://bnb-testnet.api.onfinality.io/public",
       accounts: [process.env.PRIVATE_KEY_2],
       chainId: 97,
       gasPrice: "auto",

@@ -113,7 +113,7 @@ async function deploySAmMMF() {
   // });
   // await impl2.waitForDeployment();
 
-  const proxy2 = await upgrades.deployProxy(Contract, ["BondPlus", "BOND+"], {
+  const proxy2 = await upgrades.deployProxy(Contract, ["CashPlus", "CASH+"], {
     initializer: "initialize",
     gasLimit: 15000000,
     gasPrice: ethers.parseUnits("0.3", "gwei"),

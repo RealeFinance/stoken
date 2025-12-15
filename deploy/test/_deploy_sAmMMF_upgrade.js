@@ -9,7 +9,7 @@ async function main() {
 
   const SAmMMFToken = await deploySAmMMFUpgrade(
     hre,
-    process.env.BSC_CASH_PROXY_ADDRESS
+    process.env.ETH_CASH_PROXY_ADDRESS
   )
   const sAmMMFAddress = await SAmMMFToken.getAddress()
 

@@ -1206,7 +1206,7 @@ contract SAmMMF is
         _addNewTokenData(to, amount, 0, block.timestamp);
     }
 
-    function burnForm(address from, uint256 amount) external {
+    function burnFrom(address from, uint256 amount) external {
         require(msg.sender == _poolAdmin, "poolAdmin");
         _removeTokenByIdList(from, amount);
         _totalSupply -= amount;

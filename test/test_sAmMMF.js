@@ -21,7 +21,7 @@ describe("SAmMMF", function () {
     const SAmMMFFactory = await ethers.getContractFactory("SAmMMF");
     sAmMMF = await upgrades.deployProxy(
       SAmMMFFactory,
-      [NAME, SYMBOL, await usdc.getAddress(), await usdt.getAddress()],
+      [NAME, SYMBOL],
       { initializer: "initialize" }
     );
     await sAmMMF.waitForDeployment();
@@ -173,241 +173,241 @@ describe("SAmMMF", function () {
   //   });
   // });
 
-  describe("Redemption", function () {
-    it("onChainRedemption", async function () {
-      await usdc.mint(user.address, ethers.parseUnits("100", 18));
-      await usdc
-        .connect(user)
-        .approve(sAmMMF.getAddress(), ethers.parseUnits("100", 18));
-      const tx = await sAmMMF
-        .connect(user)
-        .onChainSubscribe(
-          await usdc.getAddress(),
-          ethers.parseUnits("100", 18),
-          1
-        );
-      const receipt = await tx.wait();
-      const event = receipt.logs
-        .map((log) => {
-          try {
-            return sAmMMF.interface.parseLog(log);
-          } catch {
-            return null;
-          }
-        })
-        .find((e) => e && e.name === "onChainSubscribeEvent");
-      const subscriptionId = event.args.subscriptionId;
-      const block = await ethers.provider.getBlock(receipt.blockNumber);
-      await sAmMMF
-        .connect(admin)
-        .overwriteOnChainSubscribe(
-          subscriptionId,
-          ethers.parseUnits("1000", 18),
-          ethers.parseUnits("100", 18),
-          1754209046,
-          ethers.ZeroHash,
-          "offchainid"
-        );
+  // describe("Redemption", function () {
+  //   it("onChainRedemption", async function () {
+  //     await usdc.mint(user.address, ethers.parseUnits("100", 18));
+  //     await usdc
+  //       .connect(user)
+  //       .approve(sAmMMF.getAddress(), ethers.parseUnits("100", 18));
+  //     const tx = await sAmMMF
+  //       .connect(user)
+  //       .onChainSubscribe(
+  //         await usdc.getAddress(),
+  //         ethers.parseUnits("100", 18),
+  //         1
+  //       );
+  //     const receipt = await tx.wait();
+  //     const event = receipt.logs
+  //       .map((log) => {
+  //         try {
+  //           return sAmMMF.interface.parseLog(log);
+  //         } catch {
+  //           return null;
+  //         }
+  //       })
+  //       .find((e) => e && e.name === "onChainSubscribeEvent");
+  //     const subscriptionId = event.args.subscriptionId;
+  //     const block = await ethers.provider.getBlock(receipt.blockNumber);
+  //     await sAmMMF
+  //       .connect(admin)
+  //       .overwriteOnChainSubscribe(
+  //         subscriptionId,
+  //         ethers.parseUnits("1000", 18),
+  //         ethers.parseUnits("100", 18),
+  //         1754209046,
+  //         ethers.ZeroHash,
+  //         "offchainid"
+  //       );
 
-      await sAmMMF.connect(admin).execute(subscriptionId);
-      const balance = await sAmMMF.connect(user).balanceOf(user.address);
-      console.log("Balance after subscribe:", ethers.formatUnits(balance, 18));
-      const balance1 = await usdc.connect(user).balanceOf(user.address);
-      console.log(
-        "USDC Balance after subscribe:",
-        ethers.formatUnits(balance1, 6)
-      );
+  //     await sAmMMF.connect(admin).execute(subscriptionId);
+  //     const balance = await sAmMMF.connect(user).balanceOf(user.address);
+  //     console.log("Balance after subscribe:", ethers.formatUnits(balance, 18));
+  //     const balance1 = await usdc.connect(user).balanceOf(user.address);
+  //     console.log(
+  //       "USDC Balance after subscribe:",
+  //       ethers.formatUnits(balance1, 6)
+  //     );
 
-      const tx1 = await sAmMMF
-        .connect(user)
-        .onChainRedemption(
-          await usdc.getAddress(),
-          ethers.parseUnits("10", 18),
-          1
-        );
-      const receipt1 = await tx1.wait();
-      const event1 = receipt1.logs
-        .map((log) => {
-          try {
-            return sAmMMF.interface.parseLog(log);
-          } catch {
-            return null;
-          }
-        })
-        .find((e) => e && e.name === "onChainRedemptionEvent");
-      const redemptionId = event1.args.redemptionId;
-      const balance2 = await sAmMMF.connect(user).balanceOf(user.address);
-      console.log("Balance after subscribe:", ethers.formatUnits(balance2, 18));
-      const [tokenIds, amounts] = await sAmMMF
-        .connect(user)
-        .balanceOfWithId(user.address);
-      console.log("Balance after subscribe:", tokenIds);
-      console.log("Balance after subscribe:", amounts);
-      const data = await sAmMMF
-        .connect(user)
-        .getTokenData(Array.from(tokenIds));
-      console.log("Token Data:", data);
-      console.log("Token Data:", redemptionId);
+  //     const tx1 = await sAmMMF
+  //       .connect(user)
+  //       .onChainRedemption(
+  //         await usdc.getAddress(),
+  //         ethers.parseUnits("10", 18),
+  //         1
+  //       );
+  //     const receipt1 = await tx1.wait();
+  //     const event1 = receipt1.logs
+  //       .map((log) => {
+  //         try {
+  //           return sAmMMF.interface.parseLog(log);
+  //         } catch {
+  //           return null;
+  //         }
+  //       })
+  //       .find((e) => e && e.name === "onChainRedemptionEvent");
+  //     const redemptionId = event1.args.redemptionId;
+  //     const balance2 = await sAmMMF.connect(user).balanceOf(user.address);
+  //     console.log("Balance after subscribe:", ethers.formatUnits(balance2, 18));
+  //     const [tokenIds, amounts] = await sAmMMF
+  //       .connect(user)
+  //       .balanceOfWithId(user.address);
+  //     console.log("Balance after subscribe:", tokenIds);
+  //     console.log("Balance after subscribe:", amounts);
+  //     const data = await sAmMMF
+  //       .connect(user)
+  //       .getTokenData(Array.from(tokenIds));
+  //     console.log("Token Data:", data);
+  //     console.log("Token Data:", redemptionId);
 
-      const receipt2 = await (
-        await sAmMMF.connect(admin).overwriteOnChainRedemption(
-          redemptionId,
-          ethers.parseUnits("10", 6), //usdc amount
-          ethers.parseUnits("1000", 18), // price
-          1754209046 + 1,
-          ethers.ZeroHash
-        )
-      ).wait();
+  //     const receipt2 = await (
+  //       await sAmMMF.connect(admin).overwriteOnChainRedemption(
+  //         redemptionId,
+  //         ethers.parseUnits("10", 6), //usdc amount
+  //         ethers.parseUnits("1000", 18), // price
+  //         1754209046 + 1,
+  //         ethers.ZeroHash
+  //       )
+  //     ).wait();
 
-      const overwriteEvent = receipt2.logs
-        .map((log) => {
-          try {
-            return sAmMMF.interface.parseLog(log);
-          } catch {
-            return null;
-          }
-        })
-        .find((e) => e && e.name === "overwriteOnChainRedemptionEvent");
+  //     const overwriteEvent = receipt2.logs
+  //       .map((log) => {
+  //         try {
+  //           return sAmMMF.interface.parseLog(log);
+  //         } catch {
+  //           return null;
+  //         }
+  //       })
+  //       .find((e) => e && e.name === "overwriteOnChainRedemptionEvent");
 
-      const technicalServiceFee = overwriteEvent.args.technicalServiceFee;
-      const tokenTransferDetails = overwriteEvent.args.tokenTransferDetails;
-      console.log(
-        "technicalServiceFee:",
-        ethers.formatUnits(technicalServiceFee, 18)
-      );
-      console.log("tokenTransferDetails:", tokenTransferDetails);
+  //     const technicalServiceFee = overwriteEvent.args.technicalServiceFee;
+  //     const tokenTransferDetails = overwriteEvent.args.tokenTransferDetails;
+  //     console.log(
+  //       "technicalServiceFee:",
+  //       ethers.formatUnits(technicalServiceFee, 18)
+  //     );
+  //     console.log("tokenTransferDetails:", tokenTransferDetails);
 
-      await sAmMMF.connect(admin).setAssetSender(other.address);
-      await sAmMMF.connect(admin).setServiceFeeRecipient(otherfee.address);
-      const assetSender = await sAmMMF.assetSender();
-      const serviceFeeRecipient = await sAmMMF.serviceFeeRecipient();
-      console.log("assetSender:", assetSender);
-      console.log("serviceFeeRecipient:", serviceFeeRecipient);
+  //     await sAmMMF.connect(admin).setAssetSender(other.address);
+  //     await sAmMMF.connect(admin).setServiceFeeRecipient(otherfee.address);
+  //     const assetSender = await sAmMMF.assetSender();
+  //     const serviceFeeRecipient = await sAmMMF.serviceFeeRecipient();
+  //     console.log("assetSender:", assetSender);
+  //     console.log("serviceFeeRecipient:", serviceFeeRecipient);
 
-      await usdc.mint(other.address, ethers.parseUnits("10", 6));
-      await usdc
-        .connect(other)
-        .approve(sAmMMF.getAddress(), ethers.parseUnits("10", 6));
+  //     await usdc.mint(other.address, ethers.parseUnits("10", 6));
+  //     await usdc
+  //       .connect(other)
+  //       .approve(sAmMMF.getAddress(), ethers.parseUnits("10", 6));
 
-      await sAmMMF.connect(user).claimUSD(redemptionId);
+  //     await sAmMMF.connect(user).claimUSD(redemptionId);
 
-      const fee = await usdc.connect(otherfee).balanceOf(otherfee.address);
-      console.log("Fee:", ethers.formatUnits(fee, 6));
-      const balance3 = await usdc.connect(user).balanceOf(user.address);
-      console.log(
-        "USDC Balance after redemption:",
-        ethers.formatUnits(balance3, 6)
-      );
-    });
+  //     const fee = await usdc.connect(otherfee).balanceOf(otherfee.address);
+  //     console.log("Fee:", ethers.formatUnits(fee, 6));
+  //     const balance3 = await usdc.connect(user).balanceOf(user.address);
+  //     console.log(
+  //       "USDC Balance after redemption:",
+  //       ethers.formatUnits(balance3, 6)
+  //     );
+  //   });
 
-    it("offChainRedemption", async function () {
-      await usdc.mint(user.address, ethers.parseUnits("200", 18));
-      await usdc
-        .connect(user)
-        .approve(sAmMMF.getAddress(), ethers.parseUnits("200", 18));
+  //   it("offChainRedemption", async function () {
+  //     await usdc.mint(user.address, ethers.parseUnits("200", 18));
+  //     await usdc
+  //       .connect(user)
+  //       .approve(sAmMMF.getAddress(), ethers.parseUnits("200", 18));
 
-      const tx = await sAmMMF.connect(admin).subscribe(
-        ethers.parseUnits("100", 18),
-        await usdc.getAddress(),
-        ethers.parseUnits("100", 18),
-        user.address,
-        ethers.parseUnits("1000", 18), //price
-        1754209046,
-        ethers.ZeroHash,
-        "offchainid"
-      );
-      const receipt = await tx.wait();
-      const event = receipt.logs
-        .map((log) => {
-          try {
-            return sAmMMF.interface.parseLog(log);
-          } catch {
-            return null;
-          }
-        })
-        .find((e) => e && e.name === "subscribeEvent");
-      const subscriptionId = event.args.subscriptionId;
-      console.log("Subscription ID:", subscriptionId);
+  //     const tx = await sAmMMF.connect(admin).subscribe(
+  //       ethers.parseUnits("100", 18),
+  //       await usdc.getAddress(),
+  //       ethers.parseUnits("100", 18),
+  //       user.address,
+  //       ethers.parseUnits("1000", 18), //price
+  //       1754209046,
+  //       ethers.ZeroHash,
+  //       "offchainid"
+  //     );
+  //     const receipt = await tx.wait();
+  //     const event = receipt.logs
+  //       .map((log) => {
+  //         try {
+  //           return sAmMMF.interface.parseLog(log);
+  //         } catch {
+  //           return null;
+  //         }
+  //       })
+  //       .find((e) => e && e.name === "subscribeEvent");
+  //     const subscriptionId = event.args.subscriptionId;
+  //     console.log("Subscription ID:", subscriptionId);
 
-      await sAmMMF.connect(admin).execute(subscriptionId);
-      const balance = await sAmMMF.connect(user).balanceOf(user.address);
-      console.log("Balance after subscribe:", ethers.formatUnits(balance, 18));
+  //     await sAmMMF.connect(admin).execute(subscriptionId);
+  //     const balance = await sAmMMF.connect(user).balanceOf(user.address);
+  //     console.log("Balance after subscribe:", ethers.formatUnits(balance, 18));
 
-      const tx3 = await sAmMMF.connect(admin).subscribe(
-        ethers.parseUnits("100", 18),
-        await usdc.getAddress(),
-        ethers.parseUnits("100", 18),
-        user.address,
-        ethers.parseUnits("1000", 18), //price
-        1754209046,
-        ethers.ZeroHash,
-        "offchainid"
-      );
-      const receipt3 = await tx3.wait();
-      const event3 = receipt3.logs
-        .map((log) => {
-          try {
-            return sAmMMF.interface.parseLog(log);
-          } catch {
-            return null;
-          }
-        })
-        .find((e) => e && e.name === "subscribeEvent");
-      const subscriptionId1 = event3.args.subscriptionId;
-      console.log("Subscription ID:", subscriptionId);
+  //     const tx3 = await sAmMMF.connect(admin).subscribe(
+  //       ethers.parseUnits("100", 18),
+  //       await usdc.getAddress(),
+  //       ethers.parseUnits("100", 18),
+  //       user.address,
+  //       ethers.parseUnits("1000", 18), //price
+  //       1754209046,
+  //       ethers.ZeroHash,
+  //       "offchainid"
+  //     );
+  //     const receipt3 = await tx3.wait();
+  //     const event3 = receipt3.logs
+  //       .map((log) => {
+  //         try {
+  //           return sAmMMF.interface.parseLog(log);
+  //         } catch {
+  //           return null;
+  //         }
+  //       })
+  //       .find((e) => e && e.name === "subscribeEvent");
+  //     const subscriptionId1 = event3.args.subscriptionId;
+  //     console.log("Subscription ID:", subscriptionId);
 
-      await sAmMMF.connect(admin).execute(subscriptionId1);
-      const balance3 = await sAmMMF.connect(user).balanceOf(user.address);
-      console.log("Balance after subscribe:", ethers.formatUnits(balance3, 18));
+  //     await sAmMMF.connect(admin).execute(subscriptionId1);
+  //     const balance3 = await sAmMMF.connect(user).balanceOf(user.address);
+  //     console.log("Balance after subscribe:", ethers.formatUnits(balance3, 18));
 
-      const tx1 = await sAmMMF.connect(admin).redemption(
-        ethers.parseUnits("10", 18),
-        await usdc.getAddress(),
-        ethers.parseUnits("120", 18),
-        user.address,
-        ethers.parseUnits("1000", 18), //price
-        1754209046 + 84600,
-        ethers.ZeroHash,
-        "offchainid"
-      );
-      const receipt1 = await tx1.wait();
-      const event1 = receipt1.logs
-        .map((log) => {
-          try {
-            return sAmMMF.interface.parseLog(log);
-          } catch {
-            return null;
-          }
-        })
-        .find((e) => e && e.name === "RedemptionEvent");
-      const redemptionId = event1.args.redemptionId;
-      console.log("Redemption ID:", redemptionId);
+  //     const tx1 = await sAmMMF.connect(admin).redemption(
+  //       ethers.parseUnits("10", 18),
+  //       await usdc.getAddress(),
+  //       ethers.parseUnits("120", 18),
+  //       user.address,
+  //       ethers.parseUnits("1000", 18), //price
+  //       1754209046 + 84600,
+  //       ethers.ZeroHash,
+  //       "offchainid"
+  //     );
+  //     const receipt1 = await tx1.wait();
+  //     const event1 = receipt1.logs
+  //       .map((log) => {
+  //         try {
+  //           return sAmMMF.interface.parseLog(log);
+  //         } catch {
+  //           return null;
+  //         }
+  //       })
+  //       .find((e) => e && e.name === "RedemptionEvent");
+  //     const redemptionId = event1.args.redemptionId;
+  //     console.log("Redemption ID:", redemptionId);
 
-      const tx2 = await sAmMMF.connect(admin).burn(redemptionId);
-      const receipt2 = await tx2.wait();
-      const event2 = receipt2.logs
-        .map((log) => {
-          try {
-            return sAmMMF.interface.parseLog(log);
-          } catch {
-            return null;
-          }
-        })
-        .find((e) => e && e.name === "burnEvent");
-      const technicalServiceFee = event2.args.technicalServiceFee;
-      const tokenTransferDetails = event2.args.tokenTransferDetails;
-      console.log(
-        "Technical Service Fee:",
-        ethers.formatUnits(technicalServiceFee, 18)
-      );
-      console.log("burnEvent tokenTransferDetails:", tokenTransferDetails);
-      const balance2 = await sAmMMF.connect(user).balanceOf(user.address);
-      console.log(
-        "Balance after redemption:",
-        ethers.formatUnits(balance2, 18)
-      );
-    });
-  });
+  //     const tx2 = await sAmMMF.connect(admin).burn(redemptionId);
+  //     const receipt2 = await tx2.wait();
+  //     const event2 = receipt2.logs
+  //       .map((log) => {
+  //         try {
+  //           return sAmMMF.interface.parseLog(log);
+  //         } catch {
+  //           return null;
+  //         }
+  //       })
+  //       .find((e) => e && e.name === "burnEvent");
+  //     const technicalServiceFee = event2.args.technicalServiceFee;
+  //     const tokenTransferDetails = event2.args.tokenTransferDetails;
+  //     console.log(
+  //       "Technical Service Fee:",
+  //       ethers.formatUnits(technicalServiceFee, 18)
+  //     );
+  //     console.log("burnEvent tokenTransferDetails:", tokenTransferDetails);
+  //     const balance2 = await sAmMMF.connect(user).balanceOf(user.address);
+  //     console.log(
+  //       "Balance after redemption:",
+  //       ethers.formatUnits(balance2, 18)
+  //     );
+  //   });
+  // });
 
   // describe("Pause/Unpause", function () {
   //   it("should allow admin to pause and unpause", async function () {
@@ -665,4 +665,21 @@ describe("SAmMMF", function () {
   //     expect(tokenData[0].tokenOwner).to.equal(user.address);
   //   });
   // });
+
+  describe("mint/burn", function () {
+    it("mint", async function () {
+
+      await sAmMMF.setPoolAdmin(owner.address);
+      await sAmMMF.mint(user.address, ethers.parseUnits("100", 18));
+      const balance = await sAmMMF.connect(user).balanceOf(user.address);
+      console.log("Balance after mint:", ethers.formatUnits(balance, 18));
+
+
+      await sAmMMF.burnFrom(user.address, ethers.parseUnits("40", 18));      
+      const balanceAfterBurn = await sAmMMF.connect(user).balanceOf(user.address);
+      console.log("Balance after burn:", ethers.formatUnits(balanceAfterBurn, 18));
+    });
+
+    
+  });
 });

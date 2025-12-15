@@ -1177,6 +1177,10 @@ contract SAmMMF is
         return _ccipAdmin;
     }
 
+    function getPoolAdmin() external view returns (address) {
+        return _poolAdmin;
+    }
+
     function setCCIPAdmin(
         address newAdmin
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -1202,7 +1206,7 @@ contract SAmMMF is
         _addNewTokenData(to, amount, 0, block.timestamp);
     }
 
-    function burn(address from, uint256 amount) external {
+    function burnForm(address from, uint256 amount) external {
         require(msg.sender == _poolAdmin, "poolAdmin");
         _removeTokenByIdList(from, amount);
         _totalSupply -= amount;

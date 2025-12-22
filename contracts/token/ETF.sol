@@ -25,6 +25,7 @@ import {
 import {
     UUPSUpgradeable
 } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {IETF} from "../Interfaces/IETF.sol";
 
 /**
  * @title ETFToken
@@ -42,7 +43,8 @@ contract ETFToken is
     ERC20PermitUpgradeable,
     AccessControlEnumerableUpgradeable,
     UUPSUpgradeable,
-    ReentrancyGuardUpgradeable
+    ReentrancyGuardUpgradeable,
+    IETF
 {
     // ========== 核心配置 ==========
     IERC20 public USDT; // USDT合约地址（需替换为部署链的真实地址）
@@ -51,7 +53,6 @@ contract ETFToken is
     uint256 public constant DAY_SECONDS = 86400; // 1天秒数
     uint256 public constant USDT_DECIMALS = 6; // USDT小数位
     uint256 public constant ETF_DECIMALS = 18; // ETF小数位
-    address public assetRecipient; // 资产接收地址
 
     // ========== 订单结构体 ==========
     struct ExchangeOrder {
@@ -72,30 +73,8 @@ contract ETFToken is
     mapping(uint256 => ExchangeOrder) public orders; // 订单ID => 订单信息
     mapping(address => uint256[]) public userOrders; // 用户 => 订单ID列表
     uint256 public nextOrderId; // 下一个订单ID
-
-    // ========== 事件 ==========
-    event OrderCreated(
-        uint256 indexed orderId,
-        address indexed user,
-        uint256 usdtAmount,
-        uint256 etfAmount,
-        uint256 settleTime
-    );
-    event ETFSettled(
-        uint256 indexed orderId,
-        address indexed user,
-        uint256 etfAmount
-    );
-    event OrderCancelled(
-        uint256 indexed orderId,
-        address indexed user,
-        uint256 penalty,
-        uint256 refundUsdt
-    );
-    event assetRecipientUpdatedEvent(
-        address indexed oldRecipient,
-        address indexed newRecipient
-    );
+    uint256 public lotSize; // 批量大小
+    address private assetRecipient; // 资产接收地址
 
     // ========== 修饰符 ==========
     modifier zeroAddress(address addr) {
@@ -146,6 +125,10 @@ contract ETFToken is
         uint256 value
     ) internal override(ERC20Upgradeable, ERC20PausableUpgradeable) {
         super._update(from, to, value);
+    }
+
+    function decimals() public pure override returns (uint8) {
+        return uint8(ETF_DECIMALS);
     }
 
     // ========== 核心功能1：按USDT金额购买ETF ==========
@@ -244,6 +227,25 @@ contract ETFToken is
             etfAmount,
             settleTime
         );
+    }
+
+    /**
+     * 冻结金额 = 预估金额 × 1.1（10% buffer）
+     */
+    function lock(uint256 uAmount) external nonReentrant {
+        // 预估金额 = 冻结金额 / 1.1
+        uint256 estimatedAmount = (uAmount * 1000) / 1100; // 乘1000避免精度丢失
+
+        uint256 etfAmount = _getEtfAmount(estimatedAmount);
+    }
+
+    function lock(uint256 uAmount, uint256 etfAmount) external nonReentrant {}
+
+    function _getEtfAmount(uint256 uAmount) internal view returns (uint256) {
+        return
+            ((uAmount * (10 ** ETF_DECIMALS)) /
+                (etfPrice * (10 ** (ETF_DECIMALS - USDT_DECIMALS))) /
+                lotSize) * lotSize;
     }
 
     // ========== 核心功能3：T+2到期铸造ETF ==========
@@ -413,5 +415,15 @@ contract ETFToken is
         address oldRecipient = assetRecipient;
         assetRecipient = newRecipient;
         emit assetRecipientUpdatedEvent(oldRecipient, newRecipient); // Emit event for asset recipient update
+    }
+
+    /**
+     * @dev Set the lot size for ETF transactions.
+     * @param _lotSize The new lot size.
+     */
+    function setLotSize(uint256 _lotSize) external onlyRole(ETF_ADMIN) {
+        uint256 _oldLotSize = lotSize;
+        lotSize = _lotSize;
+        emit lotSizeUpdated(_oldLotSize, _lotSize);
     }
 }

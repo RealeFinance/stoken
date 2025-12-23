@@ -8,24 +8,18 @@ interface IETF {
     event OrderCreated(
         uint256 indexed orderId,
         address indexed user,
-        uint256 usdtAmount,
-        uint256 etfAmount,
-        uint256 settleTime
-    );
-    event ETFSettled(
-        uint256 indexed orderId,
-        address indexed user,
-        uint256 etfAmount
-    );
-    event OrderCancelled(
-        uint256 indexed orderId,
-        address indexed user,
-        uint256 penalty,
-        uint256 refundUsdt
+        address uAddress,
+        uint256 uAmount,
+        uint256 lockTime,
+        uint256 settleTime,
+        bool isLotType
     );
     event assetRecipientUpdatedEvent(
         address indexed oldRecipient,
         address indexed newRecipient
     );
     event lotSizeUpdated(uint256 oldLotSize, uint256 newLotSize);
+
+    event supportedTokenAddressAddedEvent(address indexed token);
+    event supportedTokenAddressRemovedEvent(address indexed token);
 }

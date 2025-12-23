@@ -14,6 +14,9 @@ import {
     IERC20Metadata
 } from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {
+    SafeERC20
+} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {
     Initializable
 } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {
@@ -46,6 +49,7 @@ contract ETFToken is
     ReentrancyGuardUpgradeable,
     IETF
 {
+    using SafeERC20 for IERC20;
     // ========== 核心配置 ==========
     IERC20 public USDT; // USDT合约地址（需替换为部署链的真实地址）
     uint256 public etfPrice; // ETF单价（USDT/枚，单位：1e6，即1 USDT = 1e6）
@@ -53,15 +57,20 @@ contract ETFToken is
     uint256 public constant DAY_SECONDS = 86400; // 1天秒数
     uint256 public constant USDT_DECIMALS = 6; // USDT小数位
     uint256 public constant ETF_DECIMALS = 18; // ETF小数位
+    // List of supported USDT/USDC address
+    address[] public supportedTokenAddress;
 
     // ========== 订单结构体 ==========
-    struct ExchangeOrder {
+    struct Order {
         uint256 orderId; // 订单ID
         address user; // 下单用户
-        uint256 usdtAmount; // 锁定的USDT数量（1e6单位）
+        uint256 uAmount; // 锁定的USDT数量（1e6单位）
         uint256 etfAmount; // 待铸造的ETF数量（1e18单位）
         uint256 lockTime; // 锁定时间（下单时间戳）
         uint256 settleTime; // T+2交割时间（铸造时间）
+        uint256 refundUAmount; // 需要退回的USDT数量
+        bool isLotType; // 是否按照手数购买
+        uint256 lotCount; // 手数 当isLotType为true时有效
         bool isSettled; // 是否已铸造ETF
         bool isCancelled; // 是否已撤销
     }
@@ -70,7 +79,7 @@ contract ETFToken is
     bytes32 public constant ETF_ADMIN = keccak256("ETF_ADMIN");
 
     // ========== 状态变量 ==========
-    mapping(uint256 => ExchangeOrder) public orders; // 订单ID => 订单信息
+    mapping(uint256 => Order) public orders; // 订单ID => 订单信息
     mapping(address => uint256[]) public userOrders; // 用户 => 订单ID列表
     uint256 public nextOrderId; // 下一个订单ID
     uint256 public lotSize; // 批量大小
@@ -131,170 +140,80 @@ contract ETFToken is
         return uint8(ETF_DECIMALS);
     }
 
-    // ========== 核心功能1：按USDT金额购买ETF ==========
-    /**
-     * @dev 按USDT金额下单，锁定USDT，T+2后铸造对应ETF
-     * @param usdtAmount USDT金额（1e6单位，如100 USDT = 100 * 1e6）
-     */
-    function buyByUSDTAmount(uint256 usdtAmount) external nonReentrant {
-        require(usdtAmount > 0, "USDT amount must > 0");
-        require(etfPrice > 0, "ETF price not set");
+    // ========== 核心功能：链上认购ETF ==========
+    function onChainSubscribe(
+        address uAddress,
+        uint256 uAmount
+    ) external nonReentrant {
+        _onChainSubscribe(uAddress, uAmount, 0);
+    }
 
-        // 1. 计算可兑换的ETF数量：ETF数量 = USDT金额 / ETF单价（向下取整）
-        // 单位换算：USDT(1e6) → ETF(1e18)，需统一精度
-        uint256 etfAmount = (usdtAmount * (10 ** ETF_DECIMALS)) /
-            (etfPrice * (10 ** (ETF_DECIMALS - USDT_DECIMALS)));
-        require(etfAmount > 0, "USDT amount too small to buy 1 ETF");
+    function onChainSubscribe(
+        address uAddress,
+        uint256 uAmount,
+        uint256 lotCount
+    ) external nonReentrant {
+        _onChainSubscribe(uAddress, uAmount, lotCount);
+    }
 
-        // 2. 转移并锁定用户USDT（需用户提前approve合约）
-        bool transferSuccess = USDT.transferFrom(
-            msg.sender,
-            address(this),
-            usdtAmount
+    function _onChainSubscribe(
+        address uAddress,
+        uint256 uAmount,
+        uint256 lotCount
+    ) internal {
+        uint256 balanceBefore = IERC20(uAddress).balanceOf(assetRecipient);
+        IERC20(uAddress).safeTransferFrom(msg.sender, assetRecipient, uAmount);
+        uint256 balanceAfter = IERC20(uAddress).balanceOf(assetRecipient);
+        uAmount = balanceAfter - balanceBefore;
+
+        nextOrderId++;
+        uint256 lockTime = block.timestamp;
+        uint256 settleTime = calculateT2SettleTime(lockTime);
+        uint256 orderId = uint256(
+            keccak256(
+                abi.encodePacked(
+                    uAddress,
+                    uAmount,
+                    msg.sender,
+                    lockTime,
+                    block.prevrandao,
+                    nextOrderId
+                )
+            )
         );
-        require(transferSuccess, "USDT transfer failed");
 
-        // 3. 计算T+2交割时间（排除周末）
-        uint256 settleTime = calculateT2SettleTime(block.timestamp);
-
-        // 4. 创建订单
-        uint256 orderId = nextOrderId++;
-        orders[orderId] = ExchangeOrder({
-            orderId: orderId,
-            user: msg.sender,
-            usdtAmount: usdtAmount,
-            etfAmount: etfAmount,
-            lockTime: block.timestamp,
-            settleTime: settleTime,
-            isSettled: false,
-            isCancelled: false
-        });
+        Order storage order = orders[orderId];
+        order.orderId = orderId;
+        order.user = msg.sender;
+        order.uAmount = uAmount;
+        order.lockTime = lockTime;
+        order.settleTime = settleTime;
+        if (lotCount > 0) {
+            order.isLotType = true;
+            order.lotCount = lotCount;
+        } else {
+            order.isLotType = false;
+            order.lotCount = 0;
+        }
         userOrders[msg.sender].push(orderId);
 
         emit OrderCreated(
             orderId,
             msg.sender,
-            usdtAmount,
-            etfAmount,
-            settleTime
+            uAddress,
+            uAmount,
+            lockTime,
+            settleTime,
+            order.isLotType
         );
     }
 
-    // ========== 核心功能2：按ETF数量购买 ==========
-    /**
-     * @dev 按ETF数量下单，锁定对应USDT，T+2后铸造ETF
-     * @param etfAmount ETF数量（1e18单位，如100 ETF = 100 * 1e18）
-     */
-    function buyByETFAmount(uint256 etfAmount) external nonReentrant {
-        require(etfAmount > 0, "ETF amount must > 0");
-        require(etfPrice > 0, "ETF price not set");
-
-        // 1. 计算需锁定的USDT金额：USDT金额 = ETF数量 * ETF单价
-        // 单位换算：ETF(1e18) → USDT(1e6)
-        uint256 usdtAmount = (etfAmount * etfPrice) /
-            (10 ** (ETF_DECIMALS - USDT_DECIMALS));
-        require(usdtAmount > 0, "ETF amount too small");
-
-        // 2. 转移并锁定用户USDT
-        bool transferSuccess = USDT.transferFrom(
-            msg.sender,
-            address(this),
-            usdtAmount
-        );
-        require(transferSuccess, "USDT transfer failed");
-
-        // 3. 计算T+2交割时间
-        uint256 settleTime = calculateT2SettleTime(block.timestamp);
-
-        // 4. 创建订单
-        uint256 orderId = nextOrderId++;
-        orders[orderId] = ExchangeOrder({
-            orderId: orderId,
-            user: msg.sender,
-            usdtAmount: usdtAmount,
-            etfAmount: etfAmount,
-            lockTime: block.timestamp,
-            settleTime: settleTime,
-            isSettled: false,
-            isCancelled: false
-        });
-        userOrders[msg.sender].push(orderId);
-
-        emit OrderCreated(
-            orderId,
-            msg.sender,
-            usdtAmount,
-            etfAmount,
-            settleTime
-        );
-    }
-
-    /**
-     * 冻结金额 = 预估金额 × 1.1（10% buffer）
-     */
-    function lock(uint256 uAmount) external nonReentrant {
-        // 预估金额 = 冻结金额 / 1.1
-        uint256 estimatedAmount = (uAmount * 1000) / 1100; // 乘1000避免精度丢失
-
-        uint256 etfAmount = _getEtfAmount(estimatedAmount);
-    }
-
-    function lock(uint256 uAmount, uint256 etfAmount) external nonReentrant {}
-
+    // ========== 辅助函数：计算ETF数量 ==========
     function _getEtfAmount(uint256 uAmount) internal view returns (uint256) {
         return
             ((uAmount * (10 ** ETF_DECIMALS)) /
                 (etfPrice * (10 ** (ETF_DECIMALS - USDT_DECIMALS))) /
                 lotSize) * lotSize;
-    }
-
-    // ========== 核心功能3：T+2到期铸造ETF ==========
-    /**
-     * @dev 订单到期后铸造ETF（用户主动触发，也可结合Chainlink Keepers实现自动铸造）
-     * @param orderId 订单ID
-     */
-    function settleOrder(uint256 orderId) external nonReentrant {
-        ExchangeOrder storage order = orders[orderId];
-        require(order.user == msg.sender, "Not order owner");
-        require(!order.isSettled, "Order already settled");
-        require(!order.isCancelled, "Order cancelled");
-        require(block.timestamp >= order.settleTime, "T+2 not expired");
-
-        // 1. 更新订单状态
-        order.isSettled = true;
-        // 2. 铸造ETF代币给用户
-        _mint(msg.sender, order.etfAmount);
-
-        emit ETFSettled(orderId, msg.sender, order.etfAmount);
-    }
-
-    // ========== 核心功能4：紧急撤销订单（提前解锁USDT，扣手续费） ==========
-    /**
-     * @dev 交割前撤销订单，扣1%手续费后退回USDT
-     * @param orderId 订单ID
-     */
-    function cancelOrder(uint256 orderId) external nonReentrant {
-        ExchangeOrder storage order = orders[orderId];
-        require(order.user == msg.sender, "Not order owner");
-        require(!order.isSettled, "Order already settled");
-        require(!order.isCancelled, "Order already cancelled");
-        require(block.timestamp < order.settleTime, "T+2 already expired");
-
-        // 1. 计算手续费和退款金额
-        uint256 penalty = order.usdtAmount / PENALTY_RATIO; // 1%手续费
-        uint256 refundUsdt = order.usdtAmount - penalty;
-
-        // 2. 更新订单状态
-        order.isCancelled = true;
-        // 3. 退回USDT（扣除手续费）
-        bool refundSuccess = USDT.transfer(msg.sender, refundUsdt);
-        require(refundSuccess, "USDT refund failed");
-        // 4. 手续费划转至管理员（可选：销毁/分红）
-        if (penalty > 0) {
-            USDT.transfer(assetRecipient, penalty);
-        }
-
-        emit OrderCancelled(orderId, msg.sender, penalty, refundUsdt);
     }
 
     // ========== 辅助函数：计算T+2交割时间（排除周末） ==========
@@ -366,38 +285,6 @@ contract ETFToken is
     }
 
     /**
-     * @dev 查询订单详情
-     * @param orderId 订单ID
-     * @return user 下单用户
-     * @return usdtAmount 锁定USDT数量
-     * @return etfAmount 待铸造ETF数量
-     * @return settleTime 交割时间
-     * @return isSettled 是否已铸造
-     */
-    function getOrderDetail(
-        uint256 orderId
-    )
-        external
-        view
-        returns (
-            address user,
-            uint256 usdtAmount,
-            uint256 etfAmount,
-            uint256 settleTime,
-            bool isSettled
-        )
-    {
-        ExchangeOrder storage order = orders[orderId];
-        return (
-            order.user,
-            order.usdtAmount,
-            order.etfAmount,
-            order.settleTime,
-            order.isSettled
-        );
-    }
-
-    /**
      * @dev Get the current asset recipient address.
      * @return The asset recipient address.
      */
@@ -425,5 +312,46 @@ contract ETFToken is
         uint256 _oldLotSize = lotSize;
         lotSize = _lotSize;
         emit lotSizeUpdated(_oldLotSize, _lotSize);
+    }
+
+    // ========== 支持的USDT/USDC地址管理 ==========
+    function getSupportedTokenAddresses()
+        external
+        view
+        returns (address[] memory)
+    {
+        return supportedTokenAddress;
+    }
+
+    function addSupportedTokenAddress(
+        address token
+    ) public virtual zeroAddress(token) onlyRole(ETF_ADMIN) {
+        supportedTokenAddress.push(token);
+        emit supportedTokenAddressAddedEvent(token);
+    }
+
+    function removeSupportedTokenAddress(
+        address token
+    ) public virtual zeroAddress(token) onlyRole(ETF_ADMIN) {
+        for (uint256 i = 0; i < supportedTokenAddress.length; i++) {
+            if (supportedTokenAddress[i] == token) {
+                supportedTokenAddress[i] = supportedTokenAddress[
+                    supportedTokenAddress.length - 1
+                ];
+                supportedTokenAddress.pop();
+                emit supportedTokenAddressRemovedEvent(token);
+                return;
+            }
+        }
+        revert("Address not found");
+    }
+
+    function containsAddress(address addr) internal view returns (bool) {
+        for (uint i = 0; i < supportedTokenAddress.length; i++) {
+            if (supportedTokenAddress[i] == addr) {
+                return true;
+            }
+        }
+        return false;
     }
 }

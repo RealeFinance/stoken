@@ -66,6 +66,7 @@ contract ETFToken is
         address user; // 下单用户
         uint256 uAmount; // 锁定的USDT数量（1e6单位）
         uint256 etfAmount; // 待铸造的ETF数量（1e18单位）
+        uint256 etfPrice; // 下单时的ETF单价
         uint256 lockTime; // 锁定时间（下单时间戳）
         uint256 settleTime; // T+2交割时间（铸造时间）
         uint256 refundUAmount; // 需要退回的USDT数量
@@ -90,6 +91,9 @@ contract ETFToken is
         require(addr != address(0), "Zero address");
         _;
     }
+
+    //  ========== 事件定义 ==========
+    error UnSupportedTokenAddress(address token, string reason);
 
     // ========== 构造函数 & 初始化 ==========
     constructor() {
@@ -145,6 +149,12 @@ contract ETFToken is
         address uAddress,
         uint256 uAmount
     ) external nonReentrant {
+        if (!_containsAddress(uAddress)) {
+            revert UnSupportedTokenAddress(
+                uAddress,
+                "Unsupported token address"
+            );
+        }
         _onChainSubscribe(uAddress, uAmount, 0);
     }
 
@@ -153,6 +163,13 @@ contract ETFToken is
         uint256 uAmount,
         uint256 lotCount
     ) external nonReentrant {
+        if (!_containsAddress(uAddress)) {
+            revert UnSupportedTokenAddress(
+                uAddress,
+                "Unsupported token address"
+            );
+        }
+        require(lotCount > 0, "Lot count must > 0");
         _onChainSubscribe(uAddress, uAmount, lotCount);
     }
 
@@ -207,6 +224,12 @@ contract ETFToken is
             order.isLotType
         );
     }
+
+    function updateSubscribe(uint256 orderId) external onlyRole(ETF_ADMIN) {}
+
+    function execute(uint256 orderId) external onlyRole(ETF_ADMIN) {}
+
+    function claim(uint256 orderId) external nonReentrant {}
 
     // ========== 辅助函数：计算ETF数量 ==========
     function _getEtfAmount(uint256 uAmount) internal view returns (uint256) {
@@ -346,7 +369,7 @@ contract ETFToken is
         revert("Address not found");
     }
 
-    function containsAddress(address addr) internal view returns (bool) {
+    function _containsAddress(address addr) internal view returns (bool) {
         for (uint i = 0; i < supportedTokenAddress.length; i++) {
             if (supportedTokenAddress[i] == addr) {
                 return true;

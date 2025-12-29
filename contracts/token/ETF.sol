@@ -1,129 +1,85 @@
 // SPDX-License-Identifier: MIT
-// Compatible with OpenZeppelin Contracts ^5.0.0
-// # Copyright (c) 2025 Asseto Fintech Limited. All rights reserved.
 pragma solidity ^0.8.22;
 
-// 导入OpenZeppelin核心库
+import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlEnumerableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import {
-    AccessControlEnumerableUpgradeable
-} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlEnumerableUpgradeable.sol";
-import {
-    IERC20,
-    ERC20Upgradeable,
-    IERC20Metadata
-} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import {
-    SafeERC20
-} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {
-    Initializable
-} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {
-    ERC20PausableUpgradeable
-} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
-import {
-    ERC20PermitUpgradeable
-} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
-import {
-    UUPSUpgradeable
-} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {IETF} from "../Interfaces/IETF.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-/**
- * @title ETFToken
- * @dev 基于ERC20扩展的ETF代币合约，支持USDT兑换、T+2锁定铸造、双维度下单
- * 核心规则：
- * 1. 两种兑换方式：按USDT金额买 / 按ETF数量买（自动换算USDT）；
- * 2. 兑换时锁定USDT，T+2（排除周末）后自动铸造ETF；
- * 3. 支持订单查询、到期铸造、紧急解锁（扣1%手续费）；
- * 4. USDT为ERC20标准代币（如泰达币），ETF代币18位小数，与USDT（6位）自动换算。
- */
-contract ETFToken is
+import {IETF} from "../Interfaces/IETF.sol";
+import {BaseStorageETF} from "../base/BaseStorageETF.sol";
+import {Blacklistable} from "../BlackList/Blacklistable.sol";
+
+contract MyERC20Upgradeable is
     Initializable,
     ERC20Upgradeable,
     ERC20PausableUpgradeable,
-    ERC20PermitUpgradeable,
     AccessControlEnumerableUpgradeable,
     UUPSUpgradeable,
     ReentrancyGuardUpgradeable,
-    IETF
+    BaseStorageETF,
+    Blacklistable
 {
     using SafeERC20 for IERC20;
-    // ========== 核心配置 ==========
-    IERC20 public USDT; // USDT合约地址（需替换为部署链的真实地址）
-    uint256 public etfPrice; // ETF单价（USDT/枚，单位：1e6，即1 USDT = 1e6）
-    uint256 public constant PENALTY_RATIO = 100; // 紧急解锁手续费比例（1/100 = 1%）
-    uint256 public constant DAY_SECONDS = 86400; // 1天秒数
-    uint256 public constant USDT_DECIMALS = 6; // USDT小数位
-    uint256 public constant ETF_DECIMALS = 18; // ETF小数位
-    // List of supported USDT/USDC address
-    address[] public supportedTokenAddress;
-
-    // ========== 订单结构体 ==========
-    struct Order {
-        uint256 orderId; // 订单ID
-        address user; // 下单用户
-        uint256 uAmount; // 锁定的USDT数量（1e6单位）
-        uint256 etfAmount; // 待铸造的ETF数量（1e18单位）
-        uint256 etfPrice; // 下单时的ETF单价
-        uint256 lockTime; // 锁定时间（下单时间戳）
-        uint256 settleTime; // T+2交割时间（铸造时间）
-        uint256 refundUAmount; // 需要退回的USDT数量
-        bool isLotType; // 是否按照手数购买
-        uint256 lotCount; // 手数 当isLotType为true时有效
-        bool isSettled; // 是否已铸造ETF
-        bool isCancelled; // 是否已撤销
-    }
-
     // ========== 角色定义 ==========
     bytes32 public constant ETF_ADMIN = keccak256("ETF_ADMIN");
+    uint256 public constant MIN_AMOUNT = 1e16; // 0.01 in 18 decimals
 
-    // ========== 状态变量 ==========
-    mapping(uint256 => Order) public orders; // 订单ID => 订单信息
-    mapping(address => uint256[]) public userOrders; // 用户 => 订单ID列表
-    uint256 public nextOrderId; // 下一个订单ID
-    uint256 public lotSize; // 批量大小
-    address private assetRecipient; // 资产接收地址
+    // subscriptionId => SubscribeData
+    mapping(uint256 => SubscribeData) private _subscribeDataMap;
 
-    // ========== 修饰符 ==========
-    modifier zeroAddress(address addr) {
-        require(addr != address(0), "Zero address");
+    // redemptionId => redemptionData
+    mapping(uint256 => RedemptionData) private _redemptionDataMap;
+
+    // tokenId => TokenData
+    mapping(uint256 => TokenData) private _tokenDataMap;
+
+    // Address → List of owned token IDs
+    mapping(address => uint256[]) private _tokenList;
+
+    // Address → Token ID → Token amount
+    mapping(address => mapping(uint256 => uint256)) private _tokenMap;
+
+    uint256 public nextId;
+
+    uint256 private _totalSupply;
+
+    uint256 public MIN_SUBSCRIPTION_USD_AMOUNT; // Minimum subscription amount (100 USDT/USDC with 6 decimals)
+
+    uint256 public MIN_REDEMPTION_CASH_AMOUNT; // Minimum redemption amount (0.948 Cash+ with 18 decimals)
+
+    modifier checkUSDAmount(uint256 uAmount, uint8 dec) {
+        if (MIN_SUBSCRIPTION_USD_AMOUNT > 0) {
+            if (uAmount < MIN_SUBSCRIPTION_USD_AMOUNT * 10 ** dec) {
+                revert BelowMinAmount();
+            }
+        }
+        // if (MAX_SUBSCRIPTION_USD_AMOUNT > 0) {
+        //     require(
+        //         uAmount <= MAX_SUBSCRIPTION_USD_AMOUNT * 10 ** dec,
+        //         "Exceeds max subscription"
+        //     );
+        // }
         _;
-    }
-
-    //  ========== 事件定义 ==========
-    error UnSupportedTokenAddress(address token, string reason);
-
-    // ========== 构造函数 & 初始化 ==========
-    constructor() {
-        _disableInitializers();
     }
 
     function initialize(
         string memory name,
-        string memory symbol,
-        address _usdtAddress
+        string memory symbol
     ) public initializer {
         __ERC20_init(name, symbol);
         __ERC20Pausable_init();
         __AccessControlEnumerable_init();
         __UUPSUpgradeable_init();
-        __ERC20Permit_init(name);
+        __ReentrancyGuard_init();
 
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-
-        assetRecipient = address(this);
-        USDT = IERC20(_usdtAddress);
-        etfPrice = 1e6; // 初始化ETF单价（如1e6 = 1 USDT/ETF）
+        _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
+        _grantRole(ETF_ADMIN, _msgSender());
     }
 
-    // ========== 授权升级 ==========
-    function _authorizeUpgrade(
-        address newImplementation
-    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
-
-    // ========== 暂停与恢复 ==========
     function pause() public onlyRole(ETF_ADMIN) {
         _pause();
     }
@@ -140,241 +96,260 @@ contract ETFToken is
         super._update(from, to, value);
     }
 
-    function decimals() public pure override returns (uint8) {
-        return uint8(ETF_DECIMALS);
-    }
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 
-    // ========== 核心功能：链上认购ETF ==========
-    function onChainSubscribe(
-        address uAddress,
-        uint256 uAmount
-    ) external nonReentrant {
-        if (!_containsAddress(uAddress)) {
-            revert UnSupportedTokenAddress(
-                uAddress,
-                "Unsupported token address"
-            );
-        }
-        _onChainSubscribe(uAddress, uAmount, 0);
-    }
-
+    /**
+     * @notice Allows a user to subscribe on-chain by transferring USDT/USDC to the contract.
+     * @param uAddress The address of the USDT/USDC token.
+     * @param uAmount The amount of USDT/USDC to subscribe.
+     * @param source The source identifier for the subscription.
+     */
     function onChainSubscribe(
         address uAddress,
         uint256 uAmount,
-        uint256 lotCount
-    ) external nonReentrant {
-        if (!_containsAddress(uAddress)) {
-            revert UnSupportedTokenAddress(
-                uAddress,
-                "Unsupported token address"
-            );
+        uint16 source
+    )
+        external
+        notBlacklisted(msg.sender)
+        checkUSDAmount(uAmount, IERC20Metadata(uAddress).decimals())
+        whenNotPaused
+        nonReentrant
+    {
+        if (!containsAddress(uAddress)) {
+            revert UnSupportedTokenAddress();
         }
-        require(lotCount > 0, "Lot count must > 0");
-        _onChainSubscribe(uAddress, uAmount, lotCount);
-    }
-
-    function _onChainSubscribe(
-        address uAddress,
-        uint256 uAmount,
-        uint256 lotCount
-    ) internal {
-        uint256 balanceBefore = IERC20(uAddress).balanceOf(assetRecipient);
-        IERC20(uAddress).safeTransferFrom(msg.sender, assetRecipient, uAmount);
-        uint256 balanceAfter = IERC20(uAddress).balanceOf(assetRecipient);
+        uint256 balanceBefore = IERC20(uAddress).balanceOf(address(this));
+        IERC20(uAddress).safeTransferFrom(msg.sender, address(this), uAmount);
+        uint256 balanceAfter = IERC20(uAddress).balanceOf(address(this));
         uAmount = balanceAfter - balanceBefore;
 
-        nextOrderId++;
-        uint256 lockTime = block.timestamp;
-        uint256 settleTime = calculateT2SettleTime(lockTime);
-        uint256 orderId = uint256(
+        nextId++;
+        uint256 subscriptionId = uint256(
             keccak256(
                 abi.encodePacked(
                     uAddress,
                     uAmount,
                     msg.sender,
-                    lockTime,
+                    block.timestamp,
                     block.prevrandao,
-                    nextOrderId
+                    nextId
                 )
             )
         );
 
-        Order storage order = orders[orderId];
-        order.orderId = orderId;
-        order.user = msg.sender;
-        order.uAmount = uAmount;
-        order.lockTime = lockTime;
-        order.settleTime = settleTime;
-        if (lotCount > 0) {
-            order.isLotType = true;
-            order.lotCount = lotCount;
-        } else {
-            order.isLotType = false;
-            order.lotCount = 0;
-        }
-        userOrders[msg.sender].push(orderId);
+        SubscribeData storage sd = _subscribeDataMap[subscriptionId];
+        sd.id = subscriptionId;
+        sd.uAmount = uAmount;
+        sd.uAddress = uAddress;
+        sd.source = source;
+        sd.user = msg.sender;
 
-        emit OrderCreated(
-            orderId,
-            msg.sender,
-            uAddress,
+        emit onChainSubscribeEvent(
+            subscriptionId,
             uAmount,
-            lockTime,
-            settleTime,
-            order.isLotType
+            uAddress,
+            msg.sender,
+            source
         );
     }
 
-    function updateSubscribe(uint256 orderId) external onlyRole(ETF_ADMIN) {}
+    /**
+     * @notice Updates an existing on-chain subscription.
+     * @param subscriptionId The ID of the subscription to update.
+     * @param price The new price for the subscription.
+     * @param stokenAmount The new stoken amount for the subscription.
+     * @param time The new time for the subscription.
+     * @param udaTxHash The new UDA transaction hash for the subscription.
+     * @param offChainId The off-chain identifier for the subscription.
+     */
+    function updateOnChainSubscribe(
+        uint256 subscriptionId,
+        uint256 price,
+        uint256 stokenAmount,
+        uint256 costAmount,
+        uint256 time,
+        bytes32 udaTxHash,
+        string memory offChainId
+    )
+        external
+        onlyRole(ETF_ADMIN)
+        notBlacklisted(_subscribeDataMap[subscriptionId].user)
+        whenNotPaused
+    {
+        require(
+            stokenAmount >= MIN_AMOUNT,
+            "Stoken amount must be greater than 0.01"
+        );
+        require(
+            _subscribeDataMap[subscriptionId].id != 0,
+            "Subscription does not exist"
+        );
 
-    function execute(uint256 orderId) external onlyRole(ETF_ADMIN) {}
+        SubscribeData storage sd = _subscribeDataMap[subscriptionId];
+        require(
+            costAmount > 0 && costAmount <= sd.uAmount,
+            "Invalid cost amount"
+        );
+
+        sd.stokenAmount = stokenAmount;
+        sd.price = price;
+        sd.time = time;
+        sd.refundAmount = sd.uAmount - costAmount;
+        sd.udaTxHash = udaTxHash;
+
+        IERC20(sd.uAddress).safeTransfer(assetRecipient, costAmount);
+
+        emit updateOnChainSubscribeEvent(
+            subscriptionId,
+            stokenAmount,
+            costAmount,
+            sd.refundAmount,
+            price,
+            time,
+            udaTxHash,
+            offChainId
+        );
+    }
+
+    function executeSubscribe(
+        uint256 subscriptionId
+    )
+        public
+        onlyRole(ETF_ADMIN)
+        notBlacklisted(_subscribeDataMap[subscriptionId].user)
+        whenNotPaused
+    {
+        uint256 tokenId = _mintStoken(subscriptionId);
+        SubscribeData memory sd = _subscribeDataMap[subscriptionId];
+        emit executeEvent(
+            subscriptionId,
+            sd.uAmount,
+            sd.uAddress,
+            sd.stokenAmount,
+            sd.user,
+            sd.price,
+            sd.time,
+            sd.udaTxHash,
+            sd.source,
+            tokenId
+        ); // Emit event for execution
+        delete _subscribeDataMap[subscriptionId];
+    }
 
     function claim(uint256 orderId) external nonReentrant {}
 
-    // ========== 辅助函数：计算ETF数量 ==========
-    function _getEtfAmount(uint256 uAmount) internal view returns (uint256) {
-        return
-            ((uAmount * (10 ** ETF_DECIMALS)) /
-                (etfPrice * (10 ** (ETF_DECIMALS - USDT_DECIMALS))) /
-                lotSize) * lotSize;
+    // Mint tokens for a specified subscription ID
+    // This function allows the admin to mint tokens based on a subscription.
+    // It checks if the subscription ID is valid and retrieves the subscription data.
+    // It then adds new token data and updates the user's token list and map.
+    function _mintStoken(uint256 subscriptionId) internal returns (uint256) {
+        SubscribeData storage sub = _subscribeDataMap[subscriptionId];
+        require(sub.id != 0, "Subscription does not exist");
+        require(
+            sub.stokenAmount >= MIN_AMOUNT,
+            "Stoken amount must be greater than 0.01"
+        );
+        require(sub.user != address(0), "Invalid user address");
+        require(sub.price > 0, "Invalid price");
+        require(sub.time > 0, "Invalid time");
+        uint256 tokenId = _addNewTokenData(
+            sub.user,
+            sub.stokenAmount,
+            sub.price,
+            sub.time
+        );
+        return tokenId;
     }
 
-    // ========== 辅助函数：计算T+2交割时间（排除周末） ==========
-    /**
-     * @dev 计算T+2交割时间（仅工作日，排除周六/周日）
-     * @param lockTime 下单时间戳
-     * @return settleTime T+2交割时间戳
-     */
-    function calculateT2SettleTime(
-        uint256 lockTime
-    ) public pure returns (uint256) {
-        uint256 settleTime = lockTime;
-        uint256 workDayCount = 0;
+    function _addNewTokenData(
+        address user,
+        uint256 stokenAmount,
+        uint256 price,
+        uint256 time
+    ) internal returns (uint256) {
+        nextId++;
+        uint256 tokenId = uint256(
+            keccak256(
+                abi.encodePacked(
+                    user,
+                    block.timestamp,
+                    block.prevrandao,
+                    nextId
+                )
+            )
+        );
+        TokenData memory newTokenData = TokenData({
+            id: tokenId,
+            mintTime: time,
+            mintPrice: price,
+            tokenOwner: user
+        });
 
-        while (workDayCount < 2) {
-            settleTime += DAY_SECONDS;
-            uint256 weekday = getWeekday(settleTime);
-            // 排除周日(0)、周六(6)
-            if (weekday != 0 && weekday != 6) {
-                workDayCount++;
-            }
-        }
+        _tokenDataMap[tokenId] = newTokenData;
+        _tokenList[user].push(tokenId);
+        _tokenMap[user][tokenId] += stokenAmount;
+        _totalSupply += stokenAmount;
 
-        return settleTime;
+        emit Transfer(address(0), user, stokenAmount);
+        return tokenId;
     }
 
-    // ========== 辅助函数：获取时间戳对应的星期几 ==========
-    /**
-     * @dev 获取星期几（0=周日，1=周一...6=周六）
-     * @param timestamp 时间戳
-     * @return weekday 星期几
-     */
-    function getWeekday(uint256 timestamp) public pure returns (uint256) {
-        uint256 daysSinceEpoch = timestamp / DAY_SECONDS;
-        return (daysSinceEpoch + 4) % 7; // 1970-01-01是周四(4)
-    }
-
-    // ========== 管理员功能 ==========
-    /**
-     * @dev 更新ETF单价（仅管理员，适配价格波动）
-     * @param _newPrice 新单价（USDT/ETF，1e6单位）
-     */
-    function updateETFPrice(uint256 _newPrice) external onlyRole(ETF_ADMIN) {
-        require(_newPrice > 0, "Price must > 0");
-        etfPrice = _newPrice;
-    }
+    /*//////////////////////////////////////////////////////////////
+                              Blacklist
+    //////////////////////////////////////////////////////////////*/
 
     /**
-     * @dev 提取合约中多余的USDT（仅应急，如手续费）
-     * @param amount USDT数量（1e6单位）
+     * @notice Adds account to blacklist.
+     * @param _account The address to blacklist.
      */
-    function emergencyWithdrawUSDT(
-        uint256 amount
-    ) external onlyRole(ETF_ADMIN) {
-        require(amount > 0, "Amount must > 0");
-        USDT.transfer(assetRecipient, amount);
-    }
-
-    // ========== 视图函数：查询用户订单列表 ==========
-    /**
-     * @dev 查询用户的所有订单ID
-     * @param user 用户地址
-     * @return 订单ID数组
-     */
-    function getUserOrderIds(
-        address user
-    ) external view returns (uint256[] memory) {
-        return userOrders[user];
+    function blacklist(address _account) external onlyRole(ETF_ADMIN) {
+        _blacklist(_account);
+        emit Blacklisted(_account);
     }
 
     /**
-     * @dev Get the current asset recipient address.
-     * @return The asset recipient address.
+     * @notice Removes account from blacklist.
+     * @param _account The address to remove from the blacklist.
      */
-    function getAssetRecipient() external view returns (address) {
-        return assetRecipient;
+    function unBlacklist(address _account) external onlyRole(ETF_ADMIN) {
+        _unBlacklist(_account);
+        emit UnBlacklisted(_account);
     }
 
     /**
-     * @dev Set the asset recipient address.
-     * @param newRecipient The new asset recipient address.
+     * @inheritdoc Blacklistable
      */
-    function setAssetRecipient(
-        address newRecipient
-    ) public virtual zeroAddress(newRecipient) {
-        address oldRecipient = assetRecipient;
-        assetRecipient = newRecipient;
-        emit assetRecipientUpdatedEvent(oldRecipient, newRecipient); // Emit event for asset recipient update
+    function _blacklist(address _account) internal override {
+        _setBlacklistState(_account, true);
     }
 
     /**
-     * @dev Set the lot size for ETF transactions.
-     * @param _lotSize The new lot size.
+     * @inheritdoc Blacklistable
      */
-    function setLotSize(uint256 _lotSize) external onlyRole(ETF_ADMIN) {
-        uint256 _oldLotSize = lotSize;
-        lotSize = _lotSize;
-        emit lotSizeUpdated(_oldLotSize, _lotSize);
+    function _unBlacklist(address _account) internal override {
+        _setBlacklistState(_account, false);
     }
 
-    // ========== 支持的USDT/USDC地址管理 ==========
-    function getSupportedTokenAddresses()
-        external
-        view
-        returns (address[] memory)
-    {
-        return supportedTokenAddress;
+    /**
+     * @dev Helper method that sets the blacklist state of an account.
+     * @param _account         The address of the account.
+     * @param _shouldBlacklist True if the account should be blacklisted, false if the account should be unblacklisted.
+     */
+    function _setBlacklistState(
+        address _account,
+        bool _shouldBlacklist
+    ) internal virtual {
+        _deprecatedBlacklisted[_account] = _shouldBlacklist;
     }
 
-    function addSupportedTokenAddress(
-        address token
-    ) public virtual zeroAddress(token) onlyRole(ETF_ADMIN) {
-        supportedTokenAddress.push(token);
-        emit supportedTokenAddressAddedEvent(token);
-    }
-
-    function removeSupportedTokenAddress(
-        address token
-    ) public virtual zeroAddress(token) onlyRole(ETF_ADMIN) {
-        for (uint256 i = 0; i < supportedTokenAddress.length; i++) {
-            if (supportedTokenAddress[i] == token) {
-                supportedTokenAddress[i] = supportedTokenAddress[
-                    supportedTokenAddress.length - 1
-                ];
-                supportedTokenAddress.pop();
-                emit supportedTokenAddressRemovedEvent(token);
-                return;
-            }
-        }
-        revert("Address not found");
-    }
-
-    function _containsAddress(address addr) internal view returns (bool) {
-        for (uint i = 0; i < supportedTokenAddress.length; i++) {
-            if (supportedTokenAddress[i] == addr) {
-                return true;
-            }
-        }
-        return false;
+    /**
+     * @inheritdoc Blacklistable
+     */
+    function _isBlacklisted(
+        address _account
+    ) internal view virtual override returns (bool) {
+        return _deprecatedBlacklisted[_account];
     }
 }

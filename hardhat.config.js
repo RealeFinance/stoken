@@ -107,6 +107,13 @@ module.exports = {
       gasPrice: "auto",
       timeout: 2000000,
     },
+    PharosPrivateMainnet: {
+      url: "https://api.zan.top/node/v1/pharos/mainnet/905a1eaee8604174b374f376d2b7b082",
+      accounts: [process.env.PRIVATE_KEY_2],
+      chainId: 1672,
+      gasPrice: "auto",
+      timeout: 2000000,
+    },
   },
   // Etherscan验证配置
   etherscan: {

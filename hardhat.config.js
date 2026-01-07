@@ -132,6 +132,7 @@ module.exports = {
       bsc: "TJKUQ1AFRIVXV4ZCMBEQ1G95BW9A6SMEEA",
       avalancheFujiTestnet: "snowtrace",
       avalanche: "Avalanche",
+      PharosPrivateMainnet: "empty",
       // bscTestnet: "empty",
       // 自定义网络配置
       customChains: [
@@ -184,6 +185,14 @@ module.exports = {
             apiURL:
               "https://api.routescan.io/v2/network/mainnet/evm/43114/etherscan",
             browserURL: "https://avalanche.routescan.io",
+          },
+        },
+        {
+          network: "PharosPrivateMainnet",
+          chainId: 1672,
+          urls: {
+            apiURL: "https://api.socialscan.io/pharos/v1/explorer/command_api/contract",
+            browserURL: "https://pharos.socialscan.io/",
           },
         },
       ],

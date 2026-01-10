@@ -1,6 +1,14 @@
-const { readdirSync, readFileSync, writeFileSync } = require("fs");
+const {
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+  mkdir,
+  copyFile,
+} = require("fs");
 const { join, resolve, relative } = require("path");
 const { config } = require("hardhat");
+const { mkdir: pmkdir, copyFile: pcopyFile } = require("fs").promises;
+const { rmSync } = require("fs");
 
 // 项目根目录
 const ROOT_DIR = process.cwd();
@@ -161,9 +169,9 @@ async function generateStandardInput() {
     language: "Solidity",
     sources: sources,
     settings: {
-      optimizer: compiler.optimizer || { enabled: true, runs: 100 },
+      optimizer: compiler.settings.optimizer,
       viaIR: true,
-      evmVersion: compiler.evmVersion || "london",
+      evmVersion: compiler.settings.evmVersion || "london",
       outputSelection: {
         "*": {
           "*": ["abi", "evm.bytecode", "evm.deployedBytecode", "metadata"],
@@ -179,6 +187,42 @@ async function generateStandardInput() {
   console.log(
     `✅ 已生成包含所有依赖（包括 @openzeppelin）的 Standard Json-Input`
   );
+  // mkdir(resolve(ROOT_DIR, "standard-input"), { recursive: true }, (err) => {
+  //   if (err) {
+  //     console.error(`⚠️ 创建输出目录失败: ${err.message}`);
+  //   } else {
+  //     console.log("📁 已创建输出目录 standard-input");
+  //   }
+  // });
+  // // 先删除已有的 standard-input 目录，避免残留旧文件
+  // try {
+  //   rmSync(resolve(ROOT_DIR, "standard-input"), {
+  //     recursive: true,
+  //     force: true,
+  //   });
+  //   console.log("🗑️ 已删除旧的输出目录 standard-input");
+  // } catch (err) {
+  //   console.warn(`⚠️ 删除旧输出目录失败: ${err.message}`);
+  // }
+  // await Promise.all(
+  //   Array.from(processedFiles).map(async (file) => {
+  //     console.log(` - ${relative(ROOT_DIR, file)}`);
+  //     const destPath = resolve(
+  //       ROOT_DIR,
+  //       "standard-input",
+  //       relative(ROOT_DIR, file).substring(
+  //         relative(ROOT_DIR, file).lastIndexOf("\\") + 1,
+  //         relative(ROOT_DIR, file).length
+  //       )
+  //     );
+  //     try {
+  //       await pmkdir(resolve(destPath, ".."), { recursive: true });
+  //       await pcopyFile(file, destPath);
+  //     } catch (err) {
+  //       console.error(`⚠️ 复制 ${file} 时出错: ${err.message}`);
+  //     }
+  //   })
+  // );
   console.log(`📦 共处理 ${Object.keys(sources).length} 个文件`);
   console.log(`📄 输出文件: standard-input.json`);
 }

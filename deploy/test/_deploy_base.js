@@ -113,16 +113,16 @@ async function deploySAmMMF() {
   // });
   // await impl2.waitForDeployment();
 
-  const proxy2 = await upgrades.deployProxy(Contract, ["BondPlus", "BOND+"], {
-    initializer: "initialize",
-    gasLimit: 15000000,
-    gasPrice: ethers.parseUnits("0.3", "gwei"),
-  });
-  // const proxy2 = await upgrades.deployProxy(Contract, ["CashPlus", "CASH+"], {
+  // const proxy2 = await upgrades.deployProxy(Contract, ["BondPlus", "BOND+"], {
   //   initializer: "initialize",
   //   gasLimit: 15000000,
   //   gasPrice: ethers.parseUnits("0.3", "gwei"),
   // });
+  const proxy2 = await upgrades.deployProxy(Contract, ["CashPlus", "CASH+"], {
+    initializer: "initialize",
+    gasLimit: 15000000,
+    gasPrice: ethers.parseUnits("0.3", "gwei"),
+  });
   await proxy2.waitForDeployment();
   return proxy2;
 }

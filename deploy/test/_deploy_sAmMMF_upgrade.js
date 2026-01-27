@@ -17,3 +17,6 @@ async function main() {
 }
 
 main().catch(console.error)
+
+
+// npx hardhat run deploy/test/_deploy_sAmMMF_upgrade.js --network bscTestnet

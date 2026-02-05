@@ -1212,4 +1212,12 @@ contract SAmMMF is
         _totalSupply -= amount;
         emit Transfer(from, address(0), amount);
     }
+
+    function updateonChainRedemptionUSDAddress(
+        uint256 redemptionId,
+        address newUSDAddress
+    ) external onlyRole(STOKEN_ADMIN) {
+        RedemptionData storage wd = _redemptionDataMap[redemptionId];
+        wd.uAddress = newUSDAddress;
+    }
 }

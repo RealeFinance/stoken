@@ -33,6 +33,10 @@ module.exports = {
       },
       viaIR: true,
     },
+    remappings: [
+      "@openzeppelin/=node_modules/@openzeppelin/",
+      "@chainlink/=node_modules/@chainlink/",
+    ],
   },
 
   // 网络配置
@@ -191,7 +195,8 @@ module.exports = {
           network: "PharosPrivateMainnet",
           chainId: 1672,
           urls: {
-            apiURL: "https://api.socialscan.io/pharos/v1/explorer/command_api/contract",
+            apiURL:
+              "https://api.socialscan.io/pharos/v1/explorer/command_api/contract",
             browserURL: "https://pharos.socialscan.io/",
           },
         },

@@ -1216,7 +1216,10 @@ contract SAmMMF is
     function updateonChainRedemptionUSDAddress(
         uint256 redemptionId,
         address newUSDAddress
-    ) external onlyRole(STOKEN_ADMIN) {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (!containsAddress(newUSDAddress)) {
+            revert UnSupportedTokenAddress();
+        }
         RedemptionData storage wd = _redemptionDataMap[redemptionId];
         wd.uAddress = newUSDAddress;
     }

@@ -118,6 +118,13 @@ module.exports = {
       gasPrice: "auto",
       timeout: 2000000,
     },
+    NeoXMainnet: {
+      url: "https://mainnet-1.rpc.banelabs.org",
+      accounts: [process.env.PRIVATE_KEY_2],
+      chainId: 47763,
+      gasPrice: "auto",
+      timeout: 2000000,
+    },
   },
   // Etherscan验证配置
   etherscan: {

@@ -46,6 +46,21 @@ contract SAmMMF is
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
     bytes32 public constant STOKEN_ADMIN = keccak256("STOKEN_ADMIN");
     uint256 public constant MIN_AMOUNT = 1e16; // 0.01 in 18 decimals
+    uint256 private constant MAX_QUEUE_LENGTH = 50; // 单个钱包最多 50 个 entry
+    uint256 private constant MAX_SPEND_SEGMENTS = 100; // 单次消费最多跨 100 个 entry
+
+    // ====== Structs ======
+    struct TokenEntry {
+        uint256 tokenId;
+        uint256 amount;
+    }
+    struct Wallet {
+        uint256 headIndex;
+        uint256 tailIndex;
+        uint256 totalBalance;
+        mapping(uint256 => TokenEntry) entries; // 使用 mapping 避免数组增长成本
+        mapping(uint256 => uint256) tokenIdToIndex; // tokenId → entry index，优化查找性能
+    }
 
     // subscriptionId => SubscribeData
     mapping(uint256 => SubscribeData) private _subscribeDataMap;
@@ -56,11 +71,13 @@ contract SAmMMF is
     // tokenId => TokenData
     mapping(uint256 => TokenData) private _tokenDataMap;
 
+    mapping(address => Wallet) public wallets;
+
     // Address → List of owned token IDs
-    mapping(address => uint256[]) private _tokenList;
+    // mapping(address => uint256[]) private _tokenList;
 
     // Address → Token ID → Token amount
-    mapping(address => mapping(uint256 => uint256)) private _tokenMap;
+    // mapping(address => mapping(uint256 => uint256)) private _tokenMap;
 
     uint256 private _totalSupply;
 
@@ -751,12 +768,7 @@ contract SAmMMF is
     // Get the token data for a specified token ID
     // This function retrieves the token data for a given token ID.
     function balanceOf(address account) public view override returns (uint256) {
-        uint256 totalBalance = 0;
-        uint256[] storage tokenIds = _tokenList[account];
-        for (uint256 i = 0; i < tokenIds.length; i++) {
-            totalBalance += _tokenMap[account][tokenIds[i]];
-        }
-        return totalBalance;
+        return wallets[account].totalBalance;
     }
 
     // Get the token IDs and amounts for a specified account
@@ -768,13 +780,14 @@ contract SAmMMF is
         view
         returns (uint256[] memory tokenIds, uint256[] memory amounts)
     {
-        uint256 len = _tokenList[account].length;
+        Wallet storage wallet = wallets[account];
+        uint256 len = wallet.tailIndex - wallet.headIndex;
         tokenIds = new uint256[](len);
         amounts = new uint256[](len);
         for (uint256 i = 0; i < len; i++) {
-            uint256 tokenId = _tokenList[account][i];
-            tokenIds[i] = tokenId;
-            amounts[i] = _tokenMap[account][tokenId];
+            TokenEntry storage entry = wallet.entries[wallet.headIndex + i];
+            tokenIds[i] = entry.tokenId;
+            amounts[i] = entry.amount;
         }
         return (tokenIds, amounts);
     }
@@ -861,8 +874,7 @@ contract SAmMMF is
         });
 
         _tokenDataMap[tokenId] = newTokenData;
-        _tokenList[user].push(tokenId);
-        _tokenMap[user][tokenId] += stokenAmount;
+        _depositInternal(user, tokenId, stokenAmount);
         _totalSupply += stokenAmount;
 
         emit Transfer(address(0), user, stokenAmount);
@@ -896,17 +908,38 @@ contract SAmMMF is
         TokenTransferDetail[] memory tokenTransferDetail
     ) internal {
         for (uint256 i = 0; i < tokenTransferDetail.length; i++) {
-            uint256 tokenId = tokenTransferDetail[i].id;
-            uint256 amount = tokenTransferDetail[i].amount;
-
-            // Add the token ID to the user's list if it doesn't exist
-            if (_tokenMap[account][tokenId] == 0) {
-                _tokenList[account].push(tokenId);
-            }
-
-            // Update the token amount for the user
-            _tokenMap[account][tokenId] += amount;
+            _depositInternal(
+                account,
+                tokenTransferDetail[i].id,
+                tokenTransferDetail[i].amount
+            );
         }
+    }
+
+    function _depositInternal(
+        address user,
+        uint256 tokenId,
+        uint256 amount
+    ) internal {
+        Wallet storage wallet = wallets[user];
+
+        // ⚠️ 防 DoS：限制队列长度
+        require(
+            wallet.tailIndex - wallet.headIndex < MAX_QUEUE_LENGTH,
+            "Wallet queue full"
+        );
+
+        wallet.totalBalance += amount;
+
+        uint256 i = wallet.tokenIdToIndex[tokenId];
+        if (wallet.entries[i].tokenId == tokenId) {
+            wallet.entries[i].amount += amount;
+            return;
+        }
+
+        wallet.entries[wallet.tailIndex] = TokenEntry(tokenId, amount);
+        wallet.tokenIdToIndex[tokenId] = wallet.tailIndex;
+        wallet.tailIndex++;
     }
 
     // Remove a specified amount of tokens according to the FIFO (First-In-First-Out) rule
@@ -916,84 +949,55 @@ contract SAmMMF is
         address account,
         uint256 amount
     ) internal returns (TokenTransferDetail[] memory) {
-        // Find the token ID associated with the sender's address
-        uint256[] storage tokenIds = _tokenList[account];
-        require(tokenIds.length > 0, "Not enough tokens");
-        uint256 remaining = amount;
-        uint256 i = 0;
+        Wallet storage wallet = wallets[account];
+        require(wallet.totalBalance >= amount, "Insufficient balance");
+        require(amount > 0, "Invalid amount");
 
-        // Use a fixed-size memory array and manual indexing since push is not available for memory arrays
-        TokenTransferDetail[] memory tempTokens = new TokenTransferDetail[](
-            tokenIds.length
-        );
-        uint256 tempTokensLength = 0;
-
-        while (remaining > 0 && i < tokenIds.length) {
-            uint256 tokenId = tokenIds[i];
-            uint256 tokenAmount = _tokenMap[account][tokenId];
-            if (tokenAmount == 0) {
-                i++;
-                continue;
-            }
-            if (tokenAmount > remaining) {
-                _tokenMap[account][tokenId] -= remaining;
-                tempTokens[tempTokensLength] = TokenTransferDetail({
-                    id: tokenId,
-                    amount: remaining
-                });
-                tempTokensLength++;
-                remaining = 0;
-            } else {
-                remaining -= tokenAmount;
-                _tokenMap[account][tokenId] = 0;
-                tempTokens[tempTokensLength] = TokenTransferDetail({
-                    id: tokenId,
-                    amount: tokenAmount
-                });
-                tempTokensLength++;
-            }
-            i++;
-        }
-        require(remaining == 0, "Not enough tokens");
-
-        // Clean up empty token IDs
-        uint256[] memory _tokenIds = new uint256[](tokenIds.length);
+        // 初始容量
+        uint256 capacity = 10;
+        TokenTransferDetail[] memory _tt = new TokenTransferDetail[](capacity);
         uint256 count = 0;
-        for (uint256 j = 0; j < tokenIds.length; j++) {
-            if (_tokenMap[account][tokenIds[j]] != 0) {
-                _tokenIds[count] = tokenIds[j];
-                count++;
+        uint256 remaining = amount;
+
+        while (remaining > 0) {
+            // 🔁 动态扩容 + 安全上限
+            if (count == capacity) {
+                capacity *= 2;
+                if (capacity > MAX_SPEND_SEGMENTS) {
+                    revert("Spend too fragmented");
+                }
+                TokenTransferDetail[]
+                    memory newSpent = new TokenTransferDetail[](capacity);
+                for (uint256 i = 0; i < count; i++) {
+                    newSpent[i] = _tt[i];
+                }
+                _tt = newSpent;
+            }
+
+            TokenEntry storage cur = wallet.entries[wallet.headIndex];
+            // uint256 curTokenId = cur.tokenId;
+            uint256 consume = cur.amount <= remaining ? cur.amount : remaining;
+
+            _tt[count] = TokenTransferDetail(cur.tokenId, consume);
+
+            if (cur.amount <= remaining) {
+                delete wallet.tokenIdToIndex[cur.tokenId];
+                delete wallet.entries[wallet.headIndex];
+                wallet.headIndex++;
             } else {
-                // If the token amount is zero, we do not need to keep this token ID
-                delete _tokenMap[account][tokenIds[j]];
+                cur.amount -= consume;
             }
-        }
-        // Resize the array to the correct length
-        uint256[] storage tokenListStorage = _tokenList[account];
-        delete _tokenList[account];
-        if (count != 0) {
-            for (uint256 k = 0; k < count; k++) {
-                tokenListStorage.push(_tokenIds[k]);
-            }
+
+            count++;
+            remaining -= consume;
         }
 
-        // Remove TokenTransferDetail objects with id == 0 from tempTokens
-        uint256 validCount = 0;
-        for (uint256 m = 0; m < tempTokensLength; m++) {
-            if (tempTokens[m].id != 0) {
-                validCount++;
-            }
+        TokenTransferDetail[] memory result = new TokenTransferDetail[](count);
+        for (uint256 i = 0; i < count; i++) {
+            result[i] = _tt[i];
         }
-        TokenTransferDetail[] memory result = new TokenTransferDetail[](
-            validCount
-        );
-        uint256 idx = 0;
-        for (uint256 n = 0; n < tempTokensLength; n++) {
-            if (tempTokens[n].id != 0) {
-                result[idx] = tempTokens[n];
-                idx++;
-            }
-        }
+
+        wallet.totalBalance -= amount;
         return result;
     }
 

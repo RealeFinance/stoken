@@ -73,12 +73,6 @@ contract SAmMMF is
 
     mapping(address => Wallet) public wallets;
 
-    // Address → List of owned token IDs
-    // mapping(address => uint256[]) private _tokenList;
-
-    // Address → Token ID → Token amount
-    // mapping(address => mapping(uint256 => uint256)) private _tokenMap;
-
     uint256 private _totalSupply;
 
     uint256 public nextId;
@@ -421,7 +415,7 @@ contract SAmMMF is
         wd.time = time;
         wd.udaTxHash = udaTxHash;
 
-        _calculateTechnicalServiceFee(redemptionId); // Calculate the technical service fee
+        // _calculateTechnicalServiceFee(redemptionId); // Calculate the technical service fee
 
         emit overwriteOnChainRedemptionEvent(
             redemptionId,
@@ -649,12 +643,7 @@ contract SAmMMF is
         require(sub.user != address(0), "Invalid user address");
         require(sub.price > 0, "Invalid price");
         require(sub.time > 0, "Invalid time");
-        uint256 tokenId = _addNewTokenData(
-            sub.user,
-            sub.stokenAmount,
-            sub.price,
-            sub.time
-        );
+        uint256 tokenId = _addNewTokenData(sub.user, sub.stokenAmount);
         return tokenId;
     }
 
@@ -680,7 +669,7 @@ contract SAmMMF is
         require(wd.time > 0, "Invalid time");
         require(wd.uAmount > 0, "Invalid USDT amount");
         _burn(redemptionId); // Burn the stoken amount for the user
-        _calculateTechnicalServiceFee(redemptionId); // Calculate the technical service fee
+        // _calculateTechnicalServiceFee(redemptionId); // Calculate the technical service fee
 
         emit burnEvent(
             redemptionId,
@@ -717,53 +706,53 @@ contract SAmMMF is
         emit Transfer(wd.user, address(0), wd.stokenAmount);
     }
 
-    function _calculateTechnicalServiceFee(
-        uint256 redemptionId
-    ) internal returns (uint256) {
-        RedemptionData storage wd = _redemptionDataMap[redemptionId];
+    // function _calculateTechnicalServiceFee(
+    //     uint256 redemptionId
+    // ) internal returns (uint256) {
+    //     RedemptionData storage wd = _redemptionDataMap[redemptionId];
 
-        require(
-            wd.tokenTransferDetails.length > 0,
-            "No token transfer details available"
-        );
+    //     require(
+    //         wd.tokenTransferDetails.length > 0,
+    //         "No token transfer details available"
+    //     );
 
-        uint256 totalfee = 0;
-        for (uint256 i = 0; i < wd.tokenTransferDetails.length; i++) {
-            TokenTransferDetail storage detail = wd.tokenTransferDetails[i];
-            TokenData storage tokenData = _tokenDataMap[detail.id];
-            uint256 timeDay = _getTimeIntervalByDay(
-                tokenData.mintTime,
-                wd.time
-            );
-            uint256 fee = detail.amount;
-            // SafeMath is not needed in Solidity >=0.8, but for explicitness:
-            // fee = (fee * tokenData.mintPrice);
-            fee = Math.mulDiv(fee, tokenData.mintPrice, 1e18); // Assuming mintPrice is in 18 decimals
-            // fee = (fee * timeDay * technicalServiceFeeRate) / 10000 / 365;
-            fee = Math.mulDiv(
-                fee,
-                timeDay * technicalServiceFeeRate,
-                10000 * 365
-            );
-            totalfee += fee;
-        }
-        wd.technicalServiceFee = totalfee;
-        return totalfee;
-    }
+    //     uint256 totalfee = 0;
+    //     for (uint256 i = 0; i < wd.tokenTransferDetails.length; i++) {
+    //         TokenTransferDetail storage detail = wd.tokenTransferDetails[i];
+    //         TokenData storage tokenData = _tokenDataMap[detail.id];
+    //         uint256 timeDay = _getTimeIntervalByDay(
+    //             tokenData.mintTime,
+    //             wd.time
+    //         );
+    //         uint256 fee = detail.amount;
+    //         // SafeMath is not needed in Solidity >=0.8, but for explicitness:
+    //         // fee = (fee * tokenData.mintPrice);
+    //         fee = Math.mulDiv(fee, tokenData.mintPrice, 1e18); // Assuming mintPrice is in 18 decimals
+    //         // fee = (fee * timeDay * technicalServiceFeeRate) / 10000 / 365;
+    //         fee = Math.mulDiv(
+    //             fee,
+    //             timeDay * technicalServiceFeeRate,
+    //             10000 * 365
+    //         );
+    //         totalfee += fee;
+    //     }
+    //     wd.technicalServiceFee = totalfee;
+    //     return totalfee;
+    // }
 
-    function _getTimeIntervalByDay(
-        uint256 mintTime,
-        uint256 redemptionTime
-    ) internal pure returns (uint256) {
-        require(redemptionTime >= mintTime, "Redemption time < mint time");
-        uint256 deltaSeconds = redemptionTime - mintTime;
-        if (deltaSeconds == 0) {
-            return 1; // If no time has passed, count as one day
-        }
-        // Calculate the number of days, rounding up if there is any remainder
-        // Round up to the nearest day, so 1 second or 1.1 days both count as 2 days
-        return (deltaSeconds + 1 days - 1) / 1 days;
-    }
+    // function _getTimeIntervalByDay(
+    //     uint256 mintTime,
+    //     uint256 redemptionTime
+    // ) internal pure returns (uint256) {
+    //     require(redemptionTime >= mintTime, "Redemption time < mint time");
+    //     uint256 deltaSeconds = redemptionTime - mintTime;
+    //     if (deltaSeconds == 0) {
+    //         return 1; // If no time has passed, count as one day
+    //     }
+    //     // Calculate the number of days, rounding up if there is any remainder
+    //     // Round up to the nearest day, so 1 second or 1.1 days both count as 2 days
+    //     return (deltaSeconds + 1 days - 1) / 1 days;
+    // }
 
     // Get the token data for a specified token ID
     // This function retrieves the token data for a given token ID.
@@ -851,26 +840,15 @@ contract SAmMMF is
     // This function generates a new token ID based on the address and current block parameters.
     function _addNewTokenData(
         address user,
-        uint256 stokenAmount,
-        uint256 price,
-        uint256 time
+        uint256 stokenAmount
     ) internal returns (uint256) {
-        nextId++;
         uint256 tokenId = uint256(
-            keccak256(
-                abi.encodePacked(
-                    user,
-                    block.timestamp,
-                    block.prevrandao,
-                    nextId
-                )
-            )
+            keccak256(abi.encodePacked(user, block.chainid))
         );
         TokenData memory newTokenData = TokenData({
             id: tokenId,
-            mintTime: time,
-            mintPrice: price,
-            tokenOwner: user
+            tokenOwner: user,
+            chainId: block.chainid
         });
 
         _tokenDataMap[tokenId] = newTokenData;
@@ -1207,7 +1185,7 @@ contract SAmMMF is
 
     function mint(address to, uint256 amount) external {
         require(msg.sender == _poolAdmin, "poolAdmin");
-        _addNewTokenData(to, amount, 0, block.timestamp);
+        _addNewTokenData(to, amount); //TODO
     }
 
     function burnFrom(address from, uint256 amount) external {

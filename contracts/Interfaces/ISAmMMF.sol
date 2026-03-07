@@ -33,9 +33,8 @@ interface ISAmMMF {
     // TokenData structure to hold token ID and amount
     struct TokenData {
         uint256 id; // Token ID
-        uint256 mintTime; // Token minting time
-        uint256 mintPrice; // Token price
         address tokenOwner; // Token owner address
+        uint256 chainId; // Chain ID where the token was minted
     }
 
     struct TokenDataWithAmount {

@@ -1188,10 +1188,25 @@ contract SAmMMF is
         _addNewTokenData(to, amount); //TODO
     }
 
-    function burnFrom(address from, uint256 amount) external {
+    function burnFrom(
+        address from,
+        uint256 amount
+    )
+        external
+        returns (TokenData[] memory tokenDatas, uint256[] memory amounts)
+    {
         require(msg.sender == _poolAdmin, "poolAdmin");
-        _removeTokenByIdList(from, amount);
+        TokenTransferDetail[] memory details = _removeTokenByIdList(
+            from,
+            amount
+        );
         _totalSupply -= amount;
+        tokenDatas = new TokenData[](details.length);
+        amounts = new uint256[](details.length);
+        for (uint256 i = 0; i < details.length; i++) {
+            tokenDatas[i] = _tokenDataMap[details[i].id];
+            amounts[i] = details[i].amount;
+        }
         emit Transfer(from, address(0), amount);
     }
 

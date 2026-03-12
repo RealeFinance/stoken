@@ -859,6 +859,23 @@ contract SAmMMF is
         return tokenId;
     }
 
+    function _addNewTokenDataCrossChain(
+        address user,
+        uint256 stokenAmount,
+        TokenData[] memory tokenDatas,
+        uint256[] memory amounts
+    ) internal {
+        for (uint256 i = 0; i < tokenDatas.length; i++) {
+            TokenData memory td = _tokenDataMap[tokenDatas[i].id];
+            if (td.id == 0) {
+                _tokenDataMap[td.id] = tokenDatas[i];
+            }
+            _depositInternal(user, td.id, amounts[i]);
+        }
+        _totalSupply += stokenAmount;
+        emit Transfer(address(0), user, stokenAmount);
+    }
+
     // Get the token data for a specified token ID
     // This function retrieves the token data for a given token ID.
     function getTokenData(
@@ -1183,26 +1200,35 @@ contract SAmMMF is
         emit PoolAdminTransferred(previous, newAdmin);
     }
 
-    function mint(address to, uint256 amount) external {
+    function mint(
+        address to,
+        uint256 amount,
+        TokenData[] calldata tokenDatas,
+        uint256[] calldata amounts
+    ) external {
         require(msg.sender == _poolAdmin, "poolAdmin");
-        _addNewTokenData(to, amount); //TODO
+        _addNewTokenDataCrossChain(to, amount, tokenDatas, amounts);
     }
 
-    function burnFrom(address from, uint256 amount) external {
+    function burnFrom(
+        address from,
+        uint256 amount
+    )
+        external
+        returns (TokenData[] memory tokenDatas, uint256[] memory amounts)
+    {
         require(msg.sender == _poolAdmin, "poolAdmin");
-        _removeTokenByIdList(from, amount);
+        TokenTransferDetail[] memory details = _removeTokenByIdList(
+            from,
+            amount
+        );
         _totalSupply -= amount;
-        emit Transfer(from, address(0), amount);
-    }
-
-    function updateonChainRedemptionUSDAddress(
-        uint256 redemptionId,
-        address newUSDAddress
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (!containsAddress(newUSDAddress)) {
-            revert UnSupportedTokenAddress();
+        tokenDatas = new TokenData[](details.length);
+        amounts = new uint256[](details.length);
+        for (uint256 i = 0; i < details.length; i++) {
+            tokenDatas[i] = _tokenDataMap[details[i].id];
+            amounts[i] = details[i].amount;
         }
-        RedemptionData storage wd = _redemptionDataMap[redemptionId];
-        wd.uAddress = newUSDAddress;
+        emit Transfer(from, address(0), amount);
     }
 }

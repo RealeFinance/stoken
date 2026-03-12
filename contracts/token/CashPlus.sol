@@ -46,6 +46,21 @@ contract CashPlus is
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
     bytes32 public constant STOKEN_ADMIN = keccak256("STOKEN_ADMIN");
     uint256 public constant MIN_AMOUNT = 1e16; // 0.01 in 18 decimals
+    uint256 private constant MAX_QUEUE_LENGTH = 50; // 单个钱包最多 50 个 entry
+    uint256 private constant MAX_SPEND_SEGMENTS = 100; // 单次消费最多跨 100 个 entry
+
+    // ====== Structs ======
+    struct TokenEntry {
+        uint256 tokenId;
+        uint256 amount;
+    }
+    struct Wallet {
+        uint256 headIndex;
+        uint256 tailIndex;
+        uint256 totalBalance;
+        mapping(uint256 => TokenEntry) entries; // 使用 mapping 避免数组增长成本
+        mapping(uint256 => uint256) tokenIdToIndex; // tokenId → entry index，优化查找性能
+    }
 
     // subscriptionId => SubscribeData
     mapping(uint256 => SubscribeData) private _subscribeDataMap;
@@ -56,11 +71,7 @@ contract CashPlus is
     // tokenId => TokenData
     mapping(uint256 => TokenData) private _tokenDataMap;
 
-    // Address → List of owned token IDs
-    mapping(address => uint256[]) private _tokenList;
-
-    // Address → Token ID → Token amount
-    mapping(address => mapping(uint256 => uint256)) private _tokenMap;
+    mapping(address => Wallet) public wallets;
 
     uint256 private _totalSupply;
 
@@ -404,7 +415,7 @@ contract CashPlus is
         wd.time = time;
         wd.udaTxHash = udaTxHash;
 
-        _calculateTechnicalServiceFee(redemptionId); // Calculate the technical service fee
+        // _calculateTechnicalServiceFee(redemptionId); // Calculate the technical service fee
 
         emit overwriteOnChainRedemptionEvent(
             redemptionId,
@@ -632,12 +643,7 @@ contract CashPlus is
         require(sub.user != address(0), "Invalid user address");
         require(sub.price > 0, "Invalid price");
         require(sub.time > 0, "Invalid time");
-        uint256 tokenId = _addNewTokenData(
-            sub.user,
-            sub.stokenAmount,
-            sub.price,
-            sub.time
-        );
+        uint256 tokenId = _addNewTokenData(sub.user, sub.stokenAmount);
         return tokenId;
     }
 
@@ -663,7 +669,7 @@ contract CashPlus is
         require(wd.time > 0, "Invalid time");
         require(wd.uAmount > 0, "Invalid USDT amount");
         _burn(redemptionId); // Burn the stoken amount for the user
-        _calculateTechnicalServiceFee(redemptionId); // Calculate the technical service fee
+        // _calculateTechnicalServiceFee(redemptionId); // Calculate the technical service fee
 
         emit burnEvent(
             redemptionId,
@@ -700,63 +706,58 @@ contract CashPlus is
         emit Transfer(wd.user, address(0), wd.stokenAmount);
     }
 
-    function _calculateTechnicalServiceFee(
-        uint256 redemptionId
-    ) internal returns (uint256) {
-        RedemptionData storage wd = _redemptionDataMap[redemptionId];
+    // function _calculateTechnicalServiceFee(
+    //     uint256 redemptionId
+    // ) internal returns (uint256) {
+    //     RedemptionData storage wd = _redemptionDataMap[redemptionId];
 
-        require(
-            wd.tokenTransferDetails.length > 0,
-            "No token transfer details available"
-        );
+    //     require(
+    //         wd.tokenTransferDetails.length > 0,
+    //         "No token transfer details available"
+    //     );
 
-        uint256 totalfee = 0;
-        for (uint256 i = 0; i < wd.tokenTransferDetails.length; i++) {
-            TokenTransferDetail storage detail = wd.tokenTransferDetails[i];
-            TokenData storage tokenData = _tokenDataMap[detail.id];
-            uint256 timeDay = _getTimeIntervalByDay(
-                tokenData.mintTime,
-                wd.time
-            );
-            uint256 fee = detail.amount;
-            // SafeMath is not needed in Solidity >=0.8, but for explicitness:
-            // fee = (fee * tokenData.mintPrice);
-            fee = Math.mulDiv(fee, tokenData.mintPrice, 1e18); // Assuming mintPrice is in 18 decimals
-            // fee = (fee * timeDay * technicalServiceFeeRate) / 10000 / 365;
-            fee = Math.mulDiv(
-                fee,
-                timeDay * technicalServiceFeeRate,
-                10000 * 365
-            );
-            totalfee += fee;
-        }
-        wd.technicalServiceFee = totalfee;
-        return totalfee;
-    }
+    //     uint256 totalfee = 0;
+    //     for (uint256 i = 0; i < wd.tokenTransferDetails.length; i++) {
+    //         TokenTransferDetail storage detail = wd.tokenTransferDetails[i];
+    //         TokenData storage tokenData = _tokenDataMap[detail.id];
+    //         uint256 timeDay = _getTimeIntervalByDay(
+    //             tokenData.mintTime,
+    //             wd.time
+    //         );
+    //         uint256 fee = detail.amount;
+    //         // SafeMath is not needed in Solidity >=0.8, but for explicitness:
+    //         // fee = (fee * tokenData.mintPrice);
+    //         fee = Math.mulDiv(fee, tokenData.mintPrice, 1e18); // Assuming mintPrice is in 18 decimals
+    //         // fee = (fee * timeDay * technicalServiceFeeRate) / 10000 / 365;
+    //         fee = Math.mulDiv(
+    //             fee,
+    //             timeDay * technicalServiceFeeRate,
+    //             10000 * 365
+    //         );
+    //         totalfee += fee;
+    //     }
+    //     wd.technicalServiceFee = totalfee;
+    //     return totalfee;
+    // }
 
-    function _getTimeIntervalByDay(
-        uint256 mintTime,
-        uint256 redemptionTime
-    ) internal pure returns (uint256) {
-        require(redemptionTime >= mintTime, "Redemption time < mint time");
-        uint256 deltaSeconds = redemptionTime - mintTime;
-        if (deltaSeconds == 0) {
-            return 1; // If no time has passed, count as one day
-        }
-        // Calculate the number of days, rounding up if there is any remainder
-        // Round up to the nearest day, so 1 second or 1.1 days both count as 2 days
-        return (deltaSeconds + 1 days - 1) / 1 days;
-    }
+    // function _getTimeIntervalByDay(
+    //     uint256 mintTime,
+    //     uint256 redemptionTime
+    // ) internal pure returns (uint256) {
+    //     require(redemptionTime >= mintTime, "Redemption time < mint time");
+    //     uint256 deltaSeconds = redemptionTime - mintTime;
+    //     if (deltaSeconds == 0) {
+    //         return 1; // If no time has passed, count as one day
+    //     }
+    //     // Calculate the number of days, rounding up if there is any remainder
+    //     // Round up to the nearest day, so 1 second or 1.1 days both count as 2 days
+    //     return (deltaSeconds + 1 days - 1) / 1 days;
+    // }
 
     // Get the token data for a specified token ID
     // This function retrieves the token data for a given token ID.
     function balanceOf(address account) public view override returns (uint256) {
-        uint256 totalBalance = 0;
-        uint256[] storage tokenIds = _tokenList[account];
-        for (uint256 i = 0; i < tokenIds.length; i++) {
-            totalBalance += _tokenMap[account][tokenIds[i]];
-        }
-        return totalBalance;
+        return wallets[account].totalBalance;
     }
 
     // Get the token IDs and amounts for a specified account
@@ -768,13 +769,14 @@ contract CashPlus is
         view
         returns (uint256[] memory tokenIds, uint256[] memory amounts)
     {
-        uint256 len = _tokenList[account].length;
+        Wallet storage wallet = wallets[account];
+        uint256 len = wallet.tailIndex - wallet.headIndex;
         tokenIds = new uint256[](len);
         amounts = new uint256[](len);
         for (uint256 i = 0; i < len; i++) {
-            uint256 tokenId = _tokenList[account][i];
-            tokenIds[i] = tokenId;
-            amounts[i] = _tokenMap[account][tokenId];
+            TokenEntry storage entry = wallet.entries[wallet.headIndex + i];
+            tokenIds[i] = entry.tokenId;
+            amounts[i] = entry.amount;
         }
         return (tokenIds, amounts);
     }
@@ -838,35 +840,40 @@ contract CashPlus is
     // This function generates a new token ID based on the address and current block parameters.
     function _addNewTokenData(
         address user,
-        uint256 stokenAmount,
-        uint256 price,
-        uint256 time
+        uint256 stokenAmount
     ) internal returns (uint256) {
-        nextId++;
         uint256 tokenId = uint256(
-            keccak256(
-                abi.encodePacked(
-                    user,
-                    block.timestamp,
-                    block.prevrandao,
-                    nextId
-                )
-            )
+            keccak256(abi.encodePacked(user, block.chainid))
         );
         TokenData memory newTokenData = TokenData({
             id: tokenId,
-            mintTime: time,
-            mintPrice: price,
-            tokenOwner: user
+            tokenOwner: user,
+            chainId: block.chainid
         });
 
         _tokenDataMap[tokenId] = newTokenData;
-        _tokenList[user].push(tokenId);
-        _tokenMap[user][tokenId] += stokenAmount;
+        _depositInternal(user, tokenId, stokenAmount);
         _totalSupply += stokenAmount;
 
         emit Transfer(address(0), user, stokenAmount);
         return tokenId;
+    }
+
+    function _addNewTokenDataCrossChain(
+        address user,
+        uint256 stokenAmount,
+        TokenData[] memory tokenDatas,
+        uint256[] memory amounts
+    ) internal {
+        for (uint256 i = 0; i < tokenDatas.length; i++) {
+            TokenData memory td = _tokenDataMap[tokenDatas[i].id];
+            if (td.id == 0) {
+                _tokenDataMap[td.id] = tokenDatas[i];
+            }
+            _depositInternal(user, td.id, amounts[i]);
+        }
+        _totalSupply += stokenAmount;
+        emit Transfer(address(0), user, stokenAmount);
     }
 
     // Get the token data for a specified token ID
@@ -896,17 +903,38 @@ contract CashPlus is
         TokenTransferDetail[] memory tokenTransferDetail
     ) internal {
         for (uint256 i = 0; i < tokenTransferDetail.length; i++) {
-            uint256 tokenId = tokenTransferDetail[i].id;
-            uint256 amount = tokenTransferDetail[i].amount;
-
-            // Add the token ID to the user's list if it doesn't exist
-            if (_tokenMap[account][tokenId] == 0) {
-                _tokenList[account].push(tokenId);
-            }
-
-            // Update the token amount for the user
-            _tokenMap[account][tokenId] += amount;
+            _depositInternal(
+                account,
+                tokenTransferDetail[i].id,
+                tokenTransferDetail[i].amount
+            );
         }
+    }
+
+    function _depositInternal(
+        address user,
+        uint256 tokenId,
+        uint256 amount
+    ) internal {
+        Wallet storage wallet = wallets[user];
+
+        // ⚠️ 防 DoS：限制队列长度
+        require(
+            wallet.tailIndex - wallet.headIndex < MAX_QUEUE_LENGTH,
+            "Wallet queue full"
+        );
+
+        wallet.totalBalance += amount;
+
+        uint256 i = wallet.tokenIdToIndex[tokenId];
+        if (wallet.entries[i].tokenId == tokenId) {
+            wallet.entries[i].amount += amount;
+            return;
+        }
+
+        wallet.entries[wallet.tailIndex] = TokenEntry(tokenId, amount);
+        wallet.tokenIdToIndex[tokenId] = wallet.tailIndex;
+        wallet.tailIndex++;
     }
 
     // Remove a specified amount of tokens according to the FIFO (First-In-First-Out) rule
@@ -916,84 +944,55 @@ contract CashPlus is
         address account,
         uint256 amount
     ) internal returns (TokenTransferDetail[] memory) {
-        // Find the token ID associated with the sender's address
-        uint256[] storage tokenIds = _tokenList[account];
-        require(tokenIds.length > 0, "Not enough tokens");
-        uint256 remaining = amount;
-        uint256 i = 0;
+        Wallet storage wallet = wallets[account];
+        require(wallet.totalBalance >= amount, "Insufficient balance");
+        require(amount > 0, "Invalid amount");
 
-        // Use a fixed-size memory array and manual indexing since push is not available for memory arrays
-        TokenTransferDetail[] memory tempTokens = new TokenTransferDetail[](
-            tokenIds.length
-        );
-        uint256 tempTokensLength = 0;
-
-        while (remaining > 0 && i < tokenIds.length) {
-            uint256 tokenId = tokenIds[i];
-            uint256 tokenAmount = _tokenMap[account][tokenId];
-            if (tokenAmount == 0) {
-                i++;
-                continue;
-            }
-            if (tokenAmount > remaining) {
-                _tokenMap[account][tokenId] -= remaining;
-                tempTokens[tempTokensLength] = TokenTransferDetail({
-                    id: tokenId,
-                    amount: remaining
-                });
-                tempTokensLength++;
-                remaining = 0;
-            } else {
-                remaining -= tokenAmount;
-                _tokenMap[account][tokenId] = 0;
-                tempTokens[tempTokensLength] = TokenTransferDetail({
-                    id: tokenId,
-                    amount: tokenAmount
-                });
-                tempTokensLength++;
-            }
-            i++;
-        }
-        require(remaining == 0, "Not enough tokens");
-
-        // Clean up empty token IDs
-        uint256[] memory _tokenIds = new uint256[](tokenIds.length);
+        // 初始容量
+        uint256 capacity = 10;
+        TokenTransferDetail[] memory _tt = new TokenTransferDetail[](capacity);
         uint256 count = 0;
-        for (uint256 j = 0; j < tokenIds.length; j++) {
-            if (_tokenMap[account][tokenIds[j]] != 0) {
-                _tokenIds[count] = tokenIds[j];
-                count++;
+        uint256 remaining = amount;
+
+        while (remaining > 0) {
+            // 🔁 动态扩容 + 安全上限
+            if (count == capacity) {
+                capacity *= 2;
+                if (capacity > MAX_SPEND_SEGMENTS) {
+                    revert("Spend too fragmented");
+                }
+                TokenTransferDetail[]
+                    memory newSpent = new TokenTransferDetail[](capacity);
+                for (uint256 i = 0; i < count; i++) {
+                    newSpent[i] = _tt[i];
+                }
+                _tt = newSpent;
+            }
+
+            TokenEntry storage cur = wallet.entries[wallet.headIndex];
+            // uint256 curTokenId = cur.tokenId;
+            uint256 consume = cur.amount <= remaining ? cur.amount : remaining;
+
+            _tt[count] = TokenTransferDetail(cur.tokenId, consume);
+
+            if (cur.amount <= remaining) {
+                delete wallet.tokenIdToIndex[cur.tokenId];
+                delete wallet.entries[wallet.headIndex];
+                wallet.headIndex++;
             } else {
-                // If the token amount is zero, we do not need to keep this token ID
-                delete _tokenMap[account][tokenIds[j]];
+                cur.amount -= consume;
             }
-        }
-        // Resize the array to the correct length
-        uint256[] storage tokenListStorage = _tokenList[account];
-        delete _tokenList[account];
-        if (count != 0) {
-            for (uint256 k = 0; k < count; k++) {
-                tokenListStorage.push(_tokenIds[k]);
-            }
+
+            count++;
+            remaining -= consume;
         }
 
-        // Remove TokenTransferDetail objects with id == 0 from tempTokens
-        uint256 validCount = 0;
-        for (uint256 m = 0; m < tempTokensLength; m++) {
-            if (tempTokens[m].id != 0) {
-                validCount++;
-            }
+        TokenTransferDetail[] memory result = new TokenTransferDetail[](count);
+        for (uint256 i = 0; i < count; i++) {
+            result[i] = _tt[i];
         }
-        TokenTransferDetail[] memory result = new TokenTransferDetail[](
-            validCount
-        );
-        uint256 idx = 0;
-        for (uint256 n = 0; n < tempTokensLength; n++) {
-            if (tempTokens[n].id != 0) {
-                result[idx] = tempTokens[n];
-                idx++;
-            }
-        }
+
+        wallet.totalBalance -= amount;
         return result;
     }
 
@@ -1173,9 +1172,12 @@ contract CashPlus is
     //     }
     // }
 
-    // ---- CCT 自助注册需要的接口 ----
     function getCCIPAdmin() external view returns (address) {
         return _ccipAdmin;
+    }
+
+    function getPoolAdmin() external view returns (address) {
+        return _poolAdmin;
     }
 
     function setCCIPAdmin(
@@ -1198,15 +1200,35 @@ contract CashPlus is
         emit PoolAdminTransferred(previous, newAdmin);
     }
 
-    function mint(address to, uint256 amount) external {
+    function mint(
+        address to,
+        uint256 amount,
+        TokenData[] calldata tokenDatas,
+        uint256[] calldata amounts
+    ) external {
         require(msg.sender == _poolAdmin, "poolAdmin");
-        _addNewTokenData(to, amount, 0, block.timestamp);
+        _addNewTokenDataCrossChain(to, amount, tokenDatas, amounts);
     }
 
-    function burn(address from, uint256 amount) external {
+    function burnFrom(
+        address from,
+        uint256 amount
+    )
+        external
+        returns (TokenData[] memory tokenDatas, uint256[] memory amounts)
+    {
         require(msg.sender == _poolAdmin, "poolAdmin");
-        _removeTokenByIdList(from, amount);
+        TokenTransferDetail[] memory details = _removeTokenByIdList(
+            from,
+            amount
+        );
         _totalSupply -= amount;
+        tokenDatas = new TokenData[](details.length);
+        amounts = new uint256[](details.length);
+        for (uint256 i = 0; i < details.length; i++) {
+            tokenDatas[i] = _tokenDataMap[details[i].id];
+            amounts[i] = details[i].amount;
+        }
         emit Transfer(from, address(0), amount);
     }
 }

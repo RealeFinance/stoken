@@ -118,18 +118,20 @@ contract BaseStorage is ICashPlus {
      * @param token The address to remove.
      */
     function removeSupportedTokenAddress(
-      address token
+        address token
     ) public virtual zeroAddress(token) {
-      for (uint256 i = 0; i < supportedTokenAddress.length; i++) {
-        if (supportedTokenAddress[i] == token) {
-          // Swap and pop for efficient removal
-          supportedTokenAddress[i] = supportedTokenAddress[supportedTokenAddress.length - 1];
-          supportedTokenAddress.pop();
-          emit supportedTokenAddressRemovedEvent(token); // Emit event after successful removal
-          return;
+        for (uint256 i = 0; i < supportedTokenAddress.length; i++) {
+            if (supportedTokenAddress[i] == token) {
+                // Swap and pop for efficient removal
+                supportedTokenAddress[i] = supportedTokenAddress[
+                    supportedTokenAddress.length - 1
+                ];
+                supportedTokenAddress.pop();
+                emit supportedTokenAddressRemovedEvent(token); // Emit event after successful removal
+                return;
+            }
         }
-      }
-      revert("Address not found");
+        revert("Address not found");
     }
 
     /**
@@ -145,6 +147,6 @@ contract BaseStorage is ICashPlus {
         }
         return false;
     }
-    
+
     error BelowMinAmount();
 }

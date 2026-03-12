@@ -1,21 +1,6 @@
-/**
- * SPDX-License-Identifier: Apache-2.0
- *
- * Copyright (c) 2023, Circle Internet Financial, LLC.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: MIT
+// Compatible with OpenZeppelin Contracts ^5.0.0
+// # Copyright (c) 2025 Asseto Fintech Limited. All rights reserved.
 pragma solidity ^0.8.22;
 
 import "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlEnumerableUpgradeable.sol";
@@ -44,10 +29,7 @@ abstract contract Blacklistable is
      * @param _account The address to check.
      */
     modifier notBlacklisted(address _account) {
-        require(
-            !_isBlacklisted(_account),
-            "Blacklistable: account is blacklisted"
-        );
+        require(!_isBlacklisted(_account), "Blacklisted");
         _;
     }
 
@@ -67,10 +49,7 @@ abstract contract Blacklistable is
     function addBlacklistAdmin(
         address _newBlacklister
     ) external onlyRole(STOKEN_BLACKLIST_ADMIN_ROLE) {
-        require(
-            _newBlacklister != address(0),
-            "Blacklistable: new blacklister is the zero address"
-        );
+        require(_newBlacklister != address(0), "Blacklister is zero address");
         _grantRole(STOKEN_BLACKLIST_ADMIN_ROLE, _newBlacklister);
         emit BlacklisterAdminAdd(_newBlacklister);
     }
@@ -84,7 +63,7 @@ abstract contract Blacklistable is
     ) external onlyRole(STOKEN_BLACKLIST_ADMIN_ROLE) {
         require(
             hasRole(STOKEN_BLACKLIST_ADMIN_ROLE, _blacklister),
-            "Blacklistable: account is not a blacklister"
+            "Not a blacklister"
         );
         _revokeRole(STOKEN_BLACKLIST_ADMIN_ROLE, _blacklister);
         emit BlacklisterAdminRemove(_blacklister);

@@ -865,13 +865,19 @@ contract CashPlus is
         TokenData[] memory tokenDatas,
         uint256[] memory amounts
     ) internal {
+        require(tokenDatas.length == amounts.length, "Length mismatch");
+
+        uint256 total;
         for (uint256 i = 0; i < tokenDatas.length; i++) {
-            TokenData memory td = _tokenDataMap[tokenDatas[i].id];
-            if (td.id == 0) {
-                _tokenDataMap[td.id] = tokenDatas[i];
+            TokenData memory td = tokenDatas[i];
+            if (_tokenDataMap[td.id].id == 0) {
+                _tokenDataMap[td.id] = td;
             }
             _depositInternal(user, td.id, amounts[i]);
+            total += amounts[i];
         }
+
+        require(total == stokenAmount, "Amount mismatch");
         _totalSupply += stokenAmount;
         emit Transfer(address(0), user, stokenAmount);
     }

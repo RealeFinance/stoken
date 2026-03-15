@@ -866,9 +866,9 @@ contract SAmMMF is
         uint256[] memory amounts
     ) internal {
         for (uint256 i = 0; i < tokenDatas.length; i++) {
-            TokenData memory td = _tokenDataMap[tokenDatas[i].id];
-            if (td.id == 0) {
-                _tokenDataMap[td.id] = tokenDatas[i];
+            TokenData memory td = tokenDatas[i];
+            if (_tokenDataMap[td.id].id == 0) {
+                _tokenDataMap[td.id] = td;
             }
             _depositInternal(user, td.id, amounts[i]);
         }

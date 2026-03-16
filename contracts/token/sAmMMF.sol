@@ -923,13 +923,6 @@ contract SAmMMF is
         uint256 amount
     ) internal {
         Wallet storage wallet = wallets[user];
-
-        // ⚠️ 防 DoS：限制队列长度
-        require(
-            wallet.tailIndex - wallet.headIndex < MAX_QUEUE_LENGTH,
-            "Wallet queue full"
-        );
-
         wallet.totalBalance += amount;
 
         uint256 i = wallet.tokenIdToIndex[tokenId];
@@ -937,6 +930,12 @@ contract SAmMMF is
             wallet.entries[i].amount += amount;
             return;
         }
+
+        // Prevent DoS: limit queue length
+        require(
+            wallet.tailIndex - wallet.headIndex < MAX_QUEUE_LENGTH,
+            "Wallet queue full"
+        );
 
         wallet.entries[wallet.tailIndex] = TokenEntry(tokenId, amount);
         wallet.tokenIdToIndex[tokenId] = wallet.tailIndex;
@@ -954,29 +953,18 @@ contract SAmMMF is
         require(wallet.totalBalance >= amount, "Insufficient balance");
         require(amount > 0, "Invalid amount");
 
-        // 初始容量
-        uint256 capacity = 10;
-        TokenTransferDetail[] memory _tt = new TokenTransferDetail[](capacity);
+        TokenTransferDetail[] memory _tt = new TokenTransferDetail[](
+            MAX_SPEND_SEGMENTS
+        );
         uint256 count = 0;
         uint256 remaining = amount;
 
         while (remaining > 0) {
-            // 🔁 动态扩容 + 安全上限
-            if (count == capacity) {
-                capacity *= 2;
-                if (capacity > MAX_SPEND_SEGMENTS) {
-                    revert("Spend too fragmented");
-                }
-                TokenTransferDetail[]
-                    memory newSpent = new TokenTransferDetail[](capacity);
-                for (uint256 i = 0; i < count; i++) {
-                    newSpent[i] = _tt[i];
-                }
-                _tt = newSpent;
+            if (count >= MAX_SPEND_SEGMENTS) {
+                revert("Spend too fragmented");
             }
 
             TokenEntry storage cur = wallet.entries[wallet.headIndex];
-            // uint256 curTokenId = cur.tokenId;
             uint256 consume = cur.amount <= remaining ? cur.amount : remaining;
 
             _tt[count] = TokenTransferDetail(cur.tokenId, consume);

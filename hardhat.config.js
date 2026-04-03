@@ -125,6 +125,13 @@ module.exports = {
       gasPrice: "auto",
       timeout: 2000000,
     },
+    PharosAtlanticTestnet: {
+      url: "https://atlantic.dplabs-internal.com",
+      accounts: [process.env.PRIVATE_KEY_2],
+      chainId: 688689,
+      gasPrice: "auto",
+      timeout: 2000000,
+    },
   },
   // Etherscan验证配置
   etherscan: {

@@ -151,71 +151,81 @@ module.exports = {
       avalancheFujiTestnet: "snowtrace",
       avalanche: "Avalanche",
       PharosPrivateMainnet: "empty",
+      PharosAtlanticTestnet: "empty",
       // bscTestnet: "empty",
-      // 自定义网络配置
-      customChains: [
-        {
-          network: "testnet",
-          chainId: 133,
-          urls: {
-            apiUrl:
-              "https://hashkeychain-testnet-explorer.alt.technology/api/v1/graphql",
-            browserUrl: "https://hashkeychain-testnet-explorer.alt.technology/",
-          },
-        },
-        {
-          network: "hashkey-chain-testnet",
-          chainId: 133,
-          urls: {
-            apiURL: "https://testnet-explorer.hsk.xyz/api",
-            browserURL: "https://testnet-explorer.hsk.xyz",
-          },
-        },
-        {
-          network: "bscTestnet",
-          chainId: 97,
-          urls: {
-            apiURL: "https://api.etherscan.io/v2/api?chainid=97", // BSC测试网专用API
-            browserURL: "https://testnet.bscscan.com",
-          },
-        },
-        {
-          network: "Avalanche_Fuji_Testnet",
-          chainId: 43113,
-          urls: {
-            apiURL:
-              "https://api.routescan.io/v2/network/testnet/evm/43113/etherscan",
-            browserURL: "https://avalanche.testnet.localhost:8080",
-          },
-        },
-        // {
-        //   network: "Avalanche",
-        //   chainId: 43114,
-        //   urls: {
-        //     apiURL: "https://api.snowtrace.io/api",
-        //     browserURL: "https://snowtrace.io",
-        //   },
-        // },
-        {
-          network: "Avalanche",
-          chainId: 43114,
-          urls: {
-            apiURL:
-              "https://api.routescan.io/v2/network/mainnet/evm/43114/etherscan",
-            browserURL: "https://avalanche.routescan.io",
-          },
-        },
-        {
-          network: "PharosPrivateMainnet",
-          chainId: 1672,
-          urls: {
-            apiURL:
-              "https://api.socialscan.io/pharos/v1/explorer/command_api/contract",
-            browserURL: "https://pharos.socialscan.io/",
-          },
-        },
-      ],
     },
+    // 自定义网络配置
+    customChains: [
+      {
+        network: "testnet",
+        chainId: 133,
+        urls: {
+          apiUrl:
+            "https://hashkeychain-testnet-explorer.alt.technology/api/v1/graphql",
+          browserUrl: "https://hashkeychain-testnet-explorer.alt.technology/",
+        },
+      },
+      {
+        network: "hashkey-chain-testnet",
+        chainId: 133,
+        urls: {
+          apiURL: "https://testnet-explorer.hsk.xyz/api",
+          browserURL: "https://testnet-explorer.hsk.xyz",
+        },
+      },
+      {
+        network: "bscTestnet",
+        chainId: 97,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api?chainid=97", // BSC测试网专用API
+          browserURL: "https://testnet.bscscan.com",
+        },
+      },
+      {
+        network: "Avalanche_Fuji_Testnet",
+        chainId: 43113,
+        urls: {
+          apiURL:
+            "https://api.routescan.io/v2/network/testnet/evm/43113/etherscan",
+          browserURL: "https://avalanche.testnet.localhost:8080",
+        },
+      },
+      // {
+      //   network: "Avalanche",
+      //   chainId: 43114,
+      //   urls: {
+      //     apiURL: "https://api.snowtrace.io/api",
+      //     browserURL: "https://snowtrace.io",
+      //   },
+      // },
+      {
+        network: "Avalanche",
+        chainId: 43114,
+        urls: {
+          apiURL:
+            "https://api.routescan.io/v2/network/mainnet/evm/43114/etherscan",
+          browserURL: "https://avalanche.routescan.io",
+        },
+      },
+      {
+        network: "PharosPrivateMainnet",
+        chainId: 1672,
+        urls: {
+          apiURL:
+            "https://api.socialscan.io/pharos/v1/explorer/command_api/contract",
+          browserURL: "https://pharos.socialscan.io/",
+        },
+      },
+      {
+        network: "PharosAtlanticTestnet",
+        chainId: 688689,
+        urls: {
+          apiURL:
+            "https://api.socialscan.io/pharos-atlantic-testnet/v1/explorer/command_api/contract",
+          browserURL: "https://atlantic.pharosscan.xyz/",
+        },
+      },
+    ],
   },
   // 测试配置
   mocha: {

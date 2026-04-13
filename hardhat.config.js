@@ -132,6 +132,13 @@ module.exports = {
       gasPrice: "auto",
       timeout: 2000000,
     },
+    PlumeMainnet: {
+      url: "https://rpc.plume.org",
+      accounts: [process.env.PRIVATE_KEY_2],
+      chainId: 98866,
+      gasPrice: "auto",
+      timeout: 2000000,
+    },
   },
   // Etherscan验证配置
   etherscan: {

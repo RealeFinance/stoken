@@ -42,7 +42,7 @@ contract SAmMMF is
     Blacklistable
 {
     using SafeERC20 for IERC20;
-    bytes32 public constant VERSION = keccak256("VERSION_2");
+    bytes32 public constant VERSION = keccak256("VERSION_3");
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
     bytes32 public constant STOKEN_ADMIN = keccak256("STOKEN_ADMIN");
     uint256 public constant MIN_AMOUNT = 1e16; // 0.01 in 18 decimals

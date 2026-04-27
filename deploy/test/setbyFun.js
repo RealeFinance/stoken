@@ -3,16 +3,17 @@ const { ethers, upgrades } = require("hardhat");
 async function main() {
   // ===== 你要改的参数 =====
   const contractName = "SAmMMF";
+  const proxyAddress = "0x37d03D8caBfB617e455D0cAA0Cf1cdc5b8F3BDEe";
   const name = "YIELDPlus";
   const symbol = "YIELD+";
   const data = {
-    STOKEN_ADMIN: ["0x9d32F9d042765ed98819f17b28a8867F7f4c2C2D"],
-    assetRecipient: "0x9BF10E87bF190E0226a79FC3Bb2599f6a87270E2",
-    assetSender: "0x9BF10E87bF190E0226a79FC3Bb2599f6a87270E2",
-    serviceFeeRecipient: "0x9BF10E87bF190E0226a79FC3Bb2599f6a87270E2",
+    STOKEN_ADMIN: ["0x7757c491144a6cB8e957f2f7650242a19F448b2c"],
+    assetRecipient: "0xf5dE29C08CEbFE490c05Eb0C560Cd47bEC03b6d3",
+    assetSender: "0xf5dE29C08CEbFE490c05Eb0C560Cd47bEC03b6d3",
+    serviceFeeRecipient: "0xf5dE29C08CEbFE490c05Eb0C560Cd47bEC03b6d3",
     supportedTokenAddresses: [
-      "0x55d398326f99059ff775485246999027b3197955",
-      "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
+      "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
     ],
   };
   // =======================
@@ -23,16 +24,7 @@ async function main() {
   console.log(`正在部署到网络: ${networkName}`);
   console.log(`部署者地址: ${deployer.address}`);
 
-  const Contract = await ethers.getContractFactory(contractName);
-  const proxy2 = await upgrades.deployProxy(Contract, [name, symbol], {
-    initializer: "initialize",
-    gasLimit: 15000000,
-    gasPrice: ethers.parseUnits("0.3", "gwei"),
-  });
-  await proxy2.waitForDeployment();
-
-  const tokenAddress = await proxy2.getAddress();
-  console.log(`${contractName} Token 地址:`, tokenAddress);
+  const proxy2 = await ethers.getContractAt(contractName, proxyAddress);
 
   console.log(`开始设置权限...`);
   for (const admin of data.STOKEN_ADMIN ?? []) {
@@ -74,4 +66,4 @@ async function main() {
 
 main().catch(console.error);
 
-// npx hardhat run deploy/test/_deploy_sAmMMF.js --network bscTestnet
+// npx hardhat run .\deploy\test\set.js --network hardhat

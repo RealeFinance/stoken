@@ -109,6 +109,10 @@ PHAROS_MAINNET_BOND2_PROXY_ADDRESS=0x286D9F099587f567EcE2b70eBB64B94ACD672d76
 # https://explorer.plume.org/address/0x0D90a6eE85d5668734bb3A515147f53EBDfE866c
 PLUME_MAINNET_BOND2_PROXY_ADDRESS=0x0D90a6eE85d5668734bb3A515147f53EBDfE866c
 
+# eth bond+ 2.0
+# https://etherscan.io/address/0x28d77ea7c61cd9055983ef8b0806778d8bb12c88
+ETH_BOND2_PROXY_ADDRESS=0x28d77ea7c61cd9055983ef8b0806778d8bb12c88
+
 # ==============================================================================bond+ 2.0
 
 # ==============================================================================AMCASH
@@ -140,12 +144,29 @@ PHAROS_MAINNET_YIELD2_PROXY_ADDRESS=0x87a1A531090bc58b34398E3cBa4C9b00c6B9231E
 # https://explorer.plume.org/address/0xD9ffec462793e6627F223671E9C9b217C8103940
 PLUME_MAINNET_YIELD2_PROXY_ADDRESS=0xD9ffec462793e6627F223671E9C9b217C8103940
 
+# ETH YIELD+ 2.0
+# https://etherscan.io/address/0x37d03D8caBfB617e455D0cAA0Cf1cdc5b8F3BDEe
+ETH_YIELD2_PROXY_ADDRESS=0x37d03D8caBfB617e455D0cAA0Cf1cdc5b8F3BDEe
+
+# BSC YIELD+ 2.0
+# https://bscscan.com/address/0xCCa4656F736490cf2155589aEcd8382765a3e691
+BSC_YIELD2_PROXY_ADDRESS=0xCCa4656F736490cf2155589aEcd8382765a3e691
+
 # ==============================================================================YIELD+ 2.0
 
 # ==============================================================================NGI+ 2.0
 # Pharos NGI+ 2.0
 # https://pharos.socialscan.io/address/0x85f51213A6c3F2566aF519D296BB75AD4EC6d234
 PHAROS_MAINNET_NGI2_PROXY_ADDRESS=0x85f51213A6c3F2566aF519D296BB75AD4EC6d234
+
+# ETH NGI+ 2.0
+# https://etherscan.io/address/0xF252C5BD43907a6CAb079E990845a37a7C5730d9
+ETH_NGI2_PROXY_ADDRESS=0xF252C5BD43907a6CAb079E990845a37a7C5730d9
+
+# BSC NGI+ 2.0
+# https://bscscan.com/address/0x50BF2924ceE59737EAD76e881643eD8569BAe6e8
+BSC_NGI2_PROXY_ADDRESS=0x50BF2924ceE59737EAD76e881643eD8569BAe6e8
+
 # ==============================================================================NGI+ 2.0
 
 # ==============================================================================EPOCH+ 2.0

@@ -27,11 +27,11 @@ import {
     SafeERC20
 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {BaseStorage} from "../base/BaseStorage.sol";
-import "../Interfaces/ISAmMMF.sol";
+import "../Interfaces/ISToken.sol";
 import {Blacklistable} from "../BlackList/Blacklistable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-contract SAmMMF is
+contract SToken is
     Initializable,
     ERC20Upgradeable,
     ERC20PausableUpgradeable,

@@ -2,9 +2,9 @@
 // Compatible with OpenZeppelin Contracts ^5.0.0
 // # Copyright (c) 2025 Asseto Fintech Limited. All rights reserved.
 pragma solidity ^0.8.22;
-import "../Interfaces/ISAmMMF.sol";
+import "../Interfaces/ISToken.sol";
 
-contract BaseStorage is ISAmMMF {
+contract BaseStorage is ISToken {
     // Asset recipient address
     address public assetRecipient;
 

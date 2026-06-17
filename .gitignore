@@ -17,3 +17,5 @@ ignition/deployments/chain-31337
 
 .env
 reasonix.toml
+.reasonix
+.codegraph

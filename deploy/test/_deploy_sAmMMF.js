@@ -27,7 +27,6 @@ async function main() {
   const proxy2 = await upgrades.deployProxy(Contract, [name, symbol], {
     initializer: "initialize",
     gasLimit: 15000000,
-    gasPrice: ethers.parseUnits("0.3", "gwei"),
   });
   await proxy2.waitForDeployment();
 

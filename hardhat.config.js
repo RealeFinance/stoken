@@ -53,8 +53,6 @@ module.exports = {
       url: `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`,
       accounts: [process.env.PRIVATE_KEY_2],
       chainId: 1,
-      gasPrice: 1_000_000_000, // 1 gwei
-      gasLimit: 3000000, // 代理合约部署通常需要100-300万Gas，设置冗余值
       timeout: 120000, // 主网交易确认慢，延长超时时间（2分钟）
     },
     "hashkey-chain-testnet": {

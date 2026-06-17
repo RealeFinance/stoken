@@ -2,17 +2,17 @@ const { ethers, upgrades } = require("hardhat");
 
 async function main() {
   // ===== 你要改的参数 =====
-  const contractName = "SAmMMF";
-  const name = "YIELDPlus";
-  const symbol = "YIELD+";
+  const contractName = "SToken";
+  const name = "CnCashPlus";
+  const symbol = "CNCASH+";
   const data = {
-    STOKEN_ADMIN: ["0x9d32F9d042765ed98819f17b28a8867F7f4c2C2D"],
-    assetRecipient: "0x9BF10E87bF190E0226a79FC3Bb2599f6a87270E2",
-    assetSender: "0x9BF10E87bF190E0226a79FC3Bb2599f6a87270E2",
-    serviceFeeRecipient: "0x9BF10E87bF190E0226a79FC3Bb2599f6a87270E2",
+    STOKEN_ADMIN: ["0xb900937Af55EEcE6835646ad515A0517AC094af1"],
+    assetRecipient: "0xc859e52B13Bd8B78FA47972aBc671E240f1A432a",
+    assetSender: "0xc859e52B13Bd8B78FA47972aBc671E240f1A432a",
+    serviceFeeRecipient: "0xc859e52B13Bd8B78FA47972aBc671E240f1A432a",
     supportedTokenAddresses: [
-      "0x55d398326f99059ff775485246999027b3197955",
-      "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
+      "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
     ],
   };
   // =======================
@@ -30,6 +30,12 @@ async function main() {
     gasPrice: ethers.parseUnits("0.3", "gwei"),
   });
   await proxy2.waitForDeployment();
+
+  // 获取代理合约实例
+  // const proxy2 = await ethers.getContractAt(
+  //   contractName,
+  //   "0x286D9F099587f567EcE2b70eBB64B94ACD672d76",
+  // );
 
   const tokenAddress = await proxy2.getAddress();
   console.log(`${contractName} Token 地址:`, tokenAddress);

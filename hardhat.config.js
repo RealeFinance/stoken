@@ -50,8 +50,7 @@ module.exports = {
       // },
     },
     mainnet: {
-      // url: `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`,
-      url: "https://ethereum-rpc.publicnode.com",
+      url: `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`,
       accounts: [process.env.PRIVATE_KEY_2],
       chainId: 1,
       gasPrice: 1_000_000_000, // 1 gwei
@@ -160,6 +159,7 @@ module.exports = {
       PharosPrivateMainnet: "empty",
       PharosAtlanticTestnet: "empty",
       // bscTestnet: "empty",
+      mainnet: "empty",
     },
     // 自定义网络配置
     customChains: [

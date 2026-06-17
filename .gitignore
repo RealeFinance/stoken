@@ -16,3 +16,4 @@ node_modules
 ignition/deployments/chain-31337
 
 .env
+reasonix.toml

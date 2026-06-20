@@ -29,7 +29,10 @@ abstract contract Blacklistable is
      * @param _account The address to check.
      */
     modifier notBlacklisted(address _account) {
-        require(!_isBlacklisted(_account), "Blacklisted");
+        require(
+            !_isBlacklisted(_account),
+            "Blacklisted"
+        );
         _;
     }
 
@@ -49,7 +52,10 @@ abstract contract Blacklistable is
     function addBlacklistAdmin(
         address _newBlacklister
     ) external onlyRole(STOKEN_BLACKLIST_ADMIN_ROLE) {
-        require(_newBlacklister != address(0), "Blacklister is zero address");
+        require(
+            _newBlacklister != address(0),
+            "Blacklister is zero address"
+        );
         _grantRole(STOKEN_BLACKLIST_ADMIN_ROLE, _newBlacklister);
         emit BlacklisterAdminAdd(_newBlacklister);
     }

@@ -1,0 +1,33 @@
+diff --git a/internal/ethers-utils.js b/internal/ethers-utils.js
+index 7cf800395e8b7168d86cd2f67c7de05c36291659..6159570a7510a9a69ccb4d4f4df9fef80fcd4a7e 100644
+--- a/internal/ethers-utils.js
++++ b/internal/ethers-utils.js
+@@ -136,6 +136,10 @@ function formatTransactionResponse(value) {
+     if (value.to && (0, ethers_1.getBigInt)(value.to) === 0n) {
+         value.to = "0x0000000000000000000000000000000000000000";
+     }
++    // Some RPC nodes return empty string instead of null for
++    // contract creation (CREATE) transactions
++    if (value.to === "") {
++        value.to = null;
++    }
+     const result = object({
+         hash: formatHash,
+         type: (v) => {
+diff --git a/src/internal/ethers-utils.ts b/src/internal/ethers-utils.ts
+index 4b1746a13104dbdf10c9e8d34845a7c9d49903c4..1f548369c7303fbda822add6170421cba7cfe7d6 100644
+--- a/src/internal/ethers-utils.ts
++++ b/src/internal/ethers-utils.ts
+@@ -208,6 +208,12 @@ export function formatTransactionResponse(
+     value.to = "0x0000000000000000000000000000000000000000";
+   }
+ 
++  // Some RPC nodes (e.g. publicnode, Alchemy) return empty string
++  // instead of null for contract creation (CREATE) transactions
++  if (value.to === "") {
++    value.to = null;
++  }
++
+   const result = object(
+     {
+       hash: formatHash,

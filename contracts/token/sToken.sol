@@ -46,7 +46,6 @@ contract SToken is
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
     bytes32 public constant STOKEN_ADMIN = keccak256("STOKEN_ADMIN");
     uint256 public constant MIN_AMOUNT = 1e16; // 0.01 in 18 decimals
-    uint256 private constant MAX_QUEUE_LENGTH = 50; // 单个钱包最多 50 个 entry
     uint256 private constant MAX_SPEND_SEGMENTS = 100; // 单次消费最多跨 100 个 entry
 
     // ====== Structs ======
@@ -84,6 +83,9 @@ contract SToken is
     address private _ccipAdmin;
 
     address private _poolAdmin;
+
+    uint256 public maxQueueLength; // 可配置的最大队列长度
+    
     bytes32 public constant POOL_ADMIN_ROLE = keccak256("POOL_ADMIN_ROLE");
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -113,6 +115,11 @@ contract SToken is
 
         MIN_SUBSCRIPTION_USD_AMOUNT = 100; // Minimum subscription amount (100 USDT/USDC with 6 decimals)
         MIN_REDEMPTION_CASH_AMOUNT = 0.948 * 10 ** 18; // Minimum redemption amount (0.948 Cash+ with 18 decimals)
+        maxQueueLength = 50; // Default max queue length
+    }
+
+    function initializeV2() public reinitializer(2) {
+        maxQueueLength = 50; // Initialize max queue length for existing proxy
     }
 
     function _authorizeUpgrade(
@@ -933,7 +940,7 @@ contract SToken is
 
         // Prevent DoS: limit queue length
         require(
-            wallet.tailIndex - wallet.headIndex < MAX_QUEUE_LENGTH,
+            wallet.tailIndex - wallet.headIndex < maxQueueLength,
             "Wallet queue full"
         );
 
@@ -1152,6 +1159,15 @@ contract SToken is
     //     MAX_REDEMPTION_CASH_AMOUNT = amount;
     //     emit maxRedemptionAmountUpdatedEvent(oldAmount, amount);
     // }
+
+    function setMaxQueueLength(
+        uint256 newValue
+    ) public onlyRole(STOKEN_ADMIN) {
+        require(newValue > 0, "Queue length must be > 0");
+        uint256 oldValue = maxQueueLength;
+        maxQueueLength = newValue;
+        emit maxQueueLengthUpdatedEvent(oldValue, newValue);
+    }
 
     // function mint(
     //     address[] memory holders,

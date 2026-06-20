@@ -263,6 +263,8 @@ interface ISToken {
 
     event maxRedemptionAmountUpdatedEvent(uint256 oldAmount, uint256 newAmount);
 
+    event maxQueueLengthUpdatedEvent(uint256 oldValue, uint256 newValue);
+
     event CCIPAdminTransferred(address previous, address newAdmin);
 
     event PoolAdminTransferred(address previous, address newAdmin);

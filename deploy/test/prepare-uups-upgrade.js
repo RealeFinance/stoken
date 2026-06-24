@@ -3,7 +3,7 @@ const { ethers, upgrades } = require("hardhat");
 async function main() {
   // ===== 你要改的参数 =====
   const proxyAddress = "0x9EA9cd205783F08700d2A12C325FC4e1BF8e99a2";
-  const newContractName = "SAmMMF";
+  const newContractName = "SToken";
 
   // 如果升级后要顺便执行 reinitializer，就打开下面两行
   const callInitializer = false;

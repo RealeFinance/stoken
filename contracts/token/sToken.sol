@@ -43,7 +43,6 @@ contract SToken is
 {
     using SafeERC20 for IERC20;
     bytes32 public constant VERSION = keccak256("VERSION_2");
-    bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
     bytes32 public constant STOKEN_ADMIN = keccak256("STOKEN_ADMIN");
     uint256 public constant MIN_AMOUNT = 1e16; // 0.01 in 18 decimals
     uint256 private constant MAX_SPEND_SEGMENTS = 100; // 单次消费最多跨 100 个 entry
@@ -104,7 +103,6 @@ contract SToken is
         __ERC20Permit_init(name);
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(UPGRADER_ROLE, msg.sender);
         _grantRole(STOKEN_BLACKLIST_ADMIN_ROLE, msg.sender);
 
         assetRecipient = address(this); // Set the asset recipient to this contract address
@@ -124,7 +122,7 @@ contract SToken is
 
     function _authorizeUpgrade(
         address newImplementation
-    ) internal override onlyRole(UPGRADER_ROLE) {}
+    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 
     function pause() public onlyRole(STOKEN_ADMIN) {
         _pause();
@@ -1070,19 +1068,19 @@ contract SToken is
 
     function setAssetRecipient(
         address newRecipient
-    ) public override onlyRole(STOKEN_ADMIN) {
+    ) public override onlyRole(DEFAULT_ADMIN_ROLE) {
         super.setAssetRecipient(newRecipient);
     }
 
     function setAssetSender(
         address newSender
-    ) public override onlyRole(STOKEN_ADMIN) {
+    ) public override onlyRole(DEFAULT_ADMIN_ROLE) {
         super.setAssetSender(newSender);
     }
 
     function setServiceFeeRecipient(
         address newRecipient
-    ) public override onlyRole(STOKEN_ADMIN) {
+    ) public override onlyRole(DEFAULT_ADMIN_ROLE) {
         super.setServiceFeeRecipient(newRecipient);
     }
 

@@ -6,6 +6,7 @@ async function main() {
   const name = "CnCashPlus";
   const symbol = "CNCASH+";
   const data = {
+    DEFAULT_ADMIN_ROLE: ["0xb900937Af55EEcE6835646ad515A0517AC094af1"],
     STOKEN_ADMIN: ["0xb900937Af55EEcE6835646ad515A0517AC094af1"],
     assetRecipient: "0xc859e52B13Bd8B78FA47972aBc671E240f1A432a",
     assetSender: "0xc859e52B13Bd8B78FA47972aBc671E240f1A432a",
@@ -40,6 +41,12 @@ async function main() {
   console.log(`${contractName} Token 地址:`, tokenAddress);
 
   console.log(`开始设置权限...`);
+  for (const admin of data.DEFAULT_ADMIN_ROLE ?? []) {
+    console.log(`正在授权 DEFAULT_ADMIN_ROLE: ${admin}`);
+    const tx = await proxy2.grantRole(ethers.ZeroHash, admin);
+    await tx.wait();
+    console.log(`DEFAULT_ADMIN_ROLE权限已授予: ${admin}`);
+  }
   for (const admin of data.STOKEN_ADMIN ?? []) {
     console.log(`正在授权 STOKEN_ADMIN: ${admin}`);
     const tx = await proxy2.grantRole(ethers.id("STOKEN_ADMIN"), admin);
@@ -73,10 +80,33 @@ async function main() {
   }
 
   console.log(
-    `支持的交易代币地址已设置: ${(data.supportedTokenAddresses ?? []).join(", ")}`,
+    `支持的交易代币地址已设置: ${(data.supportedTokenAddresses ?? []).join(
+      ", ",
+    )}`,
   );
+
+  // ===== 部署者退出所有权限 =====
+  // 前提: DEFAULT_ADMIN_ROLE 已经有其他人持有，否则退出后合约无人能管理
+  console.log(`开始撤销部署者权限...`);
+  const rolesToRenounce = [
+    ethers.ZeroHash, // DEFAULT_ADMIN_ROLE = 0x00
+    ethers.id("STOKEN_ADMIN"),
+    ethers.id("STOKEN_BLACKLIST_ADMIN_ROLE"),
+  ];
+  for (const role of rolesToRenounce) {
+    const hasRole = await proxy2.hasRole(role, deployerAddress);
+    if (hasRole) {
+      console.log(`正在退出: ${role}`);
+      const tx = await proxy2.renounceRole(role, deployerAddress);
+      await tx.wait();
+      console.log(`已退出: ${role}`);
+    } else {
+      console.log(`已无此角色，跳过: ${role}`);
+    }
+  }
+  console.log(`部署者权限已全部退出`);
 }
 
 main().catch(console.error);
 
-// npx hardhat run deploy/test/_deploy_sAmMMF.js --network bscTestnet
+// npx hardhat run deploy/test/_deploy_SToken.js --network bscTestnet

@@ -137,6 +137,13 @@ contract SToken is
         address to,
         uint256 value
     ) internal override(ERC20Upgradeable, ERC20PausableUpgradeable) {
+        // Blacklist check: prevent blacklisted addresses from moving tokens
+        if (from != address(0)) {
+            require(!_isBlacklisted(from), "Blacklisted");
+        }
+        if (to != address(0)) {
+            require(!_isBlacklisted(to), "Blacklisted");
+        }
         super._update(from, to, value);
     }
 

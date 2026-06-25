@@ -42,8 +42,13 @@ contract SToken is
     Blacklistable
 {
     using SafeERC20 for IERC20;
+
+    // ===== Roles ======
     bytes32 public constant VERSION = keccak256("VERSION_2");
     bytes32 public constant STOKEN_ADMIN = keccak256("STOKEN_ADMIN");
+    bytes32 public constant POOL_ADMIN_ROLE = keccak256("POOL_ADMIN_ROLE");
+
+    // ====== Constants ======
     uint256 public constant MIN_AMOUNT = 1e16; // 0.01 in 18 decimals
     uint256 private constant MAX_SPEND_SEGMENTS = 100; // 单次消费最多跨 100 个 entry
 
@@ -84,8 +89,6 @@ contract SToken is
     address private _poolAdmin;
 
     uint256 public maxQueueLength; // 可配置的最大队列长度
-    
-    bytes32 public constant POOL_ADMIN_ROLE = keccak256("POOL_ADMIN_ROLE");
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -1165,9 +1168,7 @@ contract SToken is
     //     emit maxRedemptionAmountUpdatedEvent(oldAmount, amount);
     // }
 
-    function setMaxQueueLength(
-        uint256 newValue
-    ) public onlyRole(STOKEN_ADMIN) {
+    function setMaxQueueLength(uint256 newValue) public onlyRole(STOKEN_ADMIN) {
         require(newValue > 0, "Queue length must be > 0");
         uint256 oldValue = maxQueueLength;
         maxQueueLength = newValue;
@@ -1215,13 +1216,16 @@ contract SToken is
         emit PoolAdminTransferred(previous, newAdmin);
     }
 
+    /**
+     * @notice POOL_ADMIN_ROLE 是现在的 mint/burn 权限门，_poolAdmin 变量保留仅用于存储兼容
+     *         新操作员请用 grantRole(POOL_ADMIN_ROLE, addr)
+     */
     function mint(
         address to,
         uint256 amount,
         TokenData[] calldata tokenDatas,
         uint256[] calldata amounts
-    ) external {
-        require(msg.sender == _poolAdmin, "poolAdmin");
+    ) external onlyRole(POOL_ADMIN_ROLE) {
         _addNewTokenDataCrossChain(to, amount, tokenDatas, amounts);
     }
 
@@ -1230,9 +1234,9 @@ contract SToken is
         uint256 amount
     )
         external
+        onlyRole(POOL_ADMIN_ROLE)
         returns (TokenData[] memory tokenDatas, uint256[] memory amounts)
     {
-        require(msg.sender == _poolAdmin, "poolAdmin");
         TokenTransferDetail[] memory details = _removeTokenByIdList(
             from,
             amount

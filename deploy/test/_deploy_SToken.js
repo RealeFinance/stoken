@@ -6,11 +6,21 @@ async function main() {
   const name = "CnCashPlus";
   const symbol = "CNCASH+";
   const data = {
-    DEFAULT_ADMIN_ROLE: ["0xb900937Af55EEcE6835646ad515A0517AC094af1"],
-    STOKEN_ADMIN: ["0xb900937Af55EEcE6835646ad515A0517AC094af1"],
+    // ===== Timelock 配置 =====
+    // DEFAULT_ADMIN_ROLE 會交给 TimelockController，所有敏感操作延迟执行
+    timelock: {
+      enabled: true,
+      minDelay: 172800, // 2 天（秒）
+      proposers: ["0xb900937Af55EEcE6835646ad515A0517AC094af1"], // 可发起提案的地址
+      executors: ["0xb900937Af55EEcE6835646ad515A0517AC094af1"], // 可执行的地址（放空则任何人可执行）
+    },
+    // ===== 角色分配 =====
+    STOKEN_ADMIN: ["0xb900937Af55EEcE6835646ad515A0517AC094af1"], // 日常运维地址（无延迟）
+    // ===== 资产地址 =====
     assetRecipient: "0xc859e52B13Bd8B78FA47972aBc671E240f1A432a",
     assetSender: "0xc859e52B13Bd8B78FA47972aBc671E240f1A432a",
     serviceFeeRecipient: "0xc859e52B13Bd8B78FA47972aBc671E240f1A432a",
+    // ===== 支持代币 =====
     supportedTokenAddresses: [
       "0xdac17f958d2ee523a2206206994597c13d831ec7",
       "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
@@ -41,11 +51,58 @@ async function main() {
   console.log(`${contractName} Token 地址:`, tokenAddress);
 
   console.log(`开始设置权限...`);
-  for (const admin of data.DEFAULT_ADMIN_ROLE ?? []) {
-    console.log(`正在授权 DEFAULT_ADMIN_ROLE: ${admin}`);
-    const tx = await proxy2.grantRole(ethers.ZeroHash, admin);
-    await tx.wait();
-    console.log(`DEFAULT_ADMIN_ROLE权限已授予: ${admin}`);
+  // ===== 部署 TimelockController =====
+  if (data.timelock?.enabled) {
+    console.log(`正在部署 TimelockController...`);
+    const TimelockController = await ethers.getContractFactory("TimelockController");
+    const timelock = await TimelockController.deploy(
+      data.timelock.minDelay,
+      data.timelock.proposers,
+      data.timelock.executors,
+      deployerAddress // 暂时设 deployer 为 admin，配置完成后再放弃
+    );
+    await timelock.waitForDeployment();
+    const timelockAddress = await timelock.getAddress();
+    console.log(`TimelockController 地址: ${timelockAddress}`);
+
+    // 将 DEFAULT_ADMIN_ROLE 交给 TimelockController
+    console.log(`正在授予 DEFAULT_ADMIN_ROLE 给 Timelock...`);
+    const txGrant = await proxy2.grantRole(ethers.ZeroHash, timelockAddress);
+    await txGrant.wait();
+    console.log(`DEFAULT_ADMIN_ROLE 已授予给 Timelock`);
+
+    // 从 TimelockController 里配置 PROPOSER/EXECUTOR 角色
+    // deployer 是 Timelock 的初始 admin，可以 grant/revoke
+    const PROPOSER_ROLE = await timelock.PROPOSER_ROLE();
+    const EXECUTOR_ROLE = await timelock.EXECUTOR_ROLE();
+    for (const addr of data.timelock.proposers ?? []) {
+      const tx = await timelock.grantRole(PROPOSER_ROLE, addr);
+      await tx.wait();
+      console.log(`PROPOSER_ROLE 已授予: ${addr}`);
+    }
+    for (const addr of data.timelock.executors ?? []) {
+      const tx = await timelock.grantRole(EXECUTOR_ROLE, addr);
+      await tx.wait();
+      console.log(`EXECUTOR_ROLE 已授予: ${addr}`);
+    }
+
+    // 放弃 deployer 在 Timelock 中的 admin 身份
+    const txRenounceTimelock = await timelock.renounceRole(
+      ethers.ZeroHash,
+      deployerAddress
+    );
+    await txRenounceTimelock.wait();
+    console.log(`Timelock admin 已放弃`);
+
+    console.log(`TimelockController 配置完成`);
+  } else {
+    // 不用 timelock，直接授予 DEFAULT_ADMIN_ROLE 给指定地址
+    for (const admin of data.DEFAULT_ADMIN_ROLE ?? []) {
+      console.log(`正在授权 DEFAULT_ADMIN_ROLE: ${admin}`);
+      const tx = await proxy2.grantRole(ethers.ZeroHash, admin);
+      await tx.wait();
+      console.log(`DEFAULT_ADMIN_ROLE权限已授予: ${admin}`);
+    }
   }
   for (const admin of data.STOKEN_ADMIN ?? []) {
     console.log(`正在授权 STOKEN_ADMIN: ${admin}`);
@@ -86,7 +143,7 @@ async function main() {
   );
 
   // ===== 部署者退出所有权限 =====
-  // 前提: DEFAULT_ADMIN_ROLE 已经有其他人持有，否则退出后合约无人能管理
+  // 前提: DEFAULT_ADMIN_ROLE 已经有其他人或 Timelock 持有
   console.log(`开始撤销部署者权限...`);
   const rolesToRenounce = [
     ethers.ZeroHash, // DEFAULT_ADMIN_ROLE = 0x00
@@ -110,3 +167,35 @@ async function main() {
 main().catch(console.error);
 
 // npx hardhat run deploy/test/_deploy_SToken.js --network bscTestnet
+
+// ====== 多签调用timelock示例 ====== 
+
+// 假设你有 SToken 和 Timelock 的 interface
+// const stokenInterface = new ethers.Interface([
+//   "function setAssetRecipient(address newRecipient)"
+// ]);
+// const timelockInterface = new ethers.Interface([
+//   "function schedule(address target, uint256 value, bytes data, bytes32 predecessor, bytes32 salt, uint256 delay)",
+//   "function execute(address target, uint256 value, bytes data, bytes32 predecessor, bytes32 salt)"
+// ]);
+
+// // ① 先把实际要调用的 SToken 方法编码
+// const setAssetRecipientData = stokenInterface.encodeFunctionData("setAssetRecipient", [
+//   "0x新地址"
+// ]);
+
+// // ② 再编码 timelock.schedule() 调用
+// const scheduleData = timelockInterface.encodeFunctionData("schedule", [
+//   "0xSToken代理地址",  // target
+//   0,                   // value（不带 ETH）
+//   setAssetRecipientData, // data → 实际要调用的方法
+//   ethers.ZeroHash,     // predecessor（无前置操作）
+//   ethers.ZeroHash,     // salt（随机数，避免重复）
+//   172800               // delay（2 天）
+// ]);
+
+// console.log("多签需要执行的交易:");
+// console.log("To:      ", "0xTimelock地址");
+// console.log("Value:   ", 0);
+// console.log("Data:    ", scheduleData);
+// 把这 3 个参数填到多签钱包的"发送交易"页面

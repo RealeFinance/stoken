@@ -44,7 +44,6 @@ contract SToken is
     using SafeERC20 for IERC20;
 
     // ===== Roles ======
-    bytes32 public constant VERSION = keccak256("VERSION_2");
     bytes32 public constant STOKEN_ADMIN = keccak256("STOKEN_ADMIN");
     bytes32 public constant POOL_ADMIN_ROLE = keccak256("POOL_ADMIN_ROLE");
 
@@ -152,6 +151,10 @@ contract SToken is
 
     function totalSupply() public view override returns (uint256) {
         return _totalSupply;
+    }
+
+    function version() public pure returns (string memory) {
+        return "2.1.0";
     }
 
     /**
@@ -936,7 +939,7 @@ contract SToken is
         address user,
         uint256 tokenId,
         uint256 amount
-    ) internal {
+    ) internal notBlacklisted(user) zeroAddress(user) {
         Wallet storage wallet = wallets[user];
         wallet.totalBalance += amount;
 
@@ -963,7 +966,7 @@ contract SToken is
     function _removeTokenByIdList(
         address account,
         uint256 amount
-    ) internal returns (TokenTransferDetail[] memory) {
+    ) internal notBlacklisted(account) returns (TokenTransferDetail[] memory) {
         Wallet storage wallet = wallets[account];
         require(wallet.totalBalance >= amount, "Insufficient balance");
         require(amount > 0, "Invalid amount");

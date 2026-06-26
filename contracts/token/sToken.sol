@@ -1192,10 +1192,6 @@ contract SToken is
         return _ccipAdmin;
     }
 
-    function getPoolAdmin() external view returns (address) {
-        return _poolAdmin;
-    }
-
     function setCCIPAdmin(
         address newAdmin
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -1208,24 +1204,12 @@ contract SToken is
         emit CCIPAdminTransferred(previous, newAdmin);
     }
 
-    function setPoolAdmin(
-        address newAdmin
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        address previous = _poolAdmin;
-        _poolAdmin = newAdmin;
-        emit PoolAdminTransferred(previous, newAdmin);
-    }
-
-    /**
-     * @notice POOL_ADMIN_ROLE 是现在的 mint/burn 权限门，_poolAdmin 变量保留仅用于存储兼容
-     *         新操作员请用 grantRole(POOL_ADMIN_ROLE, addr)
-     */
     function mint(
         address to,
         uint256 amount,
         TokenData[] calldata tokenDatas,
         uint256[] calldata amounts
-    ) external onlyRole(POOL_ADMIN_ROLE) {
+    ) external notBlacklisted(to) onlyRole(POOL_ADMIN_ROLE) {
         _addNewTokenDataCrossChain(to, amount, tokenDatas, amounts);
     }
 
@@ -1234,6 +1218,7 @@ contract SToken is
         uint256 amount
     )
         external
+        notBlacklisted(from)
         onlyRole(POOL_ADMIN_ROLE)
         returns (TokenData[] memory tokenDatas, uint256[] memory amounts)
     {

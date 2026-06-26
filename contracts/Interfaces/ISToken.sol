@@ -267,5 +267,4 @@ interface ISToken {
 
     event CCIPAdminTransferred(address previous, address newAdmin);
 
-    event PoolAdminTransferred(address previous, address newAdmin);
 }

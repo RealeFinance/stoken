@@ -115,11 +115,11 @@ contract FundYieldManualTraceV1 is
 
         MIN_SUBSCRIPTION_USD_AMOUNT = 100; // Minimum subscription amount (100 USDT/USDC with 6 decimals)
         MIN_REDEMPTION_CASH_AMOUNT = 0.948 * 10 ** 18; // Minimum redemption amount (0.948 Cash+ with 18 decimals)
-        maxQueueLength = 50; // Default max queue length
+        maxQueueLength = 100; // Default max queue length
     }
 
     function initializeV2() public reinitializer(2) {
-        maxQueueLength = 50; // Initialize max queue length for existing proxy
+        maxQueueLength = 100; // Initialize max queue length for existing proxy
     }
 
     function _authorizeUpgrade(

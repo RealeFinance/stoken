@@ -3,7 +3,7 @@
 // # Copyright (c) 2025 Asseto Fintech Limited. All rights reserved.
 pragma solidity ^0.8.22;
 
-interface ISToken {
+interface IFundYieldManualTraceV1 {
     struct SubscribeData {
         uint256 id; // Subscription ID
         uint256 uAmount; // Amount of USDT to subscribe

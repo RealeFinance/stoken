@@ -27,11 +27,11 @@ import {
     SafeERC20
 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {BaseStorage} from "../base/BaseStorage.sol";
-import "../Interfaces/ISToken.sol";
+import "../Interfaces/IFundYieldManualTraceV1.sol";
 import {Blacklistable} from "../BlackList/Blacklistable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-contract SToken is
+contract FundYieldManualTraceV1 is
     Initializable,
     ERC20Upgradeable,
     ERC20PausableUpgradeable,
@@ -241,7 +241,7 @@ contract SToken is
         );
         require(
             _subscribeDataMap[subscriptionId].id != 0,
-            "Subscription does not exist"
+            "No subscription"
         );
 
         SubscribeData storage sd = _subscribeDataMap[subscriptionId];
@@ -308,7 +308,7 @@ contract SToken is
         );
         require(
             _subscribeDataMap[subscriptionId].id == 0,
-            "Subscription already exists"
+            "Sub exists"
         ); // Ensure the subscription ID does not already exist
         _subscribeDataMap[subscriptionId] = SubscribeData({
             id: subscriptionId,
@@ -424,7 +424,7 @@ contract SToken is
         require(uAmount > 0, "Invalid amount");
         require(
             _redemptionDataMap[redemptionId].id != 0,
-            "Redemption does not exist"
+            "No redemption"
         );
         RedemptionData storage wd = _redemptionDataMap[redemptionId];
         wd.id = redemptionId;
@@ -433,7 +433,6 @@ contract SToken is
         wd.time = time;
         wd.udaTxHash = udaTxHash;
 
-        // _calculateTechnicalServiceFee(redemptionId); // Calculate the technical service fee
 
         emit overwriteOnChainRedemptionEvent(
             redemptionId,
@@ -494,7 +493,7 @@ contract SToken is
         );
 
         RedemptionData storage wd = _redemptionDataMap[redemptionId];
-        require(wd.id == 0, "Redemption already exists"); // Ensure the redemption ID does not already exist
+        require(wd.id == 0, "Redemption exists"); // Ensure the redemption ID does not already exist
         wd.id = redemptionId;
         wd.uAmount = uAmount;
         wd.uAddress = uAddress;
@@ -549,7 +548,7 @@ contract SToken is
     ) public notBlacklisted(msg.sender) whenNotPaused {
         require(
             _subscribeDataMap[subscriptionId].user == msg.sender,
-            "Only the subscriber can claim"
+            "Only subscriber"
         );
         uint256 tokenId = _mintStoken(subscriptionId);
         SubscribeData memory sd = _subscribeDataMap[subscriptionId];
@@ -573,10 +572,10 @@ contract SToken is
     ) public notBlacklisted(msg.sender) whenNotPaused {
         require(
             _redemptionDataMap[redemptionId].user == msg.sender,
-            "Only the redeemer can claim"
+            "Only redeemer"
         );
         RedemptionData memory wd = _redemptionDataMap[redemptionId];
-        require(wd.id != 0, "Redemption does not exist");
+        require(wd.id != 0, "No redemption");
         require(
             wd.stokenAmount >= MIN_AMOUNT,
             "Stoken amount must be greater than 0.01"
@@ -653,7 +652,7 @@ contract SToken is
     // It then adds new token data and updates the user's token list and map.
     function _mintStoken(uint256 subscriptionId) internal returns (uint256) {
         SubscribeData storage sub = _subscribeDataMap[subscriptionId];
-        require(sub.id != 0, "Subscription does not exist");
+        require(sub.id != 0, "No subscription");
         require(
             sub.stokenAmount >= MIN_AMOUNT,
             "Stoken amount must be greater than 0.01"
@@ -677,7 +676,7 @@ contract SToken is
     {
         require(redemptionId != 0, "Invalid redemption ID");
         RedemptionData storage wd = _redemptionDataMap[redemptionId];
-        require(wd.id != 0, "Redemption does not exist");
+        require(wd.id != 0, "No redemption");
         require(
             wd.stokenAmount >= MIN_AMOUNT,
             "Stoken amount must be greater than 0.01"
@@ -687,7 +686,6 @@ contract SToken is
         require(wd.time > 0, "Invalid time");
         require(wd.uAmount > 0, "Invalid USDT amount");
         _burn(redemptionId); // Burn the stoken amount for the user
-        // _calculateTechnicalServiceFee(redemptionId); // Calculate the technical service fee
 
         emit burnEvent(
             redemptionId,
@@ -707,7 +705,7 @@ contract SToken is
 
     function _burn(uint256 redemptionId) internal {
         RedemptionData storage wd = _redemptionDataMap[redemptionId];
-        require(wd.id != 0, "Redemption does not exist");
+        require(wd.id != 0, "No redemption");
 
         TokenTransferDetail[] memory _tt = _removeTokenByIdList(
             wd.user,
@@ -724,39 +722,7 @@ contract SToken is
         emit Transfer(wd.user, address(0), wd.stokenAmount);
     }
 
-    // function _calculateTechnicalServiceFee(
-    //     uint256 redemptionId
-    // ) internal returns (uint256) {
-    //     RedemptionData storage wd = _redemptionDataMap[redemptionId];
 
-    //     require(
-    //         wd.tokenTransferDetails.length > 0,
-    //         "No token transfer details available"
-    //     );
-
-    //     uint256 totalfee = 0;
-    //     for (uint256 i = 0; i < wd.tokenTransferDetails.length; i++) {
-    //         TokenTransferDetail storage detail = wd.tokenTransferDetails[i];
-    //         TokenData storage tokenData = _tokenDataMap[detail.id];
-    //         uint256 timeDay = _getTimeIntervalByDay(
-    //             tokenData.mintTime,
-    //             wd.time
-    //         );
-    //         uint256 fee = detail.amount;
-    //         // SafeMath is not needed in Solidity >=0.8, but for explicitness:
-    //         // fee = (fee * tokenData.mintPrice);
-    //         fee = Math.mulDiv(fee, tokenData.mintPrice, 1e18); // Assuming mintPrice is in 18 decimals
-    //         // fee = (fee * timeDay * technicalServiceFeeRate) / 10000 / 365;
-    //         fee = Math.mulDiv(
-    //             fee,
-    //             timeDay * technicalServiceFeeRate,
-    //             10000 * 365
-    //         );
-    //         totalfee += fee;
-    //     }
-    //     wd.technicalServiceFee = totalfee;
-    //     return totalfee;
-    // }
 
     // function _getTimeIntervalByDay(
     //     uint256 mintTime,
@@ -847,7 +813,7 @@ contract SToken is
         address to,
         uint256 amount
     ) internal zeroAddress(from) zeroAddress(to) {
-        // require(from != to, "Cannot transfer to self");
+        // require(from != to, "Self xfer");
         // require(amount > 0, "Amount must be > 0");
         TokenTransferDetail[] memory _tt = _removeTokenByIdList(from, amount);
         _addTokenByIdList(to, _tt);
@@ -911,7 +877,7 @@ contract SToken is
             uint256 tokenId = tokenIds[i];
             require(
                 _tokenDataMap[tokenId].id != 0,
-                "Token data does not exist"
+                "Bad token data"
             );
             tokenDataArray[i] = _tokenDataMap[tokenId];
         }
@@ -952,7 +918,7 @@ contract SToken is
         // Prevent DoS: limit queue length
         require(
             wallet.tailIndex - wallet.headIndex < maxQueueLength,
-            "Wallet queue full"
+            "Queue full"
         );
 
         wallet.entries[wallet.tailIndex] = TokenEntry(tokenId, amount);
@@ -968,7 +934,7 @@ contract SToken is
         uint256 amount
     ) internal notBlacklisted(account) returns (TokenTransferDetail[] memory) {
         Wallet storage wallet = wallets[account];
-        require(wallet.totalBalance >= amount, "Insufficient balance");
+        require(wallet.totalBalance >= amount, "Low balance");
         require(amount > 0, "Invalid amount");
 
         TokenTransferDetail[] memory _tt = new TokenTransferDetail[](
@@ -979,7 +945,7 @@ contract SToken is
 
         while (remaining > 0) {
             if (count >= MAX_SPEND_SEGMENTS) {
-                revert("Spend too fragmented");
+                revert("Fragmented");
             }
 
             TokenEntry storage cur = wallet.entries[wallet.headIndex];
@@ -1150,11 +1116,7 @@ contract SToken is
         emit minSubscriptionAmountUpdatedEvent(oldAmount, amount);
     }
 
-    // function setMaxSubscriptionAmount(uint256 amount) public onlyRole(STOKEN_ADMIN) {
-    //     uint256 oldAmount = MAX_SUBSCRIPTION_USD_AMOUNT;
-    //     MAX_SUBSCRIPTION_USD_AMOUNT = amount;
-    //     emit maxSubscriptionAmountUpdatedEvent(oldAmount, amount);
-    // }
+
 
     // defult 0.948 * 10 ** 18 Cash+
     function setMinRedemptionAmount(
@@ -1165,31 +1127,16 @@ contract SToken is
         emit minRedemptionAmountUpdatedEvent(oldAmount, amount);
     }
 
-    // function setMaxRedemptionAmount(uint256 amount) public onlyRole(STOKEN_ADMIN) {
-    //     uint256 oldAmount = MAX_REDEMPTION_CASH_AMOUNT;
-    //     MAX_REDEMPTION_CASH_AMOUNT = amount;
-    //     emit maxRedemptionAmountUpdatedEvent(oldAmount, amount);
-    // }
+
 
     function setMaxQueueLength(uint256 newValue) public onlyRole(STOKEN_ADMIN) {
-        require(newValue > 0, "Queue length must be > 0");
+        require(newValue > 0, "Q>0");
         uint256 oldValue = maxQueueLength;
         maxQueueLength = newValue;
         emit maxQueueLengthUpdatedEvent(oldValue, newValue);
     }
 
-    // function mint(
-    //     address[] memory holders,
-    //     uint256[] memory balances
-    // ) external onlyRole(STOKEN_ADMIN) {
-    //     uint256 len = holders.length;
-    //     for (uint256 i = 0; i < len; ) {
-    //         emit Transfer(address(0), holders[i], balances[i]);
-    //         unchecked {
-    //             ++i;
-    //         }
-    //     }
-    // }
+
 
     function getCCIPAdmin() external view returns (address) {
         return _ccipAdmin;

@@ -3,6 +3,7 @@ const { ethers, upgrades } = require("hardhat");
 async function main() {
   // ===== 你要改的参数 =====
   const contractName = "FundYieldManualTraceV1";
+  const PRODUCT_NAME = "GtCashPlus_ETH";
   const name = "HtCashPlus";
   const symbol = "HTCASH+";
   const timelockDelay = 172800; // 2 天（秒）
@@ -43,6 +44,8 @@ async function main() {
     gasLimit: 15000000,
   });
   await proxy2.waitForDeployment();
+  const deploymentTx = proxy2.deploymentTransaction();
+  const blockNumber = deploymentTx?.blockNumber;
 
   // 获取代理合约实例
   // const proxy2 = await ethers.getContractAt(
@@ -157,6 +160,10 @@ async function main() {
     }
   }
   console.log(`部署者 STOKEN_ADMIN 和 STOKEN_BLACKLIST_ADMIN_ROLE 已退出`);
+
+  console.log(`PRODUCT_NAME=${PRODUCT_NAME}`);
+  console.log(`stoken_Contract_Address=${tokenAddress}`);
+  console.log(`stoken_Start_Height=${blockNumber}`);
 
   // ===== DEFAULT_ADMIN_ROLE 单独退出（可选执行） =====
   // 如果需要退出 DEFAULT_ADMIN_ROLE，取消下面的注释

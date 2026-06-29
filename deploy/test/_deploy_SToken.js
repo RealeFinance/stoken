@@ -3,16 +3,17 @@ const { ethers, upgrades } = require("hardhat");
 async function main() {
   // ===== 你要改的参数 =====
   const contractName = "FundYieldManualTraceV1";
-  const name = "CnCashPlus";
-  const symbol = "CNCASH+";
+  const name = "GtCashPlus";
+  const symbol = "GTCASH+";
   const data = {
     // ===== Timelock 配置 =====
     // DEFAULT_ADMIN_ROLE 會交给 TimelockController，所有敏感操作延迟执行
     timelock: {
       enabled: true,
-      minDelay: 172800, // 2 天（秒）
+      minDelay: 259200, // 3 天（秒）
       proposers: ["0xb900937Af55EEcE6835646ad515A0517AC094af1"], // 可发起提案的地址
-      executors: ["0xb900937Af55EEcE6835646ad515A0517AC094af1"], // 可执行的地址（放空则任何人可执行）
+      executors: [], // 放空则延迟到后任何人可执行
+      cancellers: ["0xb900937Af55EEcE6835646ad515A0517AC094af1"], // 可取消待执行提案的地址
     },
     // ===== 角色分配 =====
     STOKEN_ADMIN: ["0xb900937Af55EEcE6835646ad515A0517AC094af1"], // 日常运维地址（无延迟）
@@ -33,6 +34,7 @@ async function main() {
   const [deployer] = await hre.ethers.getSigners();
   console.log(`正在部署到网络: ${networkName}`);
   console.log(`部署者地址: ${deployer.address}`);
+  const deployerAddress = deployer.address;
 
   const Contract = await ethers.getContractFactory(contractName);
   const proxy2 = await upgrades.deployProxy(Contract, [name, symbol], {
@@ -54,12 +56,14 @@ async function main() {
   // ===== 部署 TimelockController =====
   if (data.timelock?.enabled) {
     console.log(`正在部署 TimelockController...`);
-    const TimelockController = await ethers.getContractFactory("TimelockController");
+    const TimelockController = await ethers.getContractFactory(
+      "TimelockController",
+    );
     const timelock = await TimelockController.deploy(
       data.timelock.minDelay,
       data.timelock.proposers,
       data.timelock.executors,
-      deployerAddress // 暂时设 deployer 为 admin，配置完成后再放弃
+      deployerAddress, // 暂时设 deployer 为 admin，配置完成后再放弃
     );
     await timelock.waitForDeployment();
     const timelockAddress = await timelock.getAddress();
@@ -71,25 +75,18 @@ async function main() {
     await txGrant.wait();
     console.log(`DEFAULT_ADMIN_ROLE 已授予给 Timelock`);
 
-    // 从 TimelockController 里配置 PROPOSER/EXECUTOR 角色
-    // deployer 是 Timelock 的初始 admin，可以 grant/revoke
-    const PROPOSER_ROLE = await timelock.PROPOSER_ROLE();
-    const EXECUTOR_ROLE = await timelock.EXECUTOR_ROLE();
-    for (const addr of data.timelock.proposers ?? []) {
-      const tx = await timelock.grantRole(PROPOSER_ROLE, addr);
+    // 构造函数已经设置了 PROPOSER 和 EXECUTOR，这里只需要单独配置 CANCELLER
+    const CANCELLER_ROLE = await timelock.CANCELLER_ROLE();
+    for (const addr of data.timelock.cancellers ?? []) {
+      const tx = await timelock.grantRole(CANCELLER_ROLE, addr);
       await tx.wait();
-      console.log(`PROPOSER_ROLE 已授予: ${addr}`);
-    }
-    for (const addr of data.timelock.executors ?? []) {
-      const tx = await timelock.grantRole(EXECUTOR_ROLE, addr);
-      await tx.wait();
-      console.log(`EXECUTOR_ROLE 已授予: ${addr}`);
+      console.log(`CANCELLER_ROLE 已授予: ${addr}`);
     }
 
     // 放弃 deployer 在 Timelock 中的 admin 身份
     const txRenounceTimelock = await timelock.renounceRole(
       ethers.ZeroHash,
-      deployerAddress
+      deployerAddress,
     );
     await txRenounceTimelock.wait();
     console.log(`Timelock admin 已放弃`);
@@ -111,7 +108,6 @@ async function main() {
     console.log(`STOKEN_ADMIN权限已授予: ${admin}`);
   }
 
-  const deployerAddress = await deployer.getAddress();
 
   const tx = await proxy2.grantRole(ethers.id("STOKEN_ADMIN"), deployerAddress);
   await tx.wait();
@@ -142,11 +138,10 @@ async function main() {
     )}`,
   );
 
-  // ===== 部署者退出所有权限 =====
-  // 前提: DEFAULT_ADMIN_ROLE 已经有其他人或 Timelock 持有
+  // ===== 部署者退出部分权限（DEFAULT_ADMIN_ROLE 单独处理） =====
+  // 先自动退出 STOKEN_ADMIN 和 STOKEN_BLACKLIST_ADMIN_ROLE
   console.log(`开始撤销部署者权限...`);
   const rolesToRenounce = [
-    ethers.ZeroHash, // DEFAULT_ADMIN_ROLE = 0x00
     ethers.id("STOKEN_ADMIN"),
     ethers.id("STOKEN_BLACKLIST_ADMIN_ROLE"),
   ];
@@ -161,14 +156,25 @@ async function main() {
       console.log(`已无此角色，跳过: ${role}`);
     }
   }
-  console.log(`部署者权限已全部退出`);
+  console.log(`部署者 STOKEN_ADMIN 和 STOKEN_BLACKLIST_ADMIN_ROLE 已退出`);
+
+  // ===== DEFAULT_ADMIN_ROLE 单独退出（可选执行） =====
+  // 如果需要退出 DEFAULT_ADMIN_ROLE，取消下面的注释
+  // 警告: 确保 Timelock 或其他人已经持有 DEFAULT_ADMIN_ROLE，否则退出后无人能管理合约！
+  // const hasDefaultAdmin = await proxy2.hasRole(ethers.ZeroHash, deployerAddress);
+  // if (hasDefaultAdmin) {
+  //   console.log(`正在退出 DEFAULT_ADMIN_ROLE...`);
+  //   const tx = await proxy2.renounceRole(ethers.ZeroHash, deployerAddress);
+  //   await tx.wait();
+  //   console.log(`DEFAULT_ADMIN_ROLE 已退出`);
+  // }
 }
 
 main().catch(console.error);
 
 // npx hardhat run deploy/test/_deploy_SToken.js --network bscTestnet
 
-// ====== 多签调用timelock示例 ====== 
+// ====== 多签调用timelock示例 ======
 
 // 假设你有 SToken 和 Timelock 的 interface
 // const stokenInterface = new ethers.Interface([
@@ -191,7 +197,7 @@ main().catch(console.error);
 //   setAssetRecipientData, // data → 实际要调用的方法
 //   ethers.ZeroHash,     // predecessor（无前置操作）
 //   ethers.ZeroHash,     // salt（随机数，避免重复）
-//   172800               // delay（2 天）
+//   259200               // delay（2 天）
 // ]);
 
 // console.log("多签需要执行的交易:");

@@ -50,7 +50,8 @@ module.exports = {
       // },
     },
     mainnet: {
-      url: `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`,
+      url: `https://eth-mainnet.nodereal.io/v1/89eacc67043a4edbaaeff88424aff7fc`,
+      // url: `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`,
       accounts: [process.env.PRIVATE_KEY_2],
       chainId: 1,
       timeout: 120000, // 主网交易确认慢，延长超时时间（2分钟）

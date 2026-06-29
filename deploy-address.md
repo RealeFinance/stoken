@@ -195,3 +195,21 @@ TESTNET_mAmMMF_proxy_ADDRESS=0x5142Df9767B2A28e1356953718E4bc47D0B3E2B1
 ### ETH_CNCASH2_PROXY_ADDRESS=0x286D9F099587f567EcE2b70eBB64B94ACD672d76
 
 # ==============================================================================CNCASH+ 2.0
+
+# ==============================================================================GTCASH+ 3.0
+
+## ETH GTCASH+ 3.0
+## https://etherscan.io/address/0x63E19Fb814Eb737730ac0aFbb52B351695B97176
+### ETH_GTCASH3_PROXY_ADDRESS=0x63E19Fb814Eb737730ac0aFbb52B351695B97176
+### ETH_GTCASH3_TIMELOCK_ADDRESS=0x67330C5437b3efc9bfAC0c812a4F9F7721063bba
+
+# ==============================================================================GTCASH+ 3.0
+
+# ==============================================================================HTCASH+ 3.0
+
+## ETH HTCASH+ 3.0
+## https://etherscan.io/address/0x50bDAFf4bCeB852F006F657f47C68fCC417f7bEb
+### ETH_HTCASH3_PROXY_ADDRESS=0x50bDAFf4bCeB852F006F657f47C68fCC417f7bEb
+### ETH_HTCASH3_TIMELOCK_ADDRESS=0x7002E6b67b6584dAe752968fFb0468976aD9A4EC
+
+# ==============================================================================HTCASH+ 3.0

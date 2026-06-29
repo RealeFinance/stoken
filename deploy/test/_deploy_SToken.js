@@ -3,24 +3,25 @@ const { ethers, upgrades } = require("hardhat");
 async function main() {
   // ===== 你要改的参数 =====
   const contractName = "FundYieldManualTraceV1";
-  const name = "GtCashPlus";
-  const symbol = "GTCASH+";
+  const name = "HtCashPlus";
+  const symbol = "HTCASH+";
+  const timelockDelay = 172800; // 2 天（秒）
   const data = {
     // ===== Timelock 配置 =====
     // DEFAULT_ADMIN_ROLE 會交给 TimelockController，所有敏感操作延迟执行
     timelock: {
       enabled: true,
-      minDelay: 259200, // 3 天（秒）
-      proposers: ["0xb900937Af55EEcE6835646ad515A0517AC094af1"], // 可发起提案的地址
+      minDelay: timelockDelay, // 2 天（秒）
+      proposers: ["0x0589EbFa4A6A1d457AB9f4280DF8079806bA46ae"], // 可发起提案的地址
       executors: [], // 放空则延迟到后任何人可执行
-      cancellers: ["0xb900937Af55EEcE6835646ad515A0517AC094af1"], // 可取消待执行提案的地址
+      cancellers: ["0x0589EbFa4A6A1d457AB9f4280DF8079806bA46ae"], // 可取消待执行提案的地址
     },
     // ===== 角色分配 =====
-    STOKEN_ADMIN: ["0xb900937Af55EEcE6835646ad515A0517AC094af1"], // 日常运维地址（无延迟）
+    STOKEN_ADMIN: ["0xb66DE9dd40b569E39B9866f0185f0292bC5dfe46"], // 日常运维地址（无延迟）
     // ===== 资产地址 =====
-    assetRecipient: "0xc859e52B13Bd8B78FA47972aBc671E240f1A432a",
-    assetSender: "0xc859e52B13Bd8B78FA47972aBc671E240f1A432a",
-    serviceFeeRecipient: "0xc859e52B13Bd8B78FA47972aBc671E240f1A432a",
+    assetRecipient: "0x5f6c3454e282d12E142b7559289421C5E5d90E72",
+    assetSender: "0x5f6c3454e282d12E142b7559289421C5E5d90E72",
+    serviceFeeRecipient: "0x5f6c3454e282d12E142b7559289421C5E5d90E72",
     // ===== 支持代币 =====
     supportedTokenAddresses: [
       "0xdac17f958d2ee523a2206206994597c13d831ec7",
@@ -46,7 +47,7 @@ async function main() {
   // 获取代理合约实例
   // const proxy2 = await ethers.getContractAt(
   //   contractName,
-  //   "0x286D9F099587f567EcE2b70eBB64B94ACD672d76",
+  //   "0x50bDAFf4bCeB852F006F657f47C68fCC417f7bEb",
   // );
 
   const tokenAddress = await proxy2.getAddress();
@@ -107,7 +108,6 @@ async function main() {
     await tx.wait();
     console.log(`STOKEN_ADMIN权限已授予: ${admin}`);
   }
-
 
   const tx = await proxy2.grantRole(ethers.id("STOKEN_ADMIN"), deployerAddress);
   await tx.wait();
@@ -192,12 +192,12 @@ main().catch(console.error);
 
 // // ② 再编码 timelock.schedule() 调用
 // const scheduleData = timelockInterface.encodeFunctionData("schedule", [
-//   "0xSToken代理地址",  // target
-//   0,                   // value（不带 ETH）
+//   "0xSToken代理地址", // target
+//   0, // value（不带 ETH）
 //   setAssetRecipientData, // data → 实际要调用的方法
-//   ethers.ZeroHash,     // predecessor（无前置操作）
-//   ethers.ZeroHash,     // salt（随机数，避免重复）
-//   259200               // delay（2 天）
+//   ethers.ZeroHash, // predecessor（无前置操作）
+//   ethers.ZeroHash, // salt（随机数，避免重复）
+//   timelockDelay, // delay（2 天）
 // ]);
 
 // console.log("多签需要执行的交易:");

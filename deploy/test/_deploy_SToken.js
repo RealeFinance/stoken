@@ -2,7 +2,7 @@ const { ethers, upgrades } = require("hardhat");
 
 async function main() {
   // ===== 你要改的参数 =====
-  const contractName = "SToken";
+  const contractName = "FundYieldManualTraceV1";
   const name = "CnCashPlus";
   const symbol = "CNCASH+";
   const data = {

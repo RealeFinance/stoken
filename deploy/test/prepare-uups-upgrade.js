@@ -3,8 +3,8 @@ const { ethers, upgrades } = require("hardhat");
 async function main() {
   // ===== 你要改的参数 =====
   const proxyAddress = "0x9EA9cd205783F08700d2A12C325FC4e1BF8e99a2";
-  const newContractName = "SToken";
-
+  const newContractName = "FundYieldManualTraceV1";
+  const useSafe = true; // 如果你是要在 Gnosis Safe 上执行升级，就设为 true，否则设为 false
   // 如果升级后要顺便执行 reinitializer，就打开下面两行
   const callInitializer = false;
   const initializerArgs = []; // 例如 [123, "abc"]
@@ -27,6 +27,16 @@ async function main() {
   );
 
   console.log("New implementation deployed:", newImplementationAddress);
+
+  if (!useSafe) {
+    // ===== 4) 直接在当前网络执行升级 =====
+    const proxy = await upgrades.upgradeProxy(proxyAddress, NewImplFactory, {
+      kind: "uups",
+    });
+    console.log("Proxy upgraded:", proxy.address);
+  } else {
+    console.log("请在 Gnosis Safe 上执行升级，下面会输出要提交的交易数据...");
+  }
 
   // ===== 4) 构造多签要执行的 calldata =====
 

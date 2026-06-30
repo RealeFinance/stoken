@@ -3,6 +3,7 @@ const { ethers, upgrades } = require("hardhat");
 async function main() {
   // ===== 你要改的参数 =====
   const proxyAddress = "0x9EA9cd205783F08700d2A12C325FC4e1BF8e99a2";
+  const timelockAddress = "0x70a1454cD4370D9a494c71C3F4C7CC55bC7246A4";
   const contractName = "FundYieldManualTraceV1";
   const useSafe = true; // 如果你是要在 Gnosis Safe 上执行升级，就设为 true，否则设为 false
   // 如果升级后要顺便执行 reinitializer，就打开下面两行
@@ -31,16 +32,28 @@ async function main() {
   const stokenInterface = new ethers.Interface([
     "function setTechnicalServiceFeeRate(uint256 newRate)",
     "function setAssetSender(address newSender)",
+    "function grantRole(bytes32 role, address account)",
+    "function revokeRole(bytes32 role, address account)",
   ]);
   const timelock = await ethers.getContractAt(
     "TimelockController",
-    "0x70a1454cD4370D9a494c71C3F4C7CC55bC7246A4",
+    timelockAddress,
   );
 
   // ① 先把实际要调用的 SToken 方法编码
   const setAssetSenderData = stokenInterface.encodeFunctionData(
     "setAssetSender",
-    ["0x9732bD08452aFB792884308674248d7bD2c3364f"], // 新的发送者地址
+    [proxyAddress], // 新的发送者地址
+  );
+
+  const grantRoleData = stokenInterface.encodeFunctionData(
+    "grantRole",
+    [ethers.ZeroHash, proxyAddress], // 新的管理员角色
+  );
+
+  const revokeRoleData = stokenInterface.encodeFunctionData(
+    "revokeRole",
+    [ethers.ZeroHash, proxyAddress], // 新的管理员角色
   );
 
   const cancelData = timelock.interface.encodeFunctionData(
@@ -50,32 +63,31 @@ async function main() {
 
   // ② 再编码 timelock.schedule() 调用
   const scheduleData = timelock.interface.encodeFunctionData("schedule", [
-    "0x9EA9cd205783F08700d2A12C325FC4e1BF8e99a2", // target
+    proxyAddress, // target
     0, // value（不带 ETH）
-    setAssetSenderData, // data → 实际要调用的方法
+    revokeRoleData, // data → 实际要调用的方法
     ethers.ZeroHash, // predecessor（无前置操作）
     ethers.ZeroHash, // salt（随机数，避免重复）
     120,
   ]);
 
   const executeData = timelock.interface.encodeFunctionData("execute", [
-    "0x9EA9cd205783F08700d2A12C325FC4e1BF8e99a2", // target
+    proxyAddress, // target
     0, // value（不带 ETH）
-    setAssetSenderData, // data → 实际要调用的方法
+    revokeRoleData, // data → 实际要调用的方法
     ethers.ZeroHash, // predecessor（无前置操作）
     ethers.ZeroHash, // salt（随机数，避免重复）
   ]);
 
   console.log("多签需要执行的交易:");
-  console.log(
-    "To:              ",
-    "0x70a1454cD4370D9a494c71C3F4C7CC55bC7246A4",
-  );
-  console.log("Value:           ", 0);
-  console.log("Schedule Data:   ", scheduleData);
-  console.log("Execute Data:    ", executeData);
-  console.log("Cancel Data:     ", cancelData);
-  console.log("setAssetSenderData:  ", setAssetSenderData);
+  console.log("To:                  ", timelockAddress);
+  console.log("Value:               ", 0);
+  console.log("Schedule Data:       ", scheduleData);
+  console.log("");
+  console.log("Execute Data:        ", executeData);
+  console.log("");
+  console.log("Cancel Data:         ", cancelData);
+  console.log("Grant Role Data:     ", revokeRoleData);
 }
 
 main().catch((error) => {
@@ -83,4 +95,4 @@ main().catch((error) => {
   process.exitCode = 1;
 });
 
-// npx hardhat run .\deploy\test\test.js --network bscTestnet
+// npx hardhat run .\deploy\test\encode-data.js --network bscTestnet

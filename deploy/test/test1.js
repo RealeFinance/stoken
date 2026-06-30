@@ -1,0 +1,69 @@
+const { ethers, upgrades } = require("hardhat");
+
+async function main() {
+  // ===== 你要改的参数 =====
+  const proxyAddress = "0x50bDAFf4bCeB852F006F657f47C68fCC417f7bEb";
+  const contractName = "FundYieldManualTraceV1";
+  const timelockDelay = 172800; // 2 天（秒）
+  const useSafe = true; // 如果你是要在 Gnosis Safe 上执行升级，就设为 true，否则设为 false
+  // 如果升级后要顺便执行 reinitializer，就打开下面两行
+  const callInitializer = true;
+  const initializerArgs = []; // 例如 [123, "abc"]
+  const data = {
+    // ===== Timelock 配置 =====
+    // DEFAULT_ADMIN_ROLE 會交给 TimelockController，所有敏感操作延迟执行
+    timelock: {
+      enabled: true,
+      minDelay: timelockDelay, // 2 天（秒）
+      proposers: ["0x0589EbFa4A6A1d457AB9f4280DF8079806bA46ae"], // 可发起提案的地址
+      executors: ["0x0000000000000000000000000000000000000000"], // 放空则延迟到后任何人可执行
+    },
+  };
+
+  const hre = require("hardhat");
+  const { name: networkName } = hre.network;
+  const [deployer] = await hre.ethers.getSigners();
+  const deployerAddress = deployer.address;
+  console.log(`正在部署到网络: ${networkName}`);
+  console.log(`部署者地址: ${deployerAddress}`);
+
+  // 获取代理合约实例
+  const proxy2 = await ethers.getContractAt(contractName, proxyAddress);
+
+  console.log(`正在部署 TimelockController...`);
+  const TimelockController = await ethers.getContractFactory(
+    "TimelockController",
+  );
+  const timelock = await TimelockController.deploy(
+    data.timelock.minDelay,
+    data.timelock.proposers,
+    data.timelock.executors,
+    deployerAddress, // 暂时设 deployer 为 admin，配置完成后再放弃
+  );
+  await timelock.waitForDeployment();
+  const timelockAddress = await timelock.getAddress();
+  console.log(`TimelockController 地址: ${timelockAddress}`);
+
+  // 将 DEFAULT_ADMIN_ROLE 交给 TimelockController
+  console.log(`正在授予 DEFAULT_ADMIN_ROLE 给 Timelock...`);
+  const txGrant = await proxy2.grantRole(ethers.ZeroHash, timelockAddress);
+  await txGrant.wait();
+  console.log(`DEFAULT_ADMIN_ROLE 已授予给 Timelock`);
+
+  // 放弃 deployer 在 Timelock 中的 admin 身份
+  const txRenounceTimelock = await timelock.renounceRole(
+    ethers.ZeroHash,
+    deployerAddress,
+  );
+  await txRenounceTimelock.wait();
+  console.log(`Timelock admin 已放弃`);
+
+  console.log(`TimelockController 配置完成`);
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
+
+// npx hardhat run .\deploy\test\test1.js --network bscTestnet

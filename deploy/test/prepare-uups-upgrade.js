@@ -2,8 +2,8 @@ const { ethers, upgrades } = require("hardhat");
 
 async function main() {
   // ===== 你要改的参数 =====
-  const proxyAddress = "0x9EA9cd205783F08700d2A12C325FC4e1BF8e99a2";
-  const contractName = "FundYieldManualTraceV1";
+  const proxyAddress = "0x4013361546efe989Efd4a1242aDD5Ea88915e980";
+  const contractName = "SAmMMF";
   const useSafe = false; // 如果你是要在 Gnosis Safe 上执行升级，就设为 true，否则设为 false
   // 如果升级后要顺便执行 reinitializer，就打开下面两行
   const callInitializer = true;
@@ -13,7 +13,7 @@ async function main() {
     // DEFAULT_ADMIN_ROLE 會交给 TimelockController，所有敏感操作延迟执行
     timelock: {
       enabled: true,
-      minDelay: 900, // 15 分钟
+      minDelay: 60, // 1 分钟
       proposers: ["0x89B416C2e456b89bFDa314fb5C400BAB66D4aADb"], // 可发起提案的地址
       executors: ["0x0000000000000000000000000000000000000000"], // 放空则延迟到后任何人可执行
       cancellers: ["0x89B416C2e456b89bFDa314fb5C400BAB66D4aADb"], // 可取消待执行提案的地址
@@ -30,23 +30,30 @@ async function main() {
   // ===== 1) 获取新实现合约工厂 =====
   const NewImplFactory = await ethers.getContractFactory(contractName);
 
-  // ===== 2) 校验升级安全性 =====
+  // ===== 2) 注册已有代理 =====
+  try {
+    await upgrades.forceImport(proxyAddress, NewImplFactory, { kind: "uups" });
+  } catch (e) {
+    console.log("Proxy already registered");
+  }
+
+  // ===== 3) 校验升级安全性 =====
   await upgrades.validateUpgrade(proxyAddress, NewImplFactory, {
     kind: "uups",
   });
 
   if (!useSafe) {
-    // ===== 3) 直接在当前网络执行升级 =====
+    // ===== 4) 直接在当前网络执行升级 =====
     const proxy = await upgrades.upgradeProxy(proxyAddress, NewImplFactory, {
       kind: "uups",
-      call: { fn: "initializeV2", args: [] },
+      // call: { fn: "initializeV2", args: [] },  // 如果已初始化则注释掉
     });
     await proxy.waitForDeployment();
     const deploymentTx = proxy.deploymentTransaction();
     const blockNumber = deploymentTx?.blockNumber;
     const tokenAddress = await proxy.getAddress();
     console.log(`${contractName} Token 地址:`, tokenAddress);
-    console.log(`initializeV2 已执行，maxQueueLength = 100`);
+    // console.log(`initializeV2 已执行，如果需要请手动调用`);
     // ===== 部署 TimelockController =====
     if (data.timelock?.enabled) {
       console.log(`正在部署 TimelockController...`);
@@ -80,7 +87,14 @@ async function main() {
       console.log(`TimelockController 配置完成`);
     }
   } else {
-    // ===== 3) 仅部署新的 implementation，不执行升级 =====
+    // ===== 4) 仅部署新的 implementation，不执行升级 =====
+    try {
+      await hre.upgrades.forceImport(proxyAddress, NewImplFactory, {
+        kind: "uups",
+      });
+    } catch (e) {
+      console.log("Proxy already registered");
+    }
     const newImplementationAddress = await upgrades.prepareUpgrade(
       proxyAddress,
       NewImplFactory,

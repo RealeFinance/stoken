@@ -27,11 +27,11 @@ import {
     SafeERC20
 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {BaseStorage} from "../base/BaseStorage.sol";
-import "../Interfaces/IFundYieldManualTraceV1.sol";
+import "../Interfaces/ISAmMMF.sol";
 import {Blacklistable} from "../BlackList/Blacklistable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-contract FundYieldManualTraceV1 is
+contract SAmMMF is
     Initializable,
     ERC20Upgradeable,
     ERC20PausableUpgradeable,
@@ -42,27 +42,9 @@ contract FundYieldManualTraceV1 is
     Blacklistable
 {
     using SafeERC20 for IERC20;
-
-    // ===== Roles ======
+    bytes32 public constant VERSION = keccak256("VERSION_2");
     bytes32 public constant STOKEN_ADMIN = keccak256("STOKEN_ADMIN");
-    bytes32 public constant POOL_ADMIN_ROLE = keccak256("POOL_ADMIN_ROLE");
-
-    // ====== Constants ======
     uint256 public constant MIN_AMOUNT = 1e16; // 0.01 in 18 decimals
-    uint256 private constant MAX_SPEND_SEGMENTS = 100; // 单次消费最多跨 100 个 entry
-
-    // ====== Structs ======
-    struct TokenEntry {
-        uint256 tokenId;
-        uint256 amount;
-    }
-    struct Wallet {
-        uint256 headIndex;
-        uint256 tailIndex;
-        uint256 totalBalance;
-        mapping(uint256 => TokenEntry) entries; // 使用 mapping 避免数组增长成本
-        mapping(uint256 => uint256) tokenIdToIndex; // tokenId → entry index，优化查找性能
-    }
 
     // subscriptionId => SubscribeData
     mapping(uint256 => SubscribeData) private _subscribeDataMap;
@@ -73,7 +55,11 @@ contract FundYieldManualTraceV1 is
     // tokenId => TokenData
     mapping(uint256 => TokenData) private _tokenDataMap;
 
-    mapping(address => Wallet) public wallets;
+    // Address → List of owned token IDs
+    mapping(address => uint256[]) private _tokenList;
+
+    // Address → Token ID → Token amount
+    mapping(address => mapping(uint256 => uint256)) private _tokenMap;
 
     uint256 private _totalSupply;
 
@@ -86,8 +72,9 @@ contract FundYieldManualTraceV1 is
     address private _ccipAdmin;
 
     address private _poolAdmin;
+    bytes32 public constant POOL_ADMIN_ROLE = keccak256("POOL_ADMIN_ROLE");
 
-    uint256 public maxQueueLength; // 可配置的最大队列长度
+    uint256 public maxQueueLength;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -115,11 +102,11 @@ contract FundYieldManualTraceV1 is
 
         MIN_SUBSCRIPTION_USD_AMOUNT = 100; // Minimum subscription amount (100 USDT/USDC with 6 decimals)
         MIN_REDEMPTION_CASH_AMOUNT = 0.948 * 10 ** 18; // Minimum redemption amount (0.948 Cash+ with 18 decimals)
-        maxQueueLength = 100; // Default max queue length
+        maxQueueLength = 100;
     }
 
     function initializeV2() public reinitializer(2) {
-        maxQueueLength = 100; // Initialize max queue length for existing proxy
+        maxQueueLength = 100;
     }
 
     function _authorizeUpgrade(
@@ -139,22 +126,11 @@ contract FundYieldManualTraceV1 is
         address to,
         uint256 value
     ) internal override(ERC20Upgradeable, ERC20PausableUpgradeable) {
-        // Blacklist check: prevent blacklisted addresses from moving tokens
-        if (from != address(0)) {
-            require(!_isBlacklisted(from), "Blacklisted");
-        }
-        if (to != address(0)) {
-            require(!_isBlacklisted(to), "Blacklisted");
-        }
         super._update(from, to, value);
     }
 
     function totalSupply() public view override returns (uint256) {
         return _totalSupply;
-    }
-
-    function version() public pure returns (string memory) {
-        return "2.1.0";
     }
 
     /**
@@ -241,7 +217,7 @@ contract FundYieldManualTraceV1 is
         );
         require(
             _subscribeDataMap[subscriptionId].id != 0,
-            "No subscription"
+            "Subscription does not exist"
         );
 
         SubscribeData storage sd = _subscribeDataMap[subscriptionId];
@@ -308,7 +284,7 @@ contract FundYieldManualTraceV1 is
         );
         require(
             _subscribeDataMap[subscriptionId].id == 0,
-            "Sub exists"
+            "Subscription already exists"
         ); // Ensure the subscription ID does not already exist
         _subscribeDataMap[subscriptionId] = SubscribeData({
             id: subscriptionId,
@@ -424,7 +400,7 @@ contract FundYieldManualTraceV1 is
         require(uAmount > 0, "Invalid amount");
         require(
             _redemptionDataMap[redemptionId].id != 0,
-            "No redemption"
+            "Redemption does not exist"
         );
         RedemptionData storage wd = _redemptionDataMap[redemptionId];
         wd.id = redemptionId;
@@ -433,6 +409,7 @@ contract FundYieldManualTraceV1 is
         wd.time = time;
         wd.udaTxHash = udaTxHash;
 
+        _calculateTechnicalServiceFee(redemptionId); // Calculate the technical service fee
 
         emit overwriteOnChainRedemptionEvent(
             redemptionId,
@@ -493,7 +470,7 @@ contract FundYieldManualTraceV1 is
         );
 
         RedemptionData storage wd = _redemptionDataMap[redemptionId];
-        require(wd.id == 0, "Redemption exists"); // Ensure the redemption ID does not already exist
+        require(wd.id == 0, "Redemption already exists"); // Ensure the redemption ID does not already exist
         wd.id = redemptionId;
         wd.uAmount = uAmount;
         wd.uAddress = uAddress;
@@ -548,7 +525,7 @@ contract FundYieldManualTraceV1 is
     ) public notBlacklisted(msg.sender) whenNotPaused {
         require(
             _subscribeDataMap[subscriptionId].user == msg.sender,
-            "Only subscriber"
+            "Only the subscriber can claim"
         );
         uint256 tokenId = _mintStoken(subscriptionId);
         SubscribeData memory sd = _subscribeDataMap[subscriptionId];
@@ -572,10 +549,10 @@ contract FundYieldManualTraceV1 is
     ) public notBlacklisted(msg.sender) whenNotPaused {
         require(
             _redemptionDataMap[redemptionId].user == msg.sender,
-            "Only redeemer"
+            "Only the redeemer can claim"
         );
         RedemptionData memory wd = _redemptionDataMap[redemptionId];
-        require(wd.id != 0, "No redemption");
+        require(wd.id != 0, "Redemption does not exist");
         require(
             wd.stokenAmount >= MIN_AMOUNT,
             "Stoken amount must be greater than 0.01"
@@ -652,7 +629,7 @@ contract FundYieldManualTraceV1 is
     // It then adds new token data and updates the user's token list and map.
     function _mintStoken(uint256 subscriptionId) internal returns (uint256) {
         SubscribeData storage sub = _subscribeDataMap[subscriptionId];
-        require(sub.id != 0, "No subscription");
+        require(sub.id != 0, "Subscription does not exist");
         require(
             sub.stokenAmount >= MIN_AMOUNT,
             "Stoken amount must be greater than 0.01"
@@ -660,7 +637,12 @@ contract FundYieldManualTraceV1 is
         require(sub.user != address(0), "Invalid user address");
         require(sub.price > 0, "Invalid price");
         require(sub.time > 0, "Invalid time");
-        uint256 tokenId = _addNewTokenData(sub.user, sub.stokenAmount);
+        uint256 tokenId = _addNewTokenData(
+            sub.user,
+            sub.stokenAmount,
+            sub.price,
+            sub.time
+        );
         return tokenId;
     }
 
@@ -676,7 +658,7 @@ contract FundYieldManualTraceV1 is
     {
         require(redemptionId != 0, "Invalid redemption ID");
         RedemptionData storage wd = _redemptionDataMap[redemptionId];
-        require(wd.id != 0, "No redemption");
+        require(wd.id != 0, "Redemption does not exist");
         require(
             wd.stokenAmount >= MIN_AMOUNT,
             "Stoken amount must be greater than 0.01"
@@ -686,6 +668,7 @@ contract FundYieldManualTraceV1 is
         require(wd.time > 0, "Invalid time");
         require(wd.uAmount > 0, "Invalid USDT amount");
         _burn(redemptionId); // Burn the stoken amount for the user
+        _calculateTechnicalServiceFee(redemptionId); // Calculate the technical service fee
 
         emit burnEvent(
             redemptionId,
@@ -705,7 +688,7 @@ contract FundYieldManualTraceV1 is
 
     function _burn(uint256 redemptionId) internal {
         RedemptionData storage wd = _redemptionDataMap[redemptionId];
-        require(wd.id != 0, "No redemption");
+        require(wd.id != 0, "Redemption does not exist");
 
         TokenTransferDetail[] memory _tt = _removeTokenByIdList(
             wd.user,
@@ -722,26 +705,63 @@ contract FundYieldManualTraceV1 is
         emit Transfer(wd.user, address(0), wd.stokenAmount);
     }
 
+    function _calculateTechnicalServiceFee(
+        uint256 redemptionId
+    ) internal returns (uint256) {
+        RedemptionData storage wd = _redemptionDataMap[redemptionId];
 
+        require(
+            wd.tokenTransferDetails.length > 0,
+            "No token transfer details available"
+        );
 
-    // function _getTimeIntervalByDay(
-    //     uint256 mintTime,
-    //     uint256 redemptionTime
-    // ) internal pure returns (uint256) {
-    //     require(redemptionTime >= mintTime, "Redemption time < mint time");
-    //     uint256 deltaSeconds = redemptionTime - mintTime;
-    //     if (deltaSeconds == 0) {
-    //         return 1; // If no time has passed, count as one day
-    //     }
-    //     // Calculate the number of days, rounding up if there is any remainder
-    //     // Round up to the nearest day, so 1 second or 1.1 days both count as 2 days
-    //     return (deltaSeconds + 1 days - 1) / 1 days;
-    // }
+        uint256 totalfee = 0;
+        for (uint256 i = 0; i < wd.tokenTransferDetails.length; i++) {
+            TokenTransferDetail storage detail = wd.tokenTransferDetails[i];
+            TokenData storage tokenData = _tokenDataMap[detail.id];
+            uint256 timeDay = _getTimeIntervalByDay(
+                tokenData.mintTime,
+                wd.time
+            );
+            uint256 fee = detail.amount;
+            // SafeMath is not needed in Solidity >=0.8, but for explicitness:
+            // fee = (fee * tokenData.mintPrice);
+            fee = Math.mulDiv(fee, tokenData.mintPrice, 1e18); // Assuming mintPrice is in 18 decimals
+            // fee = (fee * timeDay * technicalServiceFeeRate) / 10000 / 365;
+            fee = Math.mulDiv(
+                fee,
+                timeDay * technicalServiceFeeRate,
+                10000 * 365
+            );
+            totalfee += fee;
+        }
+        wd.technicalServiceFee = totalfee;
+        return totalfee;
+    }
+
+    function _getTimeIntervalByDay(
+        uint256 mintTime,
+        uint256 redemptionTime
+    ) internal pure returns (uint256) {
+        require(redemptionTime >= mintTime, "Redemption time < mint time");
+        uint256 deltaSeconds = redemptionTime - mintTime;
+        if (deltaSeconds == 0) {
+            return 1; // If no time has passed, count as one day
+        }
+        // Calculate the number of days, rounding up if there is any remainder
+        // Round up to the nearest day, so 1 second or 1.1 days both count as 2 days
+        return (deltaSeconds + 1 days - 1) / 1 days;
+    }
 
     // Get the token data for a specified token ID
     // This function retrieves the token data for a given token ID.
     function balanceOf(address account) public view override returns (uint256) {
-        return wallets[account].totalBalance;
+        uint256 totalBalance = 0;
+        uint256[] storage tokenIds = _tokenList[account];
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            totalBalance += _tokenMap[account][tokenIds[i]];
+        }
+        return totalBalance;
     }
 
     // Get the token IDs and amounts for a specified account
@@ -753,14 +773,13 @@ contract FundYieldManualTraceV1 is
         view
         returns (uint256[] memory tokenIds, uint256[] memory amounts)
     {
-        Wallet storage wallet = wallets[account];
-        uint256 len = wallet.tailIndex - wallet.headIndex;
+        uint256 len = _tokenList[account].length;
         tokenIds = new uint256[](len);
         amounts = new uint256[](len);
         for (uint256 i = 0; i < len; i++) {
-            TokenEntry storage entry = wallet.entries[wallet.headIndex + i];
-            tokenIds[i] = entry.tokenId;
-            amounts[i] = entry.amount;
+            uint256 tokenId = _tokenList[account][i];
+            tokenIds[i] = tokenId;
+            amounts[i] = _tokenMap[account][tokenId];
         }
         return (tokenIds, amounts);
     }
@@ -813,7 +832,7 @@ contract FundYieldManualTraceV1 is
         address to,
         uint256 amount
     ) internal zeroAddress(from) zeroAddress(to) {
-        // require(from != to, "Self xfer");
+        // require(from != to, "Cannot transfer to self");
         // require(amount > 0, "Amount must be > 0");
         TokenTransferDetail[] memory _tt = _removeTokenByIdList(from, amount);
         _addTokenByIdList(to, _tt);
@@ -824,46 +843,35 @@ contract FundYieldManualTraceV1 is
     // This function generates a new token ID based on the address and current block parameters.
     function _addNewTokenData(
         address user,
-        uint256 stokenAmount
+        uint256 stokenAmount,
+        uint256 price,
+        uint256 time
     ) internal returns (uint256) {
+        nextId++;
         uint256 tokenId = uint256(
-            keccak256(abi.encodePacked(user, block.chainid))
+            keccak256(
+                abi.encodePacked(
+                    user,
+                    block.timestamp,
+                    block.prevrandao,
+                    nextId
+                )
+            )
         );
         TokenData memory newTokenData = TokenData({
             id: tokenId,
-            tokenOwner: user,
-            chainId: block.chainid
+            mintTime: time,
+            mintPrice: price,
+            tokenOwner: user
         });
 
         _tokenDataMap[tokenId] = newTokenData;
-        _depositInternal(user, tokenId, stokenAmount);
+        _tokenList[user].push(tokenId);
+        _tokenMap[user][tokenId] += stokenAmount;
         _totalSupply += stokenAmount;
 
         emit Transfer(address(0), user, stokenAmount);
         return tokenId;
-    }
-
-    function _addNewTokenDataCrossChain(
-        address user,
-        uint256 stokenAmount,
-        TokenData[] memory tokenDatas,
-        uint256[] memory amounts
-    ) internal {
-        require(tokenDatas.length == amounts.length, "Length mismatch");
-
-        uint256 total;
-        for (uint256 i = 0; i < tokenDatas.length; i++) {
-            TokenData memory td = tokenDatas[i];
-            if (_tokenDataMap[td.id].id == 0) {
-                _tokenDataMap[td.id] = td;
-            }
-            _depositInternal(user, td.id, amounts[i]);
-            total += amounts[i];
-        }
-
-        require(total == stokenAmount, "Amount mismatch");
-        _totalSupply += stokenAmount;
-        emit Transfer(address(0), user, stokenAmount);
     }
 
     // Get the token data for a specified token ID
@@ -877,7 +885,7 @@ contract FundYieldManualTraceV1 is
             uint256 tokenId = tokenIds[i];
             require(
                 _tokenDataMap[tokenId].id != 0,
-                "Bad token data"
+                "Token data does not exist"
             );
             tokenDataArray[i] = _tokenDataMap[tokenId];
         }
@@ -893,37 +901,17 @@ contract FundYieldManualTraceV1 is
         TokenTransferDetail[] memory tokenTransferDetail
     ) internal {
         for (uint256 i = 0; i < tokenTransferDetail.length; i++) {
-            _depositInternal(
-                account,
-                tokenTransferDetail[i].id,
-                tokenTransferDetail[i].amount
-            );
+            uint256 tokenId = tokenTransferDetail[i].id;
+            uint256 amount = tokenTransferDetail[i].amount;
+
+            // Add the token ID to the user's list if it doesn't exist
+            if (_tokenMap[account][tokenId] == 0) {
+                _tokenList[account].push(tokenId);
+            }
+
+            // Update the token amount for the user
+            _tokenMap[account][tokenId] += amount;
         }
-    }
-
-    function _depositInternal(
-        address user,
-        uint256 tokenId,
-        uint256 amount
-    ) internal notBlacklisted(user) zeroAddress(user) {
-        Wallet storage wallet = wallets[user];
-        wallet.totalBalance += amount;
-
-        uint256 i = wallet.tokenIdToIndex[tokenId];
-        if (wallet.entries[i].tokenId == tokenId) {
-            wallet.entries[i].amount += amount;
-            return;
-        }
-
-        // Prevent DoS: limit queue length
-        require(
-            wallet.tailIndex - wallet.headIndex < maxQueueLength,
-            "Queue full"
-        );
-
-        wallet.entries[wallet.tailIndex] = TokenEntry(tokenId, amount);
-        wallet.tokenIdToIndex[tokenId] = wallet.tailIndex;
-        wallet.tailIndex++;
     }
 
     // Remove a specified amount of tokens according to the FIFO (First-In-First-Out) rule
@@ -932,45 +920,85 @@ contract FundYieldManualTraceV1 is
     function _removeTokenByIdList(
         address account,
         uint256 amount
-    ) internal notBlacklisted(account) returns (TokenTransferDetail[] memory) {
-        Wallet storage wallet = wallets[account];
-        require(wallet.totalBalance >= amount, "Low balance");
-        require(amount > 0, "Invalid amount");
-
-        TokenTransferDetail[] memory _tt = new TokenTransferDetail[](
-            MAX_SPEND_SEGMENTS
-        );
-        uint256 count = 0;
+    ) internal returns (TokenTransferDetail[] memory) {
+        // Find the token ID associated with the sender's address
+        uint256[] storage tokenIds = _tokenList[account];
+        require(tokenIds.length > 0, "Not enough tokens");
         uint256 remaining = amount;
+        uint256 i = 0;
 
-        while (remaining > 0) {
-            if (count >= MAX_SPEND_SEGMENTS) {
-                revert("Fragmented");
+        // Use a fixed-size memory array and manual indexing since push is not available for memory arrays
+        TokenTransferDetail[] memory tempTokens = new TokenTransferDetail[](
+            tokenIds.length
+        );
+        uint256 tempTokensLength = 0;
+
+        while (remaining > 0 && i < tokenIds.length) {
+            uint256 tokenId = tokenIds[i];
+            uint256 tokenAmount = _tokenMap[account][tokenId];
+            if (tokenAmount == 0) {
+                i++;
+                continue;
             }
-
-            TokenEntry storage cur = wallet.entries[wallet.headIndex];
-            uint256 consume = cur.amount <= remaining ? cur.amount : remaining;
-
-            _tt[count] = TokenTransferDetail(cur.tokenId, consume);
-
-            if (cur.amount <= remaining) {
-                delete wallet.tokenIdToIndex[cur.tokenId];
-                delete wallet.entries[wallet.headIndex];
-                wallet.headIndex++;
+            if (tokenAmount > remaining) {
+                _tokenMap[account][tokenId] -= remaining;
+                tempTokens[tempTokensLength] = TokenTransferDetail({
+                    id: tokenId,
+                    amount: remaining
+                });
+                tempTokensLength++;
+                remaining = 0;
             } else {
-                cur.amount -= consume;
+                remaining -= tokenAmount;
+                _tokenMap[account][tokenId] = 0;
+                tempTokens[tempTokensLength] = TokenTransferDetail({
+                    id: tokenId,
+                    amount: tokenAmount
+                });
+                tempTokensLength++;
             }
+            i++;
+        }
+        require(remaining == 0, "Not enough tokens");
 
-            count++;
-            remaining -= consume;
+        // Clean up empty token IDs
+        uint256[] memory _tokenIds = new uint256[](tokenIds.length);
+        uint256 count = 0;
+        for (uint256 j = 0; j < tokenIds.length; j++) {
+            if (_tokenMap[account][tokenIds[j]] != 0) {
+                _tokenIds[count] = tokenIds[j];
+                count++;
+            } else {
+                // If the token amount is zero, we do not need to keep this token ID
+                delete _tokenMap[account][tokenIds[j]];
+            }
+        }
+        // Resize the array to the correct length
+        uint256[] storage tokenListStorage = _tokenList[account];
+        delete _tokenList[account];
+        if (count != 0) {
+            for (uint256 k = 0; k < count; k++) {
+                tokenListStorage.push(_tokenIds[k]);
+            }
         }
 
-        TokenTransferDetail[] memory result = new TokenTransferDetail[](count);
-        for (uint256 i = 0; i < count; i++) {
-            result[i] = _tt[i];
+        // Remove TokenTransferDetail objects with id == 0 from tempTokens
+        uint256 validCount = 0;
+        for (uint256 m = 0; m < tempTokensLength; m++) {
+            if (tempTokens[m].id != 0) {
+                validCount++;
+            }
         }
-
-        wallet.totalBalance -= amount;
+        TokenTransferDetail[] memory result = new TokenTransferDetail[](
+            validCount
+        );
+        uint256 idx = 0;
+        for (uint256 n = 0; n < tempTokensLength; n++) {
+            if (tempTokens[n].id != 0) {
+                result[idx] = tempTokens[n];
+                idx++;
+            }
+        }
         return result;
     }
 
@@ -1116,7 +1144,11 @@ contract FundYieldManualTraceV1 is
         emit minSubscriptionAmountUpdatedEvent(oldAmount, amount);
     }
 
-
+    // function setMaxSubscriptionAmount(uint256 amount) public onlyRole(STOKEN_ADMIN) {
+    //     uint256 oldAmount = MAX_SUBSCRIPTION_USD_AMOUNT;
+    //     MAX_SUBSCRIPTION_USD_AMOUNT = amount;
+    //     emit maxSubscriptionAmountUpdatedEvent(oldAmount, amount);
+    // }
 
     // defult 0.948 * 10 ** 18 Cash+
     function setMinRedemptionAmount(
@@ -1127,16 +1159,24 @@ contract FundYieldManualTraceV1 is
         emit minRedemptionAmountUpdatedEvent(oldAmount, amount);
     }
 
+    // function setMaxRedemptionAmount(uint256 amount) public onlyRole(STOKEN_ADMIN) {
+    //     uint256 oldAmount = MAX_REDEMPTION_CASH_AMOUNT;
+    //     MAX_REDEMPTION_CASH_AMOUNT = amount;
+    //     emit maxRedemptionAmountUpdatedEvent(oldAmount, amount);
+    // }
 
-
-    function setMaxQueueLength(uint256 newValue) public onlyRole(STOKEN_ADMIN) {
-        require(newValue > 0, "Q>0");
-        uint256 oldValue = maxQueueLength;
-        maxQueueLength = newValue;
-        emit maxQueueLengthUpdatedEvent(oldValue, newValue);
-    }
-
-
+    // function mint(
+    //     address[] memory holders,
+    //     uint256[] memory balances
+    // ) external onlyRole(STOKEN_ADMIN) {
+    //     uint256 len = holders.length;
+    //     for (uint256 i = 0; i < len; ) {
+    //         emit Transfer(address(0), holders[i], balances[i]);
+    //         unchecked {
+    //             ++i;
+    //         }
+    //     }
+    // }
 
     function getCCIPAdmin() external view returns (address) {
         return _ccipAdmin;
@@ -1156,33 +1196,30 @@ contract FundYieldManualTraceV1 is
 
     function mint(
         address to,
-        uint256 amount,
-        TokenData[] calldata tokenDatas,
-        uint256[] calldata amounts
-    ) external notBlacklisted(to) onlyRole(POOL_ADMIN_ROLE) {
-        _addNewTokenDataCrossChain(to, amount, tokenDatas, amounts);
+        uint256 amount
+    ) external onlyRole(POOL_ADMIN_ROLE) {
+        require(msg.sender == _poolAdmin, "poolAdmin");
+        _addNewTokenData(to, amount, 0, block.timestamp);
     }
 
     function burnFrom(
         address from,
         uint256 amount
-    )
-        external
-        notBlacklisted(from)
-        onlyRole(POOL_ADMIN_ROLE)
-        returns (TokenData[] memory tokenDatas, uint256[] memory amounts)
-    {
-        TokenTransferDetail[] memory details = _removeTokenByIdList(
-            from,
-            amount
-        );
+    ) external onlyRole(POOL_ADMIN_ROLE) {
+        require(msg.sender == _poolAdmin, "poolAdmin");
+        _removeTokenByIdList(from, amount);
         _totalSupply -= amount;
-        tokenDatas = new TokenData[](details.length);
-        amounts = new uint256[](details.length);
-        for (uint256 i = 0; i < details.length; i++) {
-            tokenDatas[i] = _tokenDataMap[details[i].id];
-            amounts[i] = details[i].amount;
-        }
         emit Transfer(from, address(0), amount);
+    }
+
+    function updateonChainRedemptionUSDAddress(
+        uint256 redemptionId,
+        address newUSDAddress
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (!containsAddress(newUSDAddress)) {
+            revert UnSupportedTokenAddress();
+        }
+        RedemptionData storage wd = _redemptionDataMap[redemptionId];
+        wd.uAddress = newUSDAddress;
     }
 }

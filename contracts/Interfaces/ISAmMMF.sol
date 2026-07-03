@@ -3,7 +3,7 @@
 // # Copyright (c) 2025 Asseto Fintech Limited. All rights reserved.
 pragma solidity ^0.8.22;
 
-interface IFundYieldManualTraceV1 {
+interface ISAmMMF {
     struct SubscribeData {
         uint256 id; // Subscription ID
         uint256 uAmount; // Amount of USDT to subscribe
@@ -25,7 +25,7 @@ interface IFundYieldManualTraceV1 {
         uint256 price; // Price of the Redemption
         uint256 time; // Redemption time
         bytes32 udaTxHash; // Transaction hash for the Redemption
-        uint16 source; // Source of the Redemption
+        uint16 source; // Source of the subscription
         TokenTransferDetail[] tokenTransferDetails; // Details of token transfers during Redemption
         uint256 technicalServiceFee; // Technical service fee for the Redemption
     }
@@ -33,8 +33,9 @@ interface IFundYieldManualTraceV1 {
     // TokenData structure to hold token ID and amount
     struct TokenData {
         uint256 id; // Token ID
+        uint256 mintTime; // Token minting time
+        uint256 mintPrice; // Token price
         address tokenOwner; // Token owner address
-        uint256 chainId; // Chain ID where the token was minted
     }
 
     struct TokenDataWithAmount {
@@ -175,18 +176,6 @@ interface IFundYieldManualTraceV1 {
         uint256 price,
         uint256 time,
         bytes32 udaTxHash,
-        uint16 source
-    );
-
-    event executeEvent(
-        uint256 subscriptionId,
-        uint256 uAmount,
-        address uAddress,
-        uint256 stokenAmount,
-        address user,
-        uint256 price,
-        uint256 time,
-        bytes32 udaTxHash,
         uint16 source,
         uint256 tokenId
     );
@@ -200,33 +189,8 @@ interface IFundYieldManualTraceV1 {
         uint256 price,
         uint256 time,
         bytes32 udaTxHash,
-        uint16 source
-    );
-
-    event claimEvent(
-        uint256 subscriptionId,
-        uint256 uAmount,
-        address uAddress,
-        uint256 stokenAmount,
-        address user,
-        uint256 price,
-        uint256 time,
-        bytes32 udaTxHash,
         uint16 source,
         uint256 tokenId
-    );
-
-    event burnEvent(
-        uint256 redemptionId,
-        uint256 uAmount,
-        address uAddress,
-        uint256 stokenAmount,
-        address user,
-        uint256 price,
-        uint256 time,
-        bytes32 udaTxHash,
-        uint16 source,
-        uint256 technicalServiceFee
     );
 
     event burnEvent(
@@ -266,5 +230,4 @@ interface IFundYieldManualTraceV1 {
     event maxQueueLengthUpdatedEvent(uint256 oldValue, uint256 newValue);
 
     event CCIPAdminTransferred(address previous, address newAdmin);
-
 }

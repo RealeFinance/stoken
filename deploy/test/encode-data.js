@@ -2,9 +2,9 @@ const { ethers, upgrades } = require("hardhat");
 
 async function main() {
   // ===== 你要改的参数 =====
-  const proxyAddress = "0x9EA9cd205783F08700d2A12C325FC4e1BF8e99a2";
-  const timelockAddress = "0x70a1454cD4370D9a494c71C3F4C7CC55bC7246A4";
-  const contractName = "FundYieldManualTraceV1";
+  const proxyAddress = "0x4013361546efe989Efd4a1242aDD5Ea88915e980";
+  const timelockAddress = "0xAD4fb34AA2d4AF3B55b15EFB807222B565361D1b";
+  const contractName = "SAmMMF";
   const useSafe = true; // 如果你是要在 Gnosis Safe 上执行升级，就设为 true，否则设为 false
   // 如果升级后要顺便执行 reinitializer，就打开下面两行
   const callInitializer = true;
@@ -14,7 +14,7 @@ async function main() {
     // DEFAULT_ADMIN_ROLE 會交给 TimelockController，所有敏感操作延迟执行
     timelock: {
       enabled: true,
-      minDelay: 120, // 2 分钟
+      minDelay: 60, // 2 分钟
       proposers: ["0x89B416C2e456b89bFDa314fb5C400BAB66D4aADb"], // 可发起提案的地址
       executors: ["0x0000000000000000000000000000000000000000"], // 放空则延迟到后任何人可执行
       cancellers: ["0x89B416C2e456b89bFDa314fb5C400BAB66D4aADb"], // 可取消待执行提案的地址
@@ -30,8 +30,9 @@ async function main() {
 
   // 假设你有 SToken 和 Timelock 的 interface
   const stokenInterface = new ethers.Interface([
-    "function setTechnicalServiceFeeRate(uint256 newRate)",
     "function setAssetSender(address newSender)",
+    "function setAssetRecipient(address newRecipient)",
+    "function setServiceFeeRecipient(address newRecipient)",
     "function grantRole(bytes32 role, address account)",
     "function revokeRole(bytes32 role, address account)",
   ]);
@@ -41,9 +42,9 @@ async function main() {
   );
 
   // ① 先把实际要调用的 SToken 方法编码
-  const setAssetSenderData = stokenInterface.encodeFunctionData(
-    "setAssetSender",
-    [proxyAddress], // 新的发送者地址
+  const Data = stokenInterface.encodeFunctionData(
+    "setServiceFeeRecipient",
+    ["0x89B416C2e456b89bFDa314fb5C400BAB66D4aADb"], // 新的发送者地址
   );
 
   const grantRoleData = stokenInterface.encodeFunctionData(
@@ -65,16 +66,16 @@ async function main() {
   const scheduleData = timelock.interface.encodeFunctionData("schedule", [
     proxyAddress, // target
     0, // value（不带 ETH）
-    revokeRoleData, // data → 实际要调用的方法
+    Data, // data → 实际要调用的方法
     ethers.ZeroHash, // predecessor（无前置操作）
     ethers.ZeroHash, // salt（随机数，避免重复）
-    120,
+    data.timelock.minDelay, // 延迟时间
   ]);
 
   const executeData = timelock.interface.encodeFunctionData("execute", [
     proxyAddress, // target
     0, // value（不带 ETH）
-    revokeRoleData, // data → 实际要调用的方法
+    Data, // data → 实际要调用的方法
     ethers.ZeroHash, // predecessor（无前置操作）
     ethers.ZeroHash, // salt（随机数，避免重复）
   ]);
@@ -87,7 +88,7 @@ async function main() {
   console.log("Execute Data:        ", executeData);
   console.log("");
   console.log("Cancel Data:         ", cancelData);
-  console.log("Grant Role Data:     ", revokeRoleData);
+  console.log("Data:                ", Data);
 }
 
 main().catch((error) => {

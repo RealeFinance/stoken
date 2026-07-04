@@ -31,11 +31,11 @@ async function main() {
   const NewImplFactory = await ethers.getContractFactory(contractName);
 
   // ===== 2) 注册已有代理 =====
-  try {
-    await upgrades.forceImport(proxyAddress, NewImplFactory, { kind: "uups" });
-  } catch (e) {
-    console.log("Proxy already registered");
-  }
+  // try {
+  //   await upgrades.forceImport(proxyAddress, NewImplFactory, { kind: "uups" });
+  // } catch (e) {
+  //   console.log("Proxy already registered");
+  // }
 
   // ===== 3) 校验升级安全性 =====
   await upgrades.validateUpgrade(proxyAddress, NewImplFactory, {

@@ -2,7 +2,7 @@ const { ethers, upgrades } = require("hardhat");
 
 async function main() {
   // ===== 你要改的参数 =====
-  const proxyAddress = "0x4013361546efe989Efd4a1242aDD5Ea88915e980";
+  const proxyAddress = "0x1775504c5873e179Ea2f8ABFcE3861EC74D159bc";
   const contractName = "SAmMMF";
   const useSafe = false; // 如果你是要在 Gnosis Safe 上执行升级，就设为 true，否则设为 false
   // 如果升级后要顺便执行 reinitializer，就打开下面两行
@@ -13,10 +13,10 @@ async function main() {
     // DEFAULT_ADMIN_ROLE 會交给 TimelockController，所有敏感操作延迟执行
     timelock: {
       enabled: true,
-      minDelay: 60, // 1 分钟
-      proposers: ["0x89B416C2e456b89bFDa314fb5C400BAB66D4aADb"], // 可发起提案的地址
+      minDelay: 60 * 60 * 48, // 48 小时
+      proposers: ["0x0589EbFa4A6A1d457AB9f4280DF8079806bA46ae"], // 可发起提案的地址
       executors: ["0x0000000000000000000000000000000000000000"], // 放空则延迟到后任何人可执行
-      cancellers: ["0x89B416C2e456b89bFDa314fb5C400BAB66D4aADb"], // 可取消待执行提案的地址
+      cancellers: ["0x0589EbFa4A6A1d457AB9f4280DF8079806bA46ae"], // 可取消待执行提案的地址
     },
   };
 
@@ -46,7 +46,7 @@ async function main() {
     // ===== 4) 直接在当前网络执行升级 =====
     const proxy = await upgrades.upgradeProxy(proxyAddress, NewImplFactory, {
       kind: "uups",
-      // call: { fn: "initializeV2", args: [] },  // 如果已初始化则注释掉
+      call: { fn: "initializeV2", args: [] }, // 如果已初始化则注释掉
     });
     await proxy.waitForDeployment();
     const deploymentTx = proxy.deploymentTransaction();

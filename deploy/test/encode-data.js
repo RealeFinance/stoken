@@ -4,7 +4,7 @@ async function main() {
   // ===== 你要改的参数 =====
   const proxyAddress = "0x9EA9cd205783F08700d2A12C325FC4e1BF8e99a2";
   const timelockAddress = "0x70a1454cD4370D9a494c71C3F4C7CC55bC7246A4";
-  const contractName = "FundYieldManualTraceV1";
+  const contractName = "PlusFund";
   const useSafe = true; // 如果你是要在 Gnosis Safe 上执行升级，就设为 true，否则设为 false
   // 如果升级后要顺便执行 reinitializer，就打开下面两行
   const callInitializer = true;

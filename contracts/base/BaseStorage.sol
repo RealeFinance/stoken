@@ -2,9 +2,9 @@
 // Compatible with OpenZeppelin Contracts ^5.0.0
 // # Copyright (c) 2025 Asseto Fintech Limited. All rights reserved.
 pragma solidity ^0.8.22;
-import "../Interfaces/IFundYieldManualTraceV1.sol";
+import "../Interfaces/IPlusFund.sol";
 
-contract BaseStorage is IFundYieldManualTraceV1 {
+contract BaseStorage is IPlusFund {
     // Asset recipient address
     address public assetRecipient;
 

@@ -107,7 +107,7 @@ async function deployERC20(_name, _symbol) {
 }
 
 async function deploySAmMMF() {
-  const Contract = await ethers.getContractFactory("FundYieldManualTraceV1");
+  const Contract = await ethers.getContractFactory("PlusFund");
   // const impl2 = await Contract.deploy({
   //   gasLimit: 15000000,
   // });
@@ -128,7 +128,7 @@ async function deploySAmMMF() {
 }
 
 async function deploySAmMMFUpgrade(hre, _proxyAddress) {
-  const SAmMMF_V2 = await ethers.getContractFactory("FundYieldManualTraceV1");
+  const SAmMMF_V2 = await ethers.getContractFactory("PlusFund");
   const sammmf_v2 = await SAmMMF_V2.deploy();
   await sammmf_v2.waitForDeployment();
 

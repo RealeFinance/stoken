@@ -27,11 +27,11 @@ import {
     SafeERC20
 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {BaseStorage} from "../base/BaseStorage.sol";
-import "../Interfaces/IFundYieldManualTraceV1.sol";
+import "../Interfaces/IPlusFund.sol";
 import {Blacklistable} from "../BlackList/Blacklistable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-contract FundYieldManualTraceV1 is
+contract PlusFund is
     Initializable,
     ERC20Upgradeable,
     ERC20PausableUpgradeable,
@@ -239,10 +239,7 @@ contract FundYieldManualTraceV1 is
             stokenAmount >= MIN_AMOUNT,
             "Stoken amount must be greater than 0.01"
         );
-        require(
-            _subscribeDataMap[subscriptionId].id != 0,
-            "No subscription"
-        );
+        require(_subscribeDataMap[subscriptionId].id != 0, "No subscription");
 
         SubscribeData storage sd = _subscribeDataMap[subscriptionId];
         sd.stokenAmount = stokenAmount;
@@ -306,10 +303,7 @@ contract FundYieldManualTraceV1 is
                 )
             )
         );
-        require(
-            _subscribeDataMap[subscriptionId].id == 0,
-            "Sub exists"
-        ); // Ensure the subscription ID does not already exist
+        require(_subscribeDataMap[subscriptionId].id == 0, "Sub exists"); // Ensure the subscription ID does not already exist
         _subscribeDataMap[subscriptionId] = SubscribeData({
             id: subscriptionId,
             uAmount: uAmount,
@@ -422,17 +416,13 @@ contract FundYieldManualTraceV1 is
     {
         require(redemptionId != 0, "Invalid redemption ID");
         require(uAmount > 0, "Invalid amount");
-        require(
-            _redemptionDataMap[redemptionId].id != 0,
-            "No redemption"
-        );
+        require(_redemptionDataMap[redemptionId].id != 0, "No redemption");
         RedemptionData storage wd = _redemptionDataMap[redemptionId];
         wd.id = redemptionId;
         wd.uAmount = uAmount;
         wd.price = price;
         wd.time = time;
         wd.udaTxHash = udaTxHash;
-
 
         emit overwriteOnChainRedemptionEvent(
             redemptionId,
@@ -722,8 +712,6 @@ contract FundYieldManualTraceV1 is
         emit Transfer(wd.user, address(0), wd.stokenAmount);
     }
 
-
-
     // function _getTimeIntervalByDay(
     //     uint256 mintTime,
     //     uint256 redemptionTime
@@ -875,10 +863,7 @@ contract FundYieldManualTraceV1 is
         TokenData[] memory tokenDataArray = new TokenData[](tokenIds.length);
         for (uint256 i = 0; i < tokenIds.length; i++) {
             uint256 tokenId = tokenIds[i];
-            require(
-                _tokenDataMap[tokenId].id != 0,
-                "Bad token data"
-            );
+            require(_tokenDataMap[tokenId].id != 0, "Bad token data");
             tokenDataArray[i] = _tokenDataMap[tokenId];
         }
         return tokenDataArray;
@@ -1116,8 +1101,6 @@ contract FundYieldManualTraceV1 is
         emit minSubscriptionAmountUpdatedEvent(oldAmount, amount);
     }
 
-
-
     // defult 0.948 * 10 ** 18 Cash+
     function setMinRedemptionAmount(
         uint256 amount
@@ -1127,16 +1110,12 @@ contract FundYieldManualTraceV1 is
         emit minRedemptionAmountUpdatedEvent(oldAmount, amount);
     }
 
-
-
     function setMaxQueueLength(uint256 newValue) public onlyRole(STOKEN_ADMIN) {
         require(newValue > 0, "Q>0");
         uint256 oldValue = maxQueueLength;
         maxQueueLength = newValue;
         emit maxQueueLengthUpdatedEvent(oldValue, newValue);
     }
-
-
 
     function getCCIPAdmin() external view returns (address) {
         return _ccipAdmin;

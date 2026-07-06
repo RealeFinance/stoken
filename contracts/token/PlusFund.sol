@@ -118,7 +118,11 @@ contract PlusFund is
         maxQueueLength = 100; // Default max queue length
     }
 
-    function initializeV2() public reinitializer(2) {
+    function initializeV2()
+        public
+        reinitializer(2)
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
         maxQueueLength = 100; // Initialize max queue length for existing proxy
     }
 
@@ -791,8 +795,8 @@ contract PlusFund is
             amount >= MIN_AMOUNT,
             "Transfer amount must be greater than 0.01"
         );
+        _spendAllowance(sender, msg.sender, amount);
         _transferWithTokenId(sender, recipient, amount);
-        _approve(sender, msg.sender, allowance(sender, msg.sender) - amount);
         return true;
     }
 
@@ -1138,7 +1142,7 @@ contract PlusFund is
         uint256 amount,
         TokenData[] calldata tokenDatas,
         uint256[] calldata amounts
-    ) external notBlacklisted(to) onlyRole(POOL_ADMIN_ROLE) {
+    ) external notBlacklisted(to) onlyRole(POOL_ADMIN_ROLE) whenNotPaused {
         _addNewTokenDataCrossChain(to, amount, tokenDatas, amounts);
     }
 
@@ -1149,6 +1153,7 @@ contract PlusFund is
         external
         notBlacklisted(from)
         onlyRole(POOL_ADMIN_ROLE)
+        whenNotPaused
         returns (TokenData[] memory tokenDatas, uint256[] memory amounts)
     {
         TokenTransferDetail[] memory details = _removeTokenByIdList(

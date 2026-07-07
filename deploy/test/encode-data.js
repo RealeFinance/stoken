@@ -2,8 +2,8 @@ const { ethers, upgrades } = require("hardhat");
 
 async function main() {
   // ===== 你要改的参数 =====
-  const proxyAddress = "0x4013361546efe989Efd4a1242aDD5Ea88915e980";
-  const timelockAddress = "0xAD4fb34AA2d4AF3B55b15EFB807222B565361D1b";
+  const proxyAddress = "0x1775504c5873e179Ea2f8ABFcE3861EC74D159bc";
+  const timelockAddress = "0x93323EE2F4c3174E8A08ca39015C160AD308235A";
   const contractName = "SAmMMF";
   const useSafe = true; // 如果你是要在 Gnosis Safe 上执行升级，就设为 true，否则设为 false
   // 如果升级后要顺便执行 reinitializer，就打开下面两行
@@ -14,7 +14,7 @@ async function main() {
     // DEFAULT_ADMIN_ROLE 會交给 TimelockController，所有敏感操作延迟执行
     timelock: {
       enabled: true,
-      minDelay: 60, // 2 分钟
+      minDelay: 60 * 60 * 48, // 48 小时
       proposers: ["0x89B416C2e456b89bFDa314fb5C400BAB66D4aADb"], // 可发起提案的地址
       executors: ["0x0000000000000000000000000000000000000000"], // 放空则延迟到后任何人可执行
       cancellers: ["0x89B416C2e456b89bFDa314fb5C400BAB66D4aADb"], // 可取消待执行提案的地址
@@ -44,7 +44,7 @@ async function main() {
   // ① 先把实际要调用的 SToken 方法编码
   const Data = stokenInterface.encodeFunctionData(
     "setServiceFeeRecipient",
-    ["0x89B416C2e456b89bFDa314fb5C400BAB66D4aADb"], // 新的发送者地址
+    ["0x39132F7Ee82656edd806d3980edb5Ef114568A25"], // 新的发送者地址
   );
 
   const grantRoleData = stokenInterface.encodeFunctionData(

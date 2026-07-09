@@ -105,7 +105,11 @@ contract PlusFund is
         maxQueueLength = 100;
     }
 
-    function initializeV2() public reinitializer(2) {
+    function initializeV2()
+        public
+        reinitializer(2)
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
         maxQueueLength = 100;
     }
 
@@ -119,14 +123,6 @@ contract PlusFund is
 
     function unpause() public onlyRole(STOKEN_ADMIN) {
         _unpause();
-    }
-
-    function _update(
-        address from,
-        address to,
-        uint256 value
-    ) internal override(ERC20Upgradeable, ERC20PausableUpgradeable) {
-        super._update(from, to, value);
     }
 
     function totalSupply() public view override returns (uint256) {
@@ -822,8 +818,8 @@ contract PlusFund is
             amount >= MIN_AMOUNT,
             "Transfer amount must be greater than 0.01"
         );
+        _spendAllowance(sender, msg.sender, amount);
         _transferWithTokenId(sender, recipient, amount);
-        _approve(sender, msg.sender, allowance(sender, msg.sender) - amount);
         return true;
     }
 
@@ -1197,7 +1193,7 @@ contract PlusFund is
     function mint(
         address to,
         uint256 amount
-    ) external onlyRole(POOL_ADMIN_ROLE) {
+    ) external onlyRole(POOL_ADMIN_ROLE) whenNotPaused {
         require(msg.sender == _poolAdmin, "poolAdmin");
         _addNewTokenData(to, amount, 0, block.timestamp);
     }
@@ -1205,11 +1201,19 @@ contract PlusFund is
     function burnFrom(
         address from,
         uint256 amount
-    ) external onlyRole(POOL_ADMIN_ROLE) {
+    ) external onlyRole(POOL_ADMIN_ROLE) whenNotPaused {
         require(msg.sender == _poolAdmin, "poolAdmin");
         _removeTokenByIdList(from, amount);
         _totalSupply -= amount;
         emit Transfer(from, address(0), amount);
+    }
+
+    function _update(
+        address from,
+        address to,
+        uint256 value
+    ) internal override(ERC20Upgradeable, ERC20PausableUpgradeable) {
+        super._update(from, to, value);
     }
 
     function updateonChainRedemptionUSDAddress(

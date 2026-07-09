@@ -213,3 +213,18 @@ TESTNET_mAmMMF_proxy_ADDRESS=0x5142Df9767B2A28e1356953718E4bc47D0B3E2B1
 ### ETH_HTCASH3_TIMELOCK_ADDRESS=0x493127FB112d1d93F30F0525eD77978882A8eD91
 
 # ==============================================================================HTCASH+ 3.0
+
+
+# ==============================================================================mYIELD+ 3.0
+
+## BSC mYIELD+ 3.0
+## https://bscscan.com/address/0xFb8cB7630BC3cb34a6A9846Ec03De3A32393Ee65
+### BSC_MYIELD3_PROXY_ADDRESS=0xFb8cB7630BC3cb34a6A9846Ec03De3A32393Ee65
+### BSC_MYIELD3_TIMELOCK_ADDRESS=0x87a1A531090bc58b34398E3cBa4C9b00c6B9231E
+
+## ETH mYIELD+ 3.0
+## https://etherscan.io/address/0xf3a2a5de306b063D75C86B6352832639b7263a3B
+### ETH_MYIELD3_PROXY_ADDRESS=0xf3a2a5de306b063D75C86B6352832639b7263a3B
+### ETH_MYIELD3_TIMELOCK_ADDRESS=0x6b687fBBca04b21a4541b1a8CC319f407EA85eE1
+
+# ==============================================================================mYIELD+ 3.0

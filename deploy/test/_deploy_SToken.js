@@ -1,11 +1,21 @@
 const { ethers, upgrades } = require("hardhat");
 
+const ETHTokenAddresses = [
+  "0xdac17f958d2ee523a2206206994597c13d831ec7",
+  "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+];
+
+const BSCTokenAddresses = [
+  "0x55d398326f99059ff775485246999027b3197955",
+  "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
+];
+
 async function main() {
   // ===== 你要改的参数 =====
   const contractName = "PlusFund";
-  const PRODUCT_NAME = "GtCashPlus_ETH";
-  const name = "HtCashPlus";
-  const symbol = "HTCASH+";
+  const PRODUCT_NAME = "mYieldPlus_ETH";
+  const name = "mYieldPlus";
+  const symbol = "mYIELD+";
   const timelockDelay = 172800; // 2 天（秒）
   const data = {
     // ===== Timelock 配置 =====
@@ -14,20 +24,17 @@ async function main() {
       enabled: true,
       minDelay: timelockDelay, // 2 天（秒）
       proposers: ["0x0589EbFa4A6A1d457AB9f4280DF8079806bA46ae"], // 可发起提案的地址
-      executors: [], // 放空则延迟到后任何人可执行
+      executors: ["0x0000000000000000000000000000000000000000"], // 放空则延迟到后任何人可执行
       cancellers: ["0x0589EbFa4A6A1d457AB9f4280DF8079806bA46ae"], // 可取消待执行提案的地址
     },
     // ===== 角色分配 =====
-    STOKEN_ADMIN: ["0xb66DE9dd40b569E39B9866f0185f0292bC5dfe46"], // 日常运维地址（无延迟）
+    STOKEN_ADMIN: ["0x9f01aB8fb620Aa51ce7FD9ecE405CD1a83B45c23"], // 日常运维地址（无延迟）
     // ===== 资产地址 =====
-    assetRecipient: "0x5f6c3454e282d12E142b7559289421C5E5d90E72",
-    assetSender: "0x5f6c3454e282d12E142b7559289421C5E5d90E72",
-    serviceFeeRecipient: "0x5f6c3454e282d12E142b7559289421C5E5d90E72",
+    assetRecipient: "0xcd20705D243Fa26897D3aE13aD0f6249cD4dBd3c",
+    assetSender: "0xcd20705D243Fa26897D3aE13aD0f6249cD4dBd3c",
+    serviceFeeRecipient: "0xcd20705D243Fa26897D3aE13aD0f6249cD4dBd3c",
     // ===== 支持代币 =====
-    supportedTokenAddresses: [
-      "0xdac17f958d2ee523a2206206994597c13d831ec7",
-      "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
-    ],
+    supportedTokenAddresses: [...ETHTokenAddresses],
   };
   // =======================
 
@@ -45,7 +52,7 @@ async function main() {
   });
   await proxy2.waitForDeployment();
   const deploymentTx = proxy2.deploymentTransaction();
-  const blockNumber = deploymentTx?.blockNumber;
+  const blockNumber = await deploymentTx?.blockNumber;
 
   // 获取代理合约实例
   // const proxy2 = await ethers.getContractAt(

@@ -44,7 +44,6 @@ contract PlusFund is
     using SafeERC20 for IERC20;
     bytes32 public constant VERSION = keccak256("VERSION_3.1.0");
     bytes32 public constant STOKEN_ADMIN = keccak256("STOKEN_ADMIN");
-    uint256 public constant MIN_AMOUNT = 1e16; // 0.01 in 18 decimals
 
     // subscriptionId => SubscribeData
     mapping(uint256 => SubscribeData) private _subscribeDataMap;
@@ -207,10 +206,6 @@ contract PlusFund is
         whenNotPaused
     {
         require(subscriptionId != 0, "Invalid subscription ID");
-        require(
-            stokenAmount >= MIN_AMOUNT,
-            "Stoken amount must be greater than 0.01"
-        );
         require(
             _subscribeDataMap[subscriptionId].id != 0,
             "Subscription does not exist"
@@ -549,10 +544,6 @@ contract PlusFund is
         );
         RedemptionData memory wd = _redemptionDataMap[redemptionId];
         require(wd.id != 0, "Redemption does not exist");
-        require(
-            wd.stokenAmount >= MIN_AMOUNT,
-            "Stoken amount must be greater than 0.01"
-        );
         require(wd.user != address(0), "Invalid user address");
         require(wd.price > 0, "Invalid price");
         require(wd.time > 0, "Invalid time");
@@ -626,10 +617,6 @@ contract PlusFund is
     function _mintStoken(uint256 subscriptionId) internal returns (uint256) {
         SubscribeData storage sub = _subscribeDataMap[subscriptionId];
         require(sub.id != 0, "Subscription does not exist");
-        require(
-            sub.stokenAmount >= MIN_AMOUNT,
-            "Stoken amount must be greater than 0.01"
-        );
         require(sub.user != address(0), "Invalid user address");
         require(sub.price > 0, "Invalid price");
         require(sub.time > 0, "Invalid time");
@@ -655,10 +642,6 @@ contract PlusFund is
         require(redemptionId != 0, "Invalid redemption ID");
         RedemptionData storage wd = _redemptionDataMap[redemptionId];
         require(wd.id != 0, "Redemption does not exist");
-        require(
-            wd.stokenAmount >= MIN_AMOUNT,
-            "Stoken amount must be greater than 0.01"
-        ); // Ensure stoken amount is greater than 0.01
         require(wd.user != address(0), "Invalid user address");
         require(wd.price > 0, "Invalid price");
         require(wd.time > 0, "Invalid time");
@@ -792,10 +775,6 @@ contract PlusFund is
         returns (bool)
     {
         // require(false, "Transfer function is disabled");
-        require(
-            amount >= MIN_AMOUNT,
-            "Transfer amount must be greater than 0.01"
-        );
         _transferWithTokenId(msg.sender, recipient, amount);
         return true;
     }
@@ -814,10 +793,6 @@ contract PlusFund is
         returns (bool)
     {
         // require(false, "Transfer function is disabled");
-        require(
-            amount >= MIN_AMOUNT,
-            "Transfer amount must be greater than 0.01"
-        );
         _spendAllowance(sender, msg.sender, amount);
         _transferWithTokenId(sender, recipient, amount);
         return true;

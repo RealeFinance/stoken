@@ -14,7 +14,7 @@ async function main() {
       enabled: true,
       minDelay: timelockDelay, // 2 天（秒）
       proposers: ["0x0589EbFa4A6A1d457AB9f4280DF8079806bA46ae"], // 可发起提案的地址
-      executors: [], // 放空则延迟到后任何人可执行
+      executors: ["0x0000000000000000000000000000000000000000"], // 放空则延迟到后任何人可执行
       cancellers: ["0x0589EbFa4A6A1d457AB9f4280DF8079806bA46ae"], // 可取消待执行提案的地址
     },
     // ===== 角色分配 =====

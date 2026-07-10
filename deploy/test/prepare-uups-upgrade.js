@@ -2,8 +2,8 @@ const { ethers, upgrades } = require("hardhat");
 
 async function main() {
   // ===== 你要改的参数 =====
-  const proxyAddress = "0x1775504c5873e179Ea2f8ABFcE3861EC74D159bc";
-  const contractName = "SAmMMF";
+  const proxyAddress = "0x498D9329555471bF6073A5f2D047F746d522A373";
+  const contractName = "PlusFund";
   const useSafe = false; // 如果你是要在 Gnosis Safe 上执行升级，就设为 true，否则设为 false
   // 如果升级后要顺便执行 reinitializer，就打开下面两行
   const callInitializer = true;

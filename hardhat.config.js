@@ -159,6 +159,7 @@ module.exports = {
       PharosAtlanticTestnet: "empty",
       // bscTestnet: "empty",
       mainnet: "empty",
+      Avalanche: "empty",
     },
     // 自定义网络配置
     customChains: [

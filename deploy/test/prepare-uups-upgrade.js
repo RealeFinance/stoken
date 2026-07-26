@@ -1,12 +1,13 @@
 const { ethers, upgrades } = require("hardhat");
+const { NonceManager } = require("ethers");
 
 async function main() {
   // ===== 你要改的参数 =====
-  const proxyAddress = "0x498D9329555471bF6073A5f2D047F746d522A373";
+  const proxyAddress = "0x0D90a6eE85d5668734bb3A515147f53EBDfE866c";
   const contractName = "PlusFund";
   const useSafe = false; // 如果你是要在 Gnosis Safe 上执行升级，就设为 true，否则设为 false
   // 如果升级后要顺便执行 reinitializer，就打开下面两行
-  const callInitializer = true;
+  const callInitializer = false;
   const initializerArgs = []; // 例如 [123, "abc"]
   const data = {
     // ===== Timelock 配置 =====
@@ -22,13 +23,16 @@ async function main() {
 
   const hre = require("hardhat");
   const { name: networkName } = hre.network;
-  const [deployer] = await hre.ethers.getSigners();
-  const deployerAddress = deployer.address;
+  const [rawDeployer] = await hre.ethers.getSigners();
+  // Avalanche public RPC may briefly return a stale pending nonce after a tx is sent.
+  // Keep one local nonce sequence for the upgrade and all follow-up transactions.
+  const deployer = new NonceManager(rawDeployer);
+  const deployerAddress = await deployer.getAddress();
   console.log(`正在部署到网络: ${networkName}`);
   console.log(`部署者地址: ${deployerAddress}`);
 
   // ===== 1) 获取新实现合约工厂 =====
-  const NewImplFactory = await ethers.getContractFactory(contractName);
+  const NewImplFactory = await ethers.getContractFactory(contractName, deployer);
 
   // ===== 2) 注册已有代理 =====
   // try {
@@ -44,10 +48,17 @@ async function main() {
 
   if (!useSafe) {
     // ===== 4) 直接在当前网络执行升级 =====
-    const proxy = await upgrades.upgradeProxy(proxyAddress, NewImplFactory, {
+    const upgradeOptions = {
       kind: "uups",
-      call: { fn: "initializeV2", args: [] }, // 如果已初始化则注释掉
-    });
+    };
+    if (callInitializer) {
+      upgradeOptions.call = { fn: "initializeV2", args: initializerArgs };
+    }
+    const proxy = (await upgrades.upgradeProxy(
+      proxyAddress,
+      NewImplFactory,
+      upgradeOptions,
+    )).connect(deployer);
     await proxy.waitForDeployment();
     const deploymentTx = proxy.deploymentTransaction();
     const blockNumber = deploymentTx?.blockNumber;
@@ -59,6 +70,7 @@ async function main() {
       console.log(`正在部署 TimelockController...`);
       const TimelockController = await ethers.getContractFactory(
         "TimelockController",
+        deployer,
       );
       const timelock = await TimelockController.deploy(
         data.timelock.minDelay,
@@ -74,6 +86,11 @@ async function main() {
       console.log(`正在授予 DEFAULT_ADMIN_ROLE 给 Timelock...`);
       const txGrant = await proxy.grantRole(ethers.ZeroHash, timelockAddress);
       await txGrant.wait();
+      const hasRole = await proxy.hasRole(ethers.ZeroHash, timelockAddress);
+      console.log(`Timelock has DEFAULT_ADMIN_ROLE: ${hasRole}`);
+      if (!hasRole) {
+        throw new Error("授予 Timelock DEFAULT_ADMIN_ROLE 失败");
+      }
       console.log(`DEFAULT_ADMIN_ROLE 已授予给 Timelock`);
 
       // 放弃 deployer 在 Timelock 中的 admin 身份
@@ -85,6 +102,28 @@ async function main() {
       console.log(`Timelock admin 已放弃`);
 
       console.log(`TimelockController 配置完成`);
+
+      await proxy.setMinSubscriptionAmount(10000);
+      console.log(`设置最小认购金额为: 10000`);
+      await proxy.setMinRedemptionAmount(ethers.parseEther("924.676"));
+      console.log(`设置最小赎回金额为: 924.676`);
+      await proxy.renounceRole(
+        ethers.id("STOKEN_BLACKLIST_ADMIN_ROLE"),
+        deployerAddress,
+      );
+      console.log(`已放弃 STOKEN_BLACKLIST_ADMIN_ROLE 权限`);
+
+      await proxy.renounceRole(ethers.id("UPGRADER_ROLE"), deployerAddress);
+      console.log(`已放弃 UPGRADER_ROLE 权限`);
+
+      await proxy.renounceRole(ethers.id("STOKEN_ADMIN"), deployerAddress);
+      console.log(`已放弃 STOKEN_ADMIN 权限`);
+
+      await proxy.renounceRole(
+        await proxy.DEFAULT_ADMIN_ROLE(),
+        deployerAddress,
+      );
+      console.log(`已放弃 DEFAULT_ADMIN_ROLE 权限`);
     }
   } else {
     // ===== 4) 仅部署新的 implementation，不执行升级 =====

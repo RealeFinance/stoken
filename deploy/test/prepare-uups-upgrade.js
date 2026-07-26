@@ -2,7 +2,7 @@ const { ethers, upgrades } = require("hardhat");
 
 async function main() {
   // ===== 你要改的参数 =====
-  const proxyAddress = "0xF252C5BD43907a6CAb079E990845a37a7C5730d9";
+  const proxyAddress = "0x28d77ea7c61cd9055983ef8b0806778d8bb12c88";
   const contractName = "PlusFund";
   const useSafe = false; // 如果你是要在 Gnosis Safe 上执行升级，就设为 true，否则设为 false
   // 如果升级后要顺便执行 reinitializer，就打开下面两行
@@ -76,6 +76,28 @@ async function main() {
       );
       await txRenounceTimelock.wait();
       console.log(`Timelock admin 已放弃`);
+
+      await proxy.setMinSubscriptionAmount(10000);
+      console.log(`设置最小认购金额为: 10000`);
+      await proxy.setMinRedemptionAmount(ethers.parseEther("924.676"));
+      console.log(`设置最小赎回金额为: 924.676`);
+      await proxy.renounceRole(
+        ethers.id("STOKEN_BLACKLIST_ADMIN_ROLE"),
+        deployerAddress,
+      );
+      console.log(`已放弃 STOKEN_BLACKLIST_ADMIN_ROLE 权限`);
+
+      await proxy.renounceRole(ethers.id("UPGRADER_ROLE"), deployerAddress);
+      console.log(`已放弃 UPGRADER_ROLE 权限`);
+
+      await proxy.renounceRole(ethers.id("STOKEN_ADMIN"), deployerAddress);
+      console.log(`已放弃 STOKEN_ADMIN 权限`);
+
+      await proxy.renounceRole(
+        await proxy.DEFAULT_ADMIN_ROLE(),
+        deployerAddress,
+      );
+      console.log(`已放弃 DEFAULT_ADMIN_ROLE 权限`);
 
       console.log(`TimelockController 配置完成`);
     }

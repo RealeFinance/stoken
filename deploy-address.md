@@ -175,6 +175,23 @@ TESTNET_mAmMMF_proxy_ADDRESS=0x5142Df9767B2A28e1356953718E4bc47D0B3E2B1
 
 # ==============================================================================NGI+ 2.0
 
+# ==============================================================================PGNGI+ 2.0
+## Pharos PGNGI+ 2.0
+## https://pharos.socialscan.io/address/0x238Bd29Bc460F6cB56f80f99B2B39Ff2c183Ee4D
+### PHAROS_MAINNET_PGNGI2_PROXY_ADDRESS=0x238Bd29Bc460F6cB56f80f99B2B39Ff2c183Ee4D (14578508)
+
+## ETH PGNGI+ 2.0
+## https://etherscan.io/address/0x0e6fcE64D9e32ebF5D7cf3f6DEd501415EcA374c
+### ETH_PGNGI2_PROXY_ADDRESS=0x0e6fcE64D9e32ebF5D7cf3f6DEd501415EcA374c (25710431)
+
+## BSC PGNGI+ 2.0
+## https://bscscan.com/address/0x9d54F56e71923eBd0c61336916f91CFb3a3938C3
+### BSC_PGNGI2_PROXY_ADDRESS=0x9d54F56e71923eBd0c61336916f91CFb3a3938C3 (114740865)
+
+# ==============================================================================PGNGI+ 2.0
+
+
+
 # ==============================================================================EPOCH+ 2.0
 ## ETH EPOCH+ 2.0
 ## https://etherscan.io/address/0x3bE5dD4a34F1C6a112048b9dF908cED4372D5049

@@ -10,12 +10,18 @@ const BSCTokenAddresses = [
   "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
 ];
 
+const PharosTokenAddresses = [
+  "0x52c48d4213107b20bc583832b0d951fb9ca8f0b0",
+  "0x7126c3fef4e6a680eee09fb039b2236f638384b0",
+  "0x51e2A24742Db77604B881d6781Ee16B5b8fcBE29",
+];
+
 async function main() {
   // ===== 你要改的参数 =====
   const contractName = "PlusFund";
-  const PRODUCT_NAME = "mYieldPlus_ETH";
-  const name = "mYieldPlus";
-  const symbol = "mYIELD+";
+  const PRODUCT_NAME = "PGNGIPlus";
+  const name = "PGNGIPlus";
+  const symbol = "PGNGI+";
   const timelockDelay = 172800; // 2 天（秒）
   const data = {
     // ===== Timelock 配置 =====
@@ -28,13 +34,13 @@ async function main() {
       cancellers: ["0x0589EbFa4A6A1d457AB9f4280DF8079806bA46ae"], // 可取消待执行提案的地址
     },
     // ===== 角色分配 =====
-    STOKEN_ADMIN: ["0x9f01aB8fb620Aa51ce7FD9ecE405CD1a83B45c23"], // 日常运维地址（无延迟）
+    STOKEN_ADMIN: ["0xe2bAf9f6AB217aCC06037Ee41C6B71994F5a388a"], // 日常运维地址（无延迟）
     // ===== 资产地址 =====
-    assetRecipient: "0xcd20705D243Fa26897D3aE13aD0f6249cD4dBd3c",
-    assetSender: "0xcd20705D243Fa26897D3aE13aD0f6249cD4dBd3c",
-    serviceFeeRecipient: "0xcd20705D243Fa26897D3aE13aD0f6249cD4dBd3c",
+    assetRecipient: "0x87B8D0f868310E542DDd94a7CD7f3cB6Ec762433",
+    assetSender: "0x87B8D0f868310E542DDd94a7CD7f3cB6Ec762433",
+    serviceFeeRecipient: "0x87B8D0f868310E542DDd94a7CD7f3cB6Ec762433",
     // ===== 支持代币 =====
-    supportedTokenAddresses: [...ETHTokenAddresses],
+    supportedTokenAddresses: [...PharosTokenAddresses],
   };
   // =======================
 
@@ -52,7 +58,11 @@ async function main() {
   });
   await proxy2.waitForDeployment();
   const deploymentTx = proxy2.deploymentTransaction();
-  const blockNumber = await deploymentTx?.blockNumber;
+  if (!deploymentTx) {
+    throw new Error("Proxy deployment transaction is unavailable.");
+  }
+  const deploymentReceipt = await deploymentTx.wait();
+  const blockNumber = deploymentReceipt.blockNumber;
 
   // 获取代理合约实例
   // const proxy2 = await ethers.getContractAt(
@@ -65,6 +75,7 @@ async function main() {
 
   console.log(`开始设置权限...`);
   // ===== 部署 TimelockController =====
+  let timelockAddress;
   if (data.timelock?.enabled) {
     console.log(`正在部署 TimelockController...`);
     const TimelockController = await ethers.getContractFactory(
@@ -77,7 +88,7 @@ async function main() {
       deployerAddress, // 暂时设 deployer 为 admin，配置完成后再放弃
     );
     await timelock.waitForDeployment();
-    const timelockAddress = await timelock.getAddress();
+    timelockAddress = await timelock.getAddress();
     console.log(`TimelockController 地址: ${timelockAddress}`);
 
     // 将 DEFAULT_ADMIN_ROLE 交给 TimelockController
@@ -168,20 +179,33 @@ async function main() {
   }
   console.log(`部署者 STOKEN_ADMIN 和 STOKEN_BLACKLIST_ADMIN_ROLE 已退出`);
 
-  console.log(`PRODUCT_NAME=${PRODUCT_NAME}`);
-  console.log(`stoken_Contract_Address=${tokenAddress}`);
-  console.log(`stoken_Start_Height=${blockNumber}`);
-
   // ===== DEFAULT_ADMIN_ROLE 单独退出（可选执行） =====
   // 如果需要退出 DEFAULT_ADMIN_ROLE，取消下面的注释
   // 警告: 确保 Timelock 或其他人已经持有 DEFAULT_ADMIN_ROLE，否则退出后无人能管理合约！
-  // const hasDefaultAdmin = await proxy2.hasRole(ethers.ZeroHash, deployerAddress);
-  // if (hasDefaultAdmin) {
-  //   console.log(`正在退出 DEFAULT_ADMIN_ROLE...`);
-  //   const tx = await proxy2.renounceRole(ethers.ZeroHash, deployerAddress);
-  //   await tx.wait();
-  //   console.log(`DEFAULT_ADMIN_ROLE 已退出`);
-  // }
+  if (data.timelock?.enabled) {
+    const hasTimelockDefaultAdmin = await proxy2.hasRole(
+      ethers.ZeroHash,
+      timelockAddress,
+    );
+    const defaultAdminCount = await proxy2.getRoleMemberCount(ethers.ZeroHash);
+    if (!hasTimelockDefaultAdmin || defaultAdminCount < 2n) {
+      throw new Error(
+        "Timelock must hold DEFAULT_ADMIN_ROLE before deployer renounces it.",
+      );
+    }
+
+    await (await proxy2.renounceRole(ethers.ZeroHash, deployerAddress)).wait();
+    if (await proxy2.hasRole(ethers.ZeroHash, deployerAddress)) {
+      throw new Error(
+        "Deployer still has DEFAULT_ADMIN_ROLE after renouncing it.",
+      );
+    }
+    console.log("Deployer renounced DEFAULT_ADMIN_ROLE.");
+  }
+
+  console.log(`PRODUCT_NAME=${PRODUCT_NAME}`);
+  console.log(`stoken_Contract_Address=${tokenAddress}`);
+  console.log(`stoken_Start_Height=${blockNumber}`);
 }
 
 main().catch(console.error);

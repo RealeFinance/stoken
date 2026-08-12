@@ -19,9 +19,9 @@ const PharosTokenAddresses = [
 async function main() {
   // ===== 你要改的参数 =====
   const contractName = "PlusFund";
-  const PRODUCT_NAME = "PGNGIPlus";
-  const name = "PGNGIPlus";
-  const symbol = "PGNGI+";
+  const PRODUCT_NAME = "TkCashPlus";
+  const name = "TkCashPlus";
+  const symbol = "TKCASH+";
   const timelockDelay = 172800; // 2 天（秒）
   const data = {
     // ===== Timelock 配置 =====
@@ -34,13 +34,13 @@ async function main() {
       cancellers: ["0x0589EbFa4A6A1d457AB9f4280DF8079806bA46ae"], // 可取消待执行提案的地址
     },
     // ===== 角色分配 =====
-    STOKEN_ADMIN: ["0xe2bAf9f6AB217aCC06037Ee41C6B71994F5a388a"], // 日常运维地址（无延迟）
+    STOKEN_ADMIN: ["0x9Ac1862C0D5C1bf821cc6926EB2044D2b4D10b17"], // 日常运维地址（无延迟）
     // ===== 资产地址 =====
-    assetRecipient: "0x87B8D0f868310E542DDd94a7CD7f3cB6Ec762433",
-    assetSender: "0x87B8D0f868310E542DDd94a7CD7f3cB6Ec762433",
-    serviceFeeRecipient: "0x87B8D0f868310E542DDd94a7CD7f3cB6Ec762433",
+    assetRecipient: "0x39132F7Ee82656edd806d3980edb5Ef114568A25",
+    assetSender: "0x39132F7Ee82656edd806d3980edb5Ef114568A25",
+    serviceFeeRecipient: "0x39132F7Ee82656edd806d3980edb5Ef114568A25",
     // ===== 支持代币 =====
-    supportedTokenAddresses: [...PharosTokenAddresses],
+    supportedTokenAddresses: [...ETHTokenAddresses],
   };
   // =======================
 

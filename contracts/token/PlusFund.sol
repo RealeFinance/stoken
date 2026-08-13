@@ -157,7 +157,7 @@ contract PlusFund is
     }
 
     function version() public pure returns (string memory) {
-        return "2.1.0";
+        return "2.1.1";
     }
 
     /**
@@ -373,6 +373,7 @@ contract PlusFund is
         wd.time = 0; // Initial time is zero
         wd.udaTxHash = bytes32(0); // Initial transaction hash is zero
         wd.source = source; // Source of the subscription
+        wd.isOnChain = true;
 
         _burn(redemptionId); // Burn the stoken amount for the user
 
@@ -492,6 +493,7 @@ contract PlusFund is
         wd.time = time;
         wd.udaTxHash = udaTxHash;
         wd.source = 0;
+        wd.isOnChain = false;
 
         emit RedemptionEvent(
             redemptionId,
@@ -658,6 +660,12 @@ contract PlusFund is
         require(redemptionId != 0, "Invalid redemption ID");
         RedemptionData storage wd = _redemptionDataMap[redemptionId];
         require(wd.id != 0, "No redemption");
+        // tokenTransferDetails is populated by _burn, so this also protects
+        // on-chain redemptions created before isOnChain was introduced.
+        require(
+            !wd.isOnChain && wd.tokenTransferDetails.length == 0,
+            "Cannot burn on-chain redemption"
+        );
         require(wd.user != address(0), "Invalid user address");
         require(wd.price > 0, "Invalid price");
         require(wd.time > 0, "Invalid time");

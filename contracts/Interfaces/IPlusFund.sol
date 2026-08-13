@@ -28,6 +28,7 @@ interface IPlusFund {
         uint16 source; // Source of the Redemption
         TokenTransferDetail[] tokenTransferDetails; // Details of token transfers during Redemption
         uint256 technicalServiceFee; // Technical service fee for the Redemption
+        bool isOnChain; // Whether the redemption was initiated on-chain
     }
 
     // TokenData structure to hold token ID and amount

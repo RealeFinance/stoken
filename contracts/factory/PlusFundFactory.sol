@@ -2,6 +2,7 @@
 pragma solidity ^0.8.22;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {IERC1822Proxiable} from "@openzeppelin/contracts/interfaces/draft-IERC1822.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 
@@ -41,6 +42,8 @@ interface IPlusFundFactoryToken {
 
 contract PlusFundFactory is AccessControl {
     bytes32 public constant DEPLOYER_ROLE = keccak256("DEPLOYER_ROLE");
+    bytes32 private constant IMPLEMENTATION_SLOT =
+        0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
 
     uint256 public constant MAX_BATCH_SIZE = 5;
 
@@ -161,9 +164,15 @@ contract PlusFundFactory is AccessControl {
             config.assetRecipient == address(0) ||
             config.assetSender == address(0) ||
             config.serviceFeeRecipient == address(0) ||
-            config.proposers.length == 0
+            config.proposers.length == 0 ||
+            config.executors.length == 0 ||
+            config.timelockDelay == 0
         ) {
             revert InvalidConfiguration();
+        }
+
+        for (uint256 i = 0; i < config.proposers.length; i++) {
+            if (config.proposers[i] == address(0)) revert ZeroAddress();
         }
 
         bytes memory initData = abi.encodeWithSelector(
@@ -251,6 +260,15 @@ contract PlusFundFactory is AccessControl {
         if (newImplementation == address(0) || newImplementation.code.length == 0) {
             revert InvalidImplementation();
         }
+
+        try IERC1822Proxiable(newImplementation).proxiableUUID() returns (
+            bytes32 slot
+        ) {
+            if (slot != IMPLEMENTATION_SLOT) revert InvalidImplementation();
+        } catch {
+            revert InvalidImplementation();
+        }
+
         address previousImplementation = implementation;
         implementation = newImplementation;
         emit ImplementationUpdated(previousImplementation, newImplementation);

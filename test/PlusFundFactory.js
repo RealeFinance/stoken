@@ -113,4 +113,53 @@ describe("PlusFundFactory", function () {
       factory.deployToken(config, ethers.id("NGIPlus-2")),
     ).to.be.revertedWithCustomError(factory, "ProductAlreadyExists");
   });
+
+  it("rejects a timelock with no executor or zero-delay governance", async function () {
+    const { signers, factory } = await deployFixture();
+    const baseConfig = buildConfig(signers);
+
+    await expect(
+      factory.deployToken(
+        { ...baseConfig, timelockDelay: 0n },
+        ethers.id("zero-delay"),
+      ),
+    ).to.be.revertedWithCustomError(factory, "InvalidConfiguration");
+
+    await expect(
+      factory.deployToken(
+        { ...baseConfig, executors: [] },
+        ethers.id("no-executor"),
+      ),
+    ).to.be.revertedWithCustomError(factory, "InvalidConfiguration");
+  });
+
+  it("rejects a zero-address proposer", async function () {
+    const { signers, factory } = await deployFixture();
+    const config = {
+      ...buildConfig(signers),
+      proposers: [ethers.ZeroAddress],
+    };
+
+    await expect(
+      factory.deployToken(config, ethers.id("zero-proposer")),
+    ).to.be.revertedWithCustomError(factory, "ZeroAddress");
+  });
+
+  it("rejects a non-UUPS implementation", async function () {
+    const { signers, factory } = await deployFixture();
+    const TimelockController = await ethers.getContractFactory(
+      "TimelockController",
+    );
+    const invalidImplementation = await TimelockController.deploy(
+      1n,
+      [signers[1].address],
+      [ethers.ZeroAddress],
+      ethers.ZeroAddress,
+    );
+    await invalidImplementation.waitForDeployment();
+
+    await expect(
+      factory.setImplementation(await invalidImplementation.getAddress()),
+    ).to.be.revertedWithCustomError(factory, "InvalidImplementation");
+  });
 });

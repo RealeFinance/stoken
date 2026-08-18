@@ -157,7 +157,7 @@ contract PlusFund is
     }
 
     function version() public pure returns (string memory) {
-        return "2.1.1";
+        return "2.1.2";
     }
 
     /**
@@ -205,6 +205,7 @@ contract PlusFund is
         sd.uAddress = uAddress; // Set user address to the uAddress
         sd.source = source; // Source of the subscription
         sd.user = msg.sender; // Set user to the sender
+        sd.isOnChain = true;
 
         emit onChainSubscribeEvent(
             subscriptionId,
@@ -239,6 +240,10 @@ contract PlusFund is
     {
         require(subscriptionId != 0, "Invalid subscription ID");
         require(_subscribeDataMap[subscriptionId].id != 0, "No subscription");
+        require(
+            _subscribeDataMap[subscriptionId].isOnChain,
+            "Only on-chain subscription"
+        );
 
         SubscribeData storage sd = _subscribeDataMap[subscriptionId];
         sd.stokenAmount = stokenAmount;
@@ -312,7 +317,8 @@ contract PlusFund is
             price: price,
             time: time,
             udaTxHash: udaTxHash,
-            source: 0
+            source: 0,
+            isOnChain: false
         });
         emit subscribeEvent(
             subscriptionId,
@@ -418,6 +424,7 @@ contract PlusFund is
         require(uAmount > 0, "Invalid amount");
         require(_redemptionDataMap[redemptionId].id != 0, "No redemption");
         RedemptionData storage wd = _redemptionDataMap[redemptionId];
+        require(wd.isOnChain, "Only on-chain redemption");
         wd.id = redemptionId;
         wd.uAmount = uAmount;
         wd.price = price;
@@ -517,6 +524,10 @@ contract PlusFund is
         notBlacklisted(_subscribeDataMap[subscriptionId].user)
         whenNotPaused
     {
+        require(
+            !_subscribeDataMap[subscriptionId].isOnChain,
+            "Only off-chain subscription"
+        );
         uint256 tokenId = _mintStoken(subscriptionId);
         SubscribeData memory sd = _subscribeDataMap[subscriptionId];
         emit executeEvent(
@@ -540,6 +551,10 @@ contract PlusFund is
         require(
             _subscribeDataMap[subscriptionId].user == msg.sender,
             "Only subscriber"
+        );
+        require(
+            _subscribeDataMap[subscriptionId].isOnChain,
+            "Only on-chain subscription"
         );
         uint256 tokenId = _mintStoken(subscriptionId);
         SubscribeData memory sd = _subscribeDataMap[subscriptionId];
@@ -571,7 +586,7 @@ contract PlusFund is
         require(wd.price > 0, "Invalid price");
         require(wd.time > 0, "Invalid time");
         require(wd.uAmount > 0, "Invalid USDT amount");
-        require(wd.source != 0, "Only on-chain redemption");
+        require(wd.isOnChain, "Only on-chain redemption");
         delete _redemptionDataMap[redemptionId];
 
         if (assetSender == serviceFeeRecipient) {

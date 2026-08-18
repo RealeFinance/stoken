@@ -14,6 +14,7 @@ interface IPlusFund {
         uint256 time; // Subscription time
         bytes32 udaTxHash; // Transaction hash for the subscription
         uint16 source; // Source of the subscription
+        bool isOnChain; // Whether the subscription was initiated on-chain
     }
 
     struct RedemptionData {

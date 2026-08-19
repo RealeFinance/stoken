@@ -8,19 +8,34 @@ describe("PlusFundFactory", function () {
     const implementation = await Implementation.deploy();
     await implementation.waitForDeployment();
 
+    const GovernanceAddressMock = await ethers.getContractFactory(
+      "GovernanceAddressMock",
+    );
+    const governance = await GovernanceAddressMock.deploy();
+    await governance.waitForDeployment();
+
     const Factory = await ethers.getContractFactory("PlusFundFactory");
-    const factory = await Factory.deploy(await implementation.getAddress());
+    const factory = await Factory.deploy(
+      await implementation.getAddress(),
+      await governance.getAddress(),
+      signers[1].address,
+    );
     await factory.waitForDeployment();
 
-    return { signers, factory };
+    return {
+      signers,
+      factory: factory.connect(signers[1]),
+      rawFactory: factory,
+      governance,
+    };
   }
 
-  function buildConfig(signers) {
+  function buildConfig(signers, governanceAddress) {
     return {
       productId: ethers.id("NGIPlus"),
       name: "NGIPlus",
       symbol: "NGI+",
-      stokenAdmin: signers[1].address,
+      stokenAdmin: governanceAddress,
       poolAdmin: signers[2].address,
       blacklistAdmin: signers[3].address,
       ccipAdmin: signers[4].address,
@@ -32,15 +47,15 @@ describe("PlusFundFactory", function () {
       minRedemptionAmount: ethers.parseEther("924.676"),
       maxQueueLength: 100n,
       timelockDelay: 172800n,
-      proposers: [signers[1].address],
+      proposers: [governanceAddress],
       executors: [ethers.ZeroAddress],
-      cancellers: [signers[1].address],
+      cancellers: [governanceAddress],
     };
   }
 
   it("deploys an isolated proxy and per-token timelock", async function () {
-    const { signers, factory } = await deployFixture();
-    const config = buildConfig(signers);
+    const { signers, factory, rawFactory, governance } = await deployFixture();
+    const config = buildConfig(signers, await governance.getAddress());
     const salt = ethers.id("NGIPlus-1");
 
     const tx = await factory.deployToken(config, salt);
@@ -85,6 +100,24 @@ describe("PlusFundFactory", function () {
     expect(await token.hasRole(blacklistAdminRole, config.blacklistAdmin)).to.equal(
       true,
     );
+    expect(
+      await rawFactory.hasRole(
+        await rawFactory.DEFAULT_ADMIN_ROLE(),
+        await governance.getAddress(),
+      ),
+    ).to.equal(true);
+    expect(
+      await rawFactory.hasRole(
+        await rawFactory.DEFAULT_ADMIN_ROLE(),
+        signers[1].address,
+      ),
+    ).to.equal(false);
+    expect(
+      await rawFactory.hasRole(
+        await rawFactory.DEPLOYER_ROLE(),
+        signers[1].address,
+      ),
+    ).to.equal(true);
     expect(await timelock.hasRole(await timelock.DEFAULT_ADMIN_ROLE(), timelockAddress)).to.equal(
       true,
     );
@@ -105,8 +138,8 @@ describe("PlusFundFactory", function () {
   });
 
   it("rejects a duplicate product id", async function () {
-    const { signers, factory } = await deployFixture();
-    const config = buildConfig(signers);
+    const { signers, factory, governance } = await deployFixture();
+    const config = buildConfig(signers, await governance.getAddress());
 
     await factory.deployToken(config, ethers.id("NGIPlus-1"));
     await expect(
@@ -115,8 +148,8 @@ describe("PlusFundFactory", function () {
   });
 
   it("rejects a timelock with no executor or zero-delay governance", async function () {
-    const { signers, factory } = await deployFixture();
-    const baseConfig = buildConfig(signers);
+    const { signers, factory, governance } = await deployFixture();
+    const baseConfig = buildConfig(signers, await governance.getAddress());
 
     await expect(
       factory.deployToken(
@@ -134,9 +167,9 @@ describe("PlusFundFactory", function () {
   });
 
   it("rejects a zero-address proposer", async function () {
-    const { signers, factory } = await deployFixture();
+    const { signers, factory, governance } = await deployFixture();
     const config = {
-      ...buildConfig(signers),
+      ...buildConfig(signers, await governance.getAddress()),
       proposers: [ethers.ZeroAddress],
     };
 
@@ -146,7 +179,7 @@ describe("PlusFundFactory", function () {
   });
 
   it("rejects a non-UUPS implementation", async function () {
-    const { signers, factory } = await deployFixture();
+    const { signers, factory, rawFactory, governance } = await deployFixture();
     const TimelockController = await ethers.getContractFactory(
       "TimelockController",
     );
@@ -158,8 +191,23 @@ describe("PlusFundFactory", function () {
     );
     await invalidImplementation.waitForDeployment();
 
+    const data = rawFactory.interface.encodeFunctionData("setImplementation", [
+      await invalidImplementation.getAddress(),
+    ]);
     await expect(
-      factory.setImplementation(await invalidImplementation.getAddress()),
-    ).to.be.revertedWithCustomError(factory, "InvalidImplementation");
+      governance.execute(await rawFactory.getAddress(), data),
+    ).to.be.revertedWithCustomError(rawFactory, "InvalidImplementation");
+  });
+
+  it("rejects EOA governance addresses without requiring Safe specifically", async function () {
+    const { signers, factory, governance } = await deployFixture();
+    const config = {
+      ...buildConfig(signers, await governance.getAddress()),
+      stokenAdmin: signers[1].address,
+    };
+
+    await expect(
+      factory.deployToken(config, ethers.id("eoa-governance")),
+    ).to.be.revertedWithCustomError(factory, "InvalidGovernanceAddress");
   });
 });

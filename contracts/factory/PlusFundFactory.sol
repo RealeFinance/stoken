@@ -88,12 +88,21 @@ contract PlusFundFactory is AccessControl {
     error ProductAlreadyExists(bytes32 productId);
     error InvalidProductId();
     error InvalidConfiguration();
+    error InvalidGovernanceAddress(address account);
     error InvalidBatchSize();
 
-    constructor(address implementation_) {
+    constructor(
+        address implementation_,
+        address factoryAdmin_,
+        address operator_
+    ) {
+        if (factoryAdmin_ == address(0) || operator_ == address(0)) {
+            revert ZeroAddress();
+        }
+        _requireContract(factoryAdmin_);
         _setImplementation(implementation_);
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(DEPLOYER_ROLE, msg.sender);
+        _grantRole(DEFAULT_ADMIN_ROLE, factoryAdmin_);
+        _grantRole(DEPLOYER_ROLE, operator_);
     }
 
     function setImplementation(address newImplementation)
@@ -173,6 +182,13 @@ contract PlusFundFactory is AccessControl {
 
         for (uint256 i = 0; i < config.proposers.length; i++) {
             if (config.proposers[i] == address(0)) revert ZeroAddress();
+            _requireContract(config.proposers[i]);
+        }
+
+        _requireContract(config.stokenAdmin);
+        for (uint256 i = 0; i < config.cancellers.length; i++) {
+            if (config.cancellers[i] == address(0)) revert ZeroAddress();
+            _requireContract(config.cancellers[i]);
         }
 
         bytes memory initData = abi.encodeWithSelector(
@@ -232,7 +248,6 @@ contract PlusFundFactory is AccessControl {
 
         bytes32 cancellerRole = newTimelock.CANCELLER_ROLE();
         for (uint256 i = 0; i < config.cancellers.length; i++) {
-            if (config.cancellers[i] == address(0)) revert ZeroAddress();
             newTimelock.grantRole(cancellerRole, config.cancellers[i]);
         }
 
@@ -272,6 +287,12 @@ contract PlusFundFactory is AccessControl {
         address previousImplementation = implementation;
         implementation = newImplementation;
         emit ImplementationUpdated(previousImplementation, newImplementation);
+    }
+
+    function _requireContract(address account) internal view {
+        if (account.code.length == 0) {
+            revert InvalidGovernanceAddress(account);
+        }
     }
 
     function _computeCreate2Address(bytes32 salt, bytes32 initCodeHash)
